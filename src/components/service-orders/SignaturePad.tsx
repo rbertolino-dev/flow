@@ -128,7 +128,7 @@ export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(
           />
           {!hasInk && (
             <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-              Assine acima
+              Assine aqui
             </span>
           )}
         </div>

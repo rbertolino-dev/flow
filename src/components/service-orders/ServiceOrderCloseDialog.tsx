@@ -123,6 +123,14 @@ async function uploadOrDataUrl(
   throw new Error(formatLeadAttachmentUploadError(error));
 }
 
+
+function toDateTimeLocal(value?: string | null): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return format(date, "yyyy-MM-dd'T'HH:mm");
+}
+
 export function ServiceOrderCloseDialog({
   open,
   onOpenChange,
@@ -151,20 +159,8 @@ export function ServiceOrderCloseDialog({
       return;
     }
     setSummary(order.execution_summary || '');
-    setStartDate(
-      order.execution_starts_at
-        ? format(new Date(order.execution_starts_at), "yyyy-MM-dd'T'HH:mm")
-        : order.starts_at
-          ? format(new Date(order.starts_at), "yyyy-MM-dd'T'HH:mm")
-          : ''
-    );
-    setEndDate(
-      order.execution_ends_at
-        ? format(new Date(order.execution_ends_at), "yyyy-MM-dd'T'HH:mm")
-        : order.ends_at
-          ? format(new Date(order.ends_at), "yyyy-MM-dd'T'HH:mm")
-          : ''
-    );
+    setStartDate(toDateTimeLocal(order.execution_starts_at || order.starts_at));
+    setEndDate(toDateTimeLocal(order.execution_ends_at || order.ends_at));
     setAttachments(order.close_attachments || []);
     setSignaturePreview(order.signature_url || '');
   }, [open, order]);
@@ -326,170 +322,230 @@ export function ServiceOrderCloseDialog({
       }}
     >
       <DialogContent
-        className={`${osDialogContentClass} sm:max-w-lg pb-[max(1rem,env(safe-area-inset-bottom))]`}
+        className={`${osDialogContentClass} gap-0 p-0 sm:h-[min(44rem,92dvh)] sm:max-w-lg sm:p-0 [&>div]:flex [&>div]:h-full [&>div]:min-h-0 [&>div]:flex-col [&>div]:!overflow-hidden [&>div]:!pr-0`}
         data-testid="os-close-dialog"
       >
-        <DialogHeader>
-          <DialogTitle className="text-center tracking-wide text-base sm:text-lg pr-6">
-            ENCERRAR ORDEM DE SERVIÇO
-          </DialogTitle>
-          <p className="text-center text-sm text-muted-foreground">
-            Ao encerrar, a etapa passa para Finalizado.
-          </p>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <div className="space-y-1">
-            <Label>Como foi a execução da ordem?</Label>
-            <Input
-              placeholder="Digite"
-              value={summary}
-              onChange={(e) => setSummary(e.target.value)}
-              data-testid="os-close-summary"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label>Confirmar duração da execução:</Label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <Input
-                type="datetime-local"
-                className="w-full min-w-0 text-base sm:text-sm"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-              <Input
-                type="datetime-local"
-                className="w-full min-w-0 text-base sm:text-sm"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
+        <div className="flex h-full min-h-0 flex-col bg-background">
+          <div className="shrink-0 border-b bg-background px-4 pb-3 pt-4 sm:px-6">
+            <div className="flex items-start gap-3 pr-8">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 text-left">
+                <DialogTitle className="text-left text-lg font-semibold tracking-tight">
+                  Encerrar ordem
+                </DialogTitle>
+                <p className="truncate text-sm text-muted-foreground">
+                  {order.code}
+                  {order.client_name ? ` · ${order.client_name}` : ''}
+                </p>
+                <span className="mt-1.5 inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                  A etapa passa para Finalizado
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Anexar arquivos ou fotos:</Label>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                className="flex-1 rounded-full min-h-11"
-                disabled={uploading || saving}
-                onClick={() => fileRef.current?.click()}
-              >
-                {uploading ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <Upload className="h-4 w-4 mr-1" />
-                )}
-                Subir os arquivos
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                className="flex-1 rounded-full min-h-11"
-                disabled={uploading || saving}
-                onClick={openCamera}
-              >
-                <Camera className="h-4 w-4 mr-1" />
-                Abrir Câmera
-              </Button>
-            </div>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*,.pdf,image/jpeg,image/png,image/webp"
-              multiple
-              className="hidden"
-              onChange={(e) => handleFiles(e.target.files)}
-            />
-
-            {cameraOpen && (
-              <div className="space-y-2 border rounded-lg p-2">
-                <video
-                  ref={videoRef}
-                  className="w-full rounded-md bg-black aspect-video"
-                  playsInline
-                  muted
-                />
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    className="flex-1"
-                    onClick={capturePhoto}
-                    disabled={uploading}
-                  >
-                    Capturar
-                  </Button>
-                  <Button type="button" variant="outline" onClick={stopCamera}>
-                    Cancelar
-                  </Button>
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-6">
+            <section className="space-y-3 rounded-2xl border bg-card p-3.5 shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <ClipboardList className="h-4 w-4" />
+                </span>
+                <div>
+                  <Label className="text-sm font-medium">Como foi a execução</Label>
+                  <p className="text-xs text-muted-foreground">Obrigatório</p>
                 </div>
               </div>
-            )}
-
-            {attachments.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {attachments.map((url) => (
-                  <div key={url.slice(0, 64)} className="relative group">
-                    {url.startsWith('data:application/pdf') || url.toLowerCase().endsWith('.pdf') ? (
-                      <div className="h-20 flex items-center justify-center border rounded-md text-xs bg-muted">
-                        PDF
-                      </div>
-                    ) : (
-                      <img
-                        src={url}
-                        alt="Anexo"
-                        className="h-20 w-full object-cover rounded-md border"
-                      />
-                    )}
-                    <button
-                      type="button"
-                      className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100"
-                      onClick={() => setAttachments((prev) => prev.filter((u) => u !== url))}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-lg bg-muted px-4 py-3 text-center font-semibold">
-            Valor da O.S.:{' '}
-            R${' '}
-            {(order.total || 0).toLocaleString('pt-BR', {
-              minimumFractionDigits: 2,
-            })}
-          </div>
-
-          <div className="space-y-1">
-            <Label>Assinatura:</Label>
-            <SignaturePad
-              ref={signatureRef}
-              height={150}
-              onChange={(dataUrl) => setSignaturePreview(dataUrl)}
-            />
-            {signaturePreview && (
-              <img
-                src={signaturePreview}
-                alt="Assinatura"
-                className="mt-2 h-16 object-contain border rounded bg-white"
+              <Textarea
+                placeholder="Descreva o que foi feito"
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
+                rows={4}
+                className="min-h-[104px] resize-none rounded-xl text-base sm:text-sm"
+                data-testid="os-close-summary"
               />
-            )}
+            </section>
+
+            <section className="space-y-3 rounded-2xl border bg-card p-3.5 shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Clock3 className="h-4 w-4" />
+                </span>
+                <div>
+                  <Label className="text-sm font-medium">Duração da execução</Label>
+                  <p className="text-xs text-muted-foreground">Início e fim do serviço</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Início</Label>
+                  <Input
+                    type="datetime-local"
+                    className="h-11 w-full min-w-0 rounded-xl text-base sm:text-sm"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    data-testid="os-close-start"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Fim</Label>
+                  <Input
+                    type="datetime-local"
+                    className="h-11 w-full min-w-0 rounded-xl text-base sm:text-sm"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    data-testid="os-close-end"
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-3 rounded-2xl border bg-card p-3.5 shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <ImagePlus className="h-4 w-4" />
+                </span>
+                <div>
+                  <Label className="text-sm font-medium">Fotos e arquivos</Label>
+                  <p className="text-xs text-muted-foreground">Opcional · até 8 MB</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-auto min-h-16 flex-col gap-1 rounded-xl py-3"
+                  disabled={uploading || saving}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  {uploading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Upload className="h-5 w-5" />
+                  )}
+                  <span className="text-xs font-medium">Enviar arquivo</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-auto min-h-16 flex-col gap-1 rounded-xl py-3"
+                  disabled={uploading || saving}
+                  onClick={openCamera}
+                >
+                  <Camera className="h-5 w-5" />
+                  <span className="text-xs font-medium">Abrir câmera</span>
+                </Button>
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*,.pdf,image/jpeg,image/png,image/webp"
+                multiple
+                className="hidden"
+                onChange={(e) => handleFiles(e.target.files)}
+              />
+
+              {cameraOpen && (
+                <div className="space-y-3 overflow-hidden rounded-2xl border bg-black/5 p-2">
+                  <video
+                    ref={videoRef}
+                    className="aspect-[4/3] w-full rounded-xl bg-black object-cover sm:aspect-video"
+                    playsInline
+                    muted
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      className="h-11 flex-1 rounded-xl"
+                      onClick={capturePhoto}
+                      disabled={uploading}
+                    >
+                      {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Capturar foto
+                    </Button>
+                    <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={stopCamera}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {attachments.length > 0 && (
+                <div className="grid grid-cols-3 gap-2">
+                  {attachments.map((url) => (
+                    <div key={url.slice(0, 80)} className="relative">
+                      {url.startsWith('data:application/pdf') || url.toLowerCase().endsWith('.pdf') ? (
+                        <div className="flex h-24 items-center justify-center rounded-xl border bg-muted text-xs font-medium">
+                          PDF
+                        </div>
+                      ) : (
+                        <img
+                          src={url}
+                          alt="Anexo"
+                          className="h-24 w-full rounded-xl border object-cover"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        aria-label="Remover anexo"
+                        className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white"
+                        onClick={() => setAttachments((prev) => prev.filter((u) => u !== url))}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <div className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-3.5 text-white shadow-sm">
+              <span className="text-sm font-medium text-emerald-50">Valor da ordem</span>
+              <span className="text-lg font-semibold tabular-nums">
+                {(order.total || 0).toLocaleString('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                })}
+              </span>
+            </div>
+
+            <section className="space-y-3 rounded-2xl border bg-card p-3.5 shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <PenLine className="h-4 w-4" />
+                </span>
+                <div>
+                  <Label className="text-sm font-medium">Assinatura</Label>
+                  <p className="text-xs text-muted-foreground">Use o dedo ou o mouse</p>
+                </div>
+              </div>
+              {signaturePreview.startsWith('http') && (
+                <img
+                  src={signaturePreview}
+                  alt="Assinatura já registrada"
+                  className="h-16 w-full rounded-xl border bg-white object-contain"
+                />
+              )}
+              <SignaturePad
+                ref={signatureRef}
+                height={160}
+                onChange={(dataUrl) => setSignaturePreview(dataUrl)}
+              />
+            </section>
           </div>
 
-          <Button
-            className="w-full rounded-full min-h-12 sticky bottom-0"
-            size="lg"
-            onClick={handleFinalize}
-            disabled={saving || uploading}
-            data-testid="os-close-finalize"
-          >
-            {(saving || uploading) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Finalizar
-          </Button>
+          <div className="shrink-0 border-t bg-background px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
+            <Button
+              className="h-12 w-full rounded-xl text-base"
+              onClick={handleFinalize}
+              disabled={saving || uploading}
+              data-testid="os-close-finalize"
+            >
+              {(saving || uploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Encerrar ordem
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
