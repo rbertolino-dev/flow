@@ -196,7 +196,7 @@ async function ensureStockSchema(client: any) {
   await client.queryArray(`
     ALTER TABLE pos_stock_movements
     ADD CONSTRAINT pos_stock_movements_movement_type_check
-    CHECK (movement_type IN ('sale', 'sale_cancel', 'adjustment', 'in', 'out', 'adjust'))
+    CHECK (movement_type IN ('sale', 'sale_cancel', 'adjustment', 'in', 'out', 'adjust', 'return'))
   `);
 }
 
@@ -388,9 +388,18 @@ serve(async (req) => {
     if (isMovementsEndpoint && req.method === 'GET') {
       try {
         const result = await client.queryObject(`
-          SELECT m.id, m.product_id, m.sale_id, m.movement_type, m.quantity_delta,
-                 m.stock_before, m.stock_after, m.notes, m.created_by, m.created_at,
-                 p.name AS product_name, s.sale_number::bigint AS sale_number
+          SELECT m.id::text AS id,
+                 m.product_id::text AS product_id,
+                 m.sale_id::text AS sale_id,
+                 m.movement_type,
+                 m.quantity_delta::float8 AS quantity_delta,
+                 m.stock_before::float8 AS stock_before,
+                 m.stock_after::float8 AS stock_after,
+                 m.notes,
+                 m.created_by::text AS created_by,
+                 m.created_at,
+                 p.name AS product_name,
+                 s.sale_number::text AS sale_number
           FROM pos_stock_movements m
           LEFT JOIN products p ON p.id = m.product_id
           LEFT JOIN pos_sales s ON s.id = m.sale_id

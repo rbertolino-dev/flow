@@ -95,6 +95,7 @@ function movementTypeLabel(type: string, saleNumber?: number | null) {
     adjustment: "Ajuste",
     sale: "Venda",
     sale_cancel: "Estorno de venda",
+    return: "Devolução",
   };
   const label = labels[type] || type;
   return saleNumber ? `${label} #${saleNumber}` : label;
@@ -200,11 +201,14 @@ export function StockModule() {
           "X-Organization-Id": activeOrgId,
         },
       });
-      const result = await response.json().catch(() => ({ data: [] }));
+      const result = await response.json().catch(() => ({ data: [] as StockMovement[], warning: "resposta inválida" }));
+      if (!response.ok || result.warning) {
+        console.error("Lançamentos indisponíveis:", result.warning || result.error);
+        return;
+      }
       setMovements((result.data || []) as StockMovement[]);
     } catch (error) {
       console.error(error);
-      setMovements([]);
     } finally {
       setMovementsLoading(false);
     }
