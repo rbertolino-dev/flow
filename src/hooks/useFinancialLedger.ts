@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { useToast } from '@/hooks/use-toast';
-import type {
-  FinanceDirection,
-  FinancialAccount,
-  FinancialCategory,
-  FinancialEntry,
+import {
+  paymentTimestamp,
+  todayIsoDate,
+  type FinanceDirection,
+  type FinancialAccount,
+  type FinancialCategory,
+  type FinancialEntry,
 } from '@/lib/finance';
 
 interface FinanceResult {
@@ -134,27 +136,49 @@ export function useFinancialLedger() {
     category: string;
     category_id: string;
     account: string;
+    lead_id: string;
+    payment_method?: string;
+    is_recurring?: boolean;
+    realized?: boolean;
+    attachment_name?: string;
   }) => {
     if (!activeOrgId) throw new Error('Organização não encontrada');
-    const { error } = await db().rpc('upsert_financial_entry', {
+    if (!input.lead_id) throw new Error('Vincule um contato do CRM');
+    const realized = Boolean(input.realized);
+    const { data, error } = await db().rpc('upsert_financial_entry', {
       p_organization_id: activeOrgId,
       p_direction: input.direction,
       p_amount: input.amount,
       p_due_date: input.due_date,
       p_source_type: 'manual',
       p_source_id: crypto.randomUUID(),
-      p_status: 'open',
+      p_status: realized ? 'paid' : 'open',
       p_settlement_status: 'confirmado',
+      p_lead_id: input.lead_id,
       p_description: input.description,
       p_contact_name: input.contact_name,
-      p_billing_name: input.billing_name || 'Sem contato',
+      p_billing_name: input.contact_name || 'Sem contato',
       p_category: input.category || null,
       p_account: input.account || null,
       p_origin_label: 'Normal',
+      p_paid_at: realized ? paymentTimestamp(todayIsoDate()) : null,
       p_competence_date: input.competence_date || input.due_date,
       p_category_id: input.category_id || null,
     });
     if (error) throw new Error(error.message);
+    const entryId = typeof data === 'string' ? data : null;
+    if (entryId) {
+      const extra = await db()
+        .from('financial_entries')
+        .update({
+          payment_method: input.payment_method || null,
+          is_recurring: Boolean(input.is_recurring),
+          attachment_name: input.attachment_name || null,
+        })
+        .eq('id', entryId)
+        .eq('organization_id', activeOrgId);
+      if (extra.error) throw new Error(extra.error.message);
+    }
     await reload();
   };
 

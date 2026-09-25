@@ -29,6 +29,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
+import { FinanceEntryDialog } from '@/components/finance/FinanceEntryDialog';
 import { useFinancialLedger } from '@/hooks/useFinancialLedger';
 import {
   entryBucket,
@@ -57,11 +58,11 @@ const CARD_STYLES = {
 
 export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
   const { toast } = useToast();
-  const { entries, accounts, categories, loading, createManual, setStatus } = useFinancialLedger();
+  const { entries, accounts, categories, loading, createManual, setStatus, saveCategory } = useFinancialLedger();
   const initialRange = monthRange();
   const [from, setFrom] = useState(initialRange.from);
   const [to, setTo] = useState(initialRange.to);
-  const [showPaid, setShowPaid] = useState(false);
+  const [showPaid, setShowPaid] = useState(true);
   const [searchDraft, setSearchDraft] = useState('');
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -71,16 +72,6 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
   const [saving, setSaving] = useState(false);
   const [payEntry, setPayEntry] = useState<FinancialEntry | null>(null);
   const [payDate, setPayDate] = useState(todayIsoDate());
-  const [form, setForm] = useState({
-    amount: '',
-    due_date: todayIsoDate(),
-    competence_date: todayIsoDate(),
-    description: '',
-    contact_name: '',
-    billing_name: '',
-    category_id: '',
-    account: '',
-  });
 
   const title = direction === 'receber' ? 'Contas a receber' : 'Contas a pagar';
   const paidLabel = direction === 'receber' ? 'Recebidas' : 'Pagas';
@@ -154,44 +145,6 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
     } finally {
       setSaving(false);
     }
-  };
-
-  const submitCreate = async () => {
-    const amount = Number(String(form.amount).replace(',', '.'));
-    if (!amount || amount <= 0) {
-      toast({ title: 'Informe o valor', variant: 'destructive' });
-      return;
-    }
-    if (!form.due_date) {
-      toast({ title: 'Informe a data prevista', variant: 'destructive' });
-      return;
-    }
-    const selectedCategory = categories.find((category) => category.id === form.category_id);
-    await runAction(async () => {
-      await createManual({
-        direction,
-        amount,
-        due_date: form.due_date,
-        competence_date: form.competence_date || form.due_date,
-        description: form.description.trim() || title,
-        contact_name: form.contact_name.trim(),
-        billing_name: form.billing_name.trim() || 'Sem contato',
-        category: selectedCategory?.name || '',
-        category_id: form.category_id,
-        account: form.account,
-      });
-      setCreateOpen(false);
-      setForm({
-        amount: '',
-        due_date: todayIsoDate(),
-        competence_date: todayIsoDate(),
-        description: '',
-        contact_name: '',
-        billing_name: '',
-        category_id: '',
-        account: '',
-      });
-    }, 'Lançamento criado');
   };
 
   return (
@@ -365,82 +318,43 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{direction === 'receber' ? 'Criar conta a receber' : 'Criar conta a pagar'}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-3">
-            <div>
-              <Label>Valor</Label>
-              <Input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0,00" />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <Label>Data prevista</Label>
-                <Input
-                  type="date"
-                  value={form.due_date}
-                  onChange={(e) => {
-                    const dueDate = e.target.value;
-                    setForm((current) => ({
-                      ...current,
-                      due_date: dueDate,
-                      competence_date: current.competence_date === current.due_date ? dueDate : current.competence_date,
-                    }));
-                  }}
-                />
-              </div>
-              <div>
-                <Label>Data de competência</Label>
-                <Input type="date" value={form.competence_date} onChange={(e) => setForm({ ...form, competence_date: e.target.value })} />
-              </div>
-            </div>
-            <div>
-              <Label>{direction === 'receber' ? 'Cliente' : 'Contato/Empresa'}</Label>
-              <Input value={form.contact_name} onChange={(e) => setForm({ ...form, contact_name: e.target.value })} />
-            </div>
-            {direction === 'receber' && (
-              <div>
-                <Label>Faturamento</Label>
-                <Input value={form.billing_name} onChange={(e) => setForm({ ...form, billing_name: e.target.value })} placeholder="Sem contato" />
-              </div>
-            )}
-            <div>
-              <Label>Descrição</Label>
-              <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-            </div>
-            <div>
-              <Label>Categoria</Label>
-              <Select value={form.category_id || 'none'} onValueChange={(value) => setForm({ ...form, category_id: value === 'none' ? '' : value })}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sem categoria</SelectItem>
-                  {categoryOptions.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Conta</Label>
-              <Select value={form.account || 'none'} onValueChange={(value) => setForm({ ...form, account: value === 'none' ? '' : value })}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sem conta</SelectItem>
-                  {accounts.map((account) => (
-                    <SelectItem key={account.id} value={account.name}>{account.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
-            <Button type="button" onClick={() => void submitCreate()} disabled={saving}>Salvar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <FinanceEntryDialog
+        open={createOpen}
+        direction={direction}
+        saving={saving}
+        accounts={accounts}
+        categories={categories}
+        onOpenChange={setCreateOpen}
+        onCreateCategory={async (name) => {
+          await saveCategory({
+            name,
+            direction,
+            dre_class: direction === 'receber' ? 'receita_vendas' : 'despesa_operacional',
+          });
+        }}
+        onSubmit={async (draft) => {
+          await runAction(async () => {
+            await createManual({
+              direction,
+              amount: draft.amount,
+              due_date: draft.due_date,
+              competence_date: draft.competence_date,
+              description: draft.description,
+              contact_name: draft.contact_name,
+              billing_name: draft.contact_name,
+              category: draft.category,
+              category_id: draft.category_id,
+              account: draft.account,
+              lead_id: draft.lead_id,
+              payment_method: draft.payment_method,
+              is_recurring: draft.is_recurring,
+              realized: draft.realized,
+              attachment_name: draft.attachment_name,
+            });
+            setCreateOpen(false);
+          }, 'Lançamento criado');
+        }}
+      />
       <Dialog open={!!payEntry} onOpenChange={(open) => { if (!open) setPayEntry(null); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Data de pagamento</DialogTitle></DialogHeader>
