@@ -24,7 +24,11 @@ function calcTotals(items: ServiceOrderItem[]) {
   return { subtotal, discount: 0, total: subtotal };
 }
 
-export function useServiceOrders(filters?: ServiceOrderFilters) {
+export function useServiceOrders(
+  filters?: ServiceOrderFilters,
+  options?: { enabled?: boolean }
+) {
+  const enabled = options?.enabled !== false;
   const { activeOrgId } = useActiveOrganization();
   const { toast } = useToast();
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
@@ -128,8 +132,12 @@ export function useServiceOrders(filters?: ServiceOrderFilters) {
   }, [activeOrgId, filters, toast]);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     fetchOrders();
-  }, [fetchOrders]);
+  }, [fetchOrders, enabled]);
 
   const createOrder = async (form: ServiceOrderFormData): Promise<ServiceOrder | null> => {
     if (!activeOrgId) return null;

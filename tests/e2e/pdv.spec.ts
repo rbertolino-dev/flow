@@ -633,6 +633,87 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     }
   });
 
+  test("PDV — venda finalizada e ordem de serviço do serviço vendido @human-behavior @pdv", async ({
+    page,
+  }) => {
+    const human = new HumanBehavior(page);
+    const orgId = process.env.E2E_ORG_ID?.trim();
+    if (orgId) {
+      await page.addInitScript((id) => {
+        localStorage.setItem("active_organization_id", id);
+      }, orgId);
+    }
+
+    await human.humanNavigate("/pdv");
+    if (page.url().includes("/login")) {
+      test.skip(true, "Sessão E2E inválida");
+    }
+
+    await expect(page.getByRole("heading", { name: /^resumo$/i })).toBeVisible({ timeout: 45_000 });
+
+    const productBtn = page.locator("ul.divide-y li button").filter({ hasText: /fanta laranja/i }).first();
+    await expect(productBtn).toBeVisible({ timeout: 20_000 });
+    await human.humanClick(productBtn);
+    await human.humanClick(page.getByRole("combobox").filter({ hasText: /adicione uma ou mais formas/i }));
+    await human.humanClick(page.getByRole("option", { name: /^pix$/i }));
+    await expect(page.getByPlaceholder("Buscar cliente da organização...")).toHaveValue(
+      /cliente cenários pdv/i,
+      { timeout: 15_000 }
+    );
+
+    const finalize = page.getByRole("button", { name: "Finalizar F12", exact: true });
+    await finalize.scrollIntoViewIfNeeded();
+    await human.hesitate(300, 600);
+    await human.humanClick(finalize);
+    const confirm = page.getByRole("dialog").filter({ hasText: /confirmar venda/i });
+    await expect(confirm).toBeVisible({ timeout: 15_000 });
+    await human.humanClick(confirm.getByRole("button", { name: /^confirmar$/i }));
+
+    const success = page.getByRole("dialog").filter({ hasText: /venda finalizada/i });
+    await expect(success).toBeVisible({ timeout: 30_000 });
+    await expect(success.getByRole("heading", { name: /itens/i })).toBeVisible();
+    await expect(success.getByRole("heading", { name: /pagamento/i })).toBeVisible();
+    await expect(success.getByRole("button", { name: /imprimir cupom/i })).toBeVisible();
+    await expect(success.getByRole("button", { name: /imprimir comprovante a4/i })).toBeVisible();
+    await expect(success.getByRole("button", { name: /ordem de serviço/i })).toHaveCount(0);
+
+    await human.humanClick(success.getByRole("button", { name: /nova venda/i }));
+    await human.humanClick(page.getByRole("tab", { name: /serviços/i }));
+    const serviceBtn = page.locator('[role="tabpanel"] ul.divide-y li button').first();
+    const emptyServices = page.getByText(/nenhum serviço encontrado/i);
+    await expect(serviceBtn.or(emptyServices)).toBeVisible({ timeout: 20_000 });
+    if (await emptyServices.isVisible().catch(() => false)) {
+      test.skip(true, "Organização sem serviços ativos");
+    }
+
+    const serviceName = ((await serviceBtn.locator("p").first().textContent()) || "").trim();
+    expect(serviceName.length).toBeGreaterThan(0);
+    await human.humanClick(serviceBtn);
+    await human.humanClick(page.getByRole("combobox").filter({ hasText: /adicione uma ou mais formas/i }));
+    await human.humanClick(page.getByRole("option", { name: /^pix$/i }));
+    await finalize.scrollIntoViewIfNeeded();
+    await human.hesitate(300, 600);
+    await human.humanClick(finalize);
+    const confirmService = page.getByRole("dialog").filter({ hasText: /confirmar venda/i });
+    await expect(confirmService).toBeVisible({ timeout: 15_000 });
+    await human.humanClick(confirmService.getByRole("button", { name: /^confirmar$/i }));
+
+    const successService = page.getByRole("dialog").filter({ hasText: /venda finalizada/i });
+    await expect(successService).toBeVisible({ timeout: 30_000 });
+    await expect(successService.getByText(serviceName).first()).toBeVisible();
+    const osButton = successService.getByRole("button", { name: /^ordem de serviço$/i });
+    await expect(osButton).toBeVisible();
+    await human.hesitate(400, 700);
+    await human.humanClick(osButton);
+
+    const osDialog = page.getByTestId("os-detail-dialog");
+    await expect(osDialog).toBeVisible({ timeout: 25_000 });
+    await expect(osDialog.getByRole("heading", { name: /^ORDEM \d+/ })).toBeVisible();
+    await human.humanClick(osDialog.getByRole("tab", { name: /^vendas$/i }));
+    await expect(osDialog.getByText(new RegExp(serviceName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"))).toBeVisible();
+    await expect(osDialog.getByText(/nenhum produto\/serviço vinculado/i)).toHaveCount(0);
+  });
+
   test("PDV — acessibilidade básica @accessibility @pdv", async ({ page }) => {
     const human = new HumanBehavior(page);
     await human.humanNavigate("/pdv");

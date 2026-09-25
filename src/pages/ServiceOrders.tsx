@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { CRMLayout } from '@/components/crm/CRMLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -104,6 +105,51 @@ export default function ServiceOrders() {
 
   const { toast } = useToast();
   const { activeOrganization, activeOrgId } = useActiveOrganization();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const openOrderId = (location.state as { openOrderId?: string } | null)?.openOrderId;
+    if (!openOrderId || !activeOrgId) return;
+    let cancelled = false;
+    void (async () => {
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { data, error } = await supabase
+        .from('service_orders')
+        .select(
+          `
+          *,
+          status:service_order_statuses(*),
+          template:service_order_templates(
+            id, name, is_default,
+            fields:service_order_template_fields(*)
+          ),
+          lead:leads(id, name, phone, email, company),
+          items:service_order_items(*),
+          checklist:service_order_checklist_items(*)
+        `
+        )
+        .eq('id', openOrderId)
+        .eq('organization_id', activeOrgId)
+        .maybeSingle();
+      if (cancelled || error || !data) {
+        if (error) {
+          toast({
+            title: 'Erro',
+            description: 'Não foi possível abrir a ordem de serviço.',
+            variant: 'destructive',
+          });
+        }
+        return;
+      }
+      setSelectedOrder(data as ServiceOrder);
+      setShowDetail(true);
+      navigate('/service-orders', { replace: true, state: null });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [location.state, activeOrgId, navigate, toast]);
 
   const filters = useMemo(
     () => ({

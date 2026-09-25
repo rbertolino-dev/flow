@@ -136,6 +136,7 @@ export default function Pos() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const [lastSale, setLastSale] = useState<FinalizeSaleResult | null>(null);
+  const [lastSaleLeadId, setLastSaleLeadId] = useState<string | null>(null);
   const [lastSaleItems, setLastSaleItems] = useState<PosCartItem[]>([]);
   const [lastSalePayments, setLastSalePayments] = useState<PosPaymentLine[]>([]);
   const [nextSaleNumberHint, setNextSaleNumberHint] = useState<string>("—");
@@ -772,6 +773,7 @@ export default function Pos() {
       });
 
       setConfirmOpen(false);
+      setLastSaleLeadId(selectedLead?.id || null);
       setLastSale({
         ...result,
         customer_name: selectedLead?.name || result.customer_name || null,
@@ -1444,9 +1446,11 @@ export default function Pos() {
         payments={lastSalePayments}
         organizationName={orgPrintInfo.name || activeOrganization?.name}
         organization={orgPrintInfo}
+        leadId={lastSaleLeadId}
         onNewSale={() => {
           setSuccessOpen(false);
           setLastSale(null);
+          setLastSaleLeadId(null);
           resetSale();
         }}
       />
