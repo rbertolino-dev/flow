@@ -11,6 +11,8 @@ export interface Product {
   barcode?: string | null;
   stock_quantity?: number | null;
   min_stock?: number | null;
+  ideal_stock?: number | null;
+  brand?: string | null;
   unit?: string | null; // Unidade de medida (ex: un, kg, m, m², etc.)
   image_url?: string | null;
   is_active: boolean;
@@ -34,6 +36,8 @@ export interface ProductFormData {
   barcode?: string | null;
   stock_quantity?: number | null;
   min_stock?: number | null;
+  ideal_stock?: number | null;
+  brand?: string | null;
   unit?: string | null; // Unidade de medida (ex: un, kg, m, m², etc.)
   image_url?: string | null;
   is_active: boolean;

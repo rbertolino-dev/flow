@@ -22,6 +22,8 @@ interface Product {
   is_active: boolean;
   stock_quantity?: number | null;
   min_stock?: number | null;
+  ideal_stock?: number | null;
+  brand?: string | null;
   unit?: string | null;
   image_url?: string | null;
   commission_percentage?: number | null;
@@ -275,6 +277,126 @@ serve(async (req) => {
     const pathParts = url.pathname.split('/').filter(p => p);
     const productId = pathParts[pathParts.length - 1];
     const isBulkEndpoint = pathParts[pathParts.length - 1] === 'bulk';
+    const isMovementsEndpoint = pathParts[pathParts.length - 1] === 'movements';
+
+    try {
+      await client.queryObject(`
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS ideal_stock NUMERIC(12,3);
+      `);
+      await client.queryObject(`
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS brand TEXT;
+      `);
+    } catch (alterError) {
+      console.warn('Colunas de estoque não ajustadas:', alterError);
+    }
+
+    if (isMovementsEndpoint && req.method === 'GET') {
+      try {
+        const result = await client.queryObject(`
+          SELECT m.id, m.product_id, m.sale_id, m.movement_type, m.quantity_delta,
+                 m.stock_before, m.stock_after, m.notes, m.created_at, p.name AS product_name
+          FROM pos_stock_movements m
+          LEFT JOIN products p ON p.id = m.product_id
+          WHERE m.organization_id = $1
+          ORDER BY m.created_at DESC
+          LIMIT 300
+        `, [organizationId]);
+        return new Response(
+          JSON.stringify({ data: result.rows }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (movementError: any) {
+        console.warn('Movimentações indisponíveis:', movementError);
+        return new Response(
+          JSON.stringify({ data: [], warning: movementError?.message || 'Movimentações indisponíveis' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } finally {
+        await client.end();
+      }
+    }
+
+    if (isMovementsEndpoint && req.method === 'POST') {
+      if (!permissions.canWrite) {
+        await client.end();
+        return new Response(
+          JSON.stringify({ error: 'Sem permissão para lançar estoque' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      try {
+        const body = await req.json();
+        const productIdBody = String(body.product_id || '');
+        const kind = body.kind === 'out' || body.kind === 'adjust' ? body.kind : 'in';
+        const amount = Number(body.quantity);
+        if (!productIdBody || !Number.isFinite(amount) || amount < 0) {
+          return new Response(
+            JSON.stringify({ error: 'Informe o produto e uma quantidade válida' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const stockRow = await client.queryObject<{ stock_quantity: number | null; name: string }>(
+          `SELECT stock_quantity, name FROM products WHERE id = $1 AND organization_id = $2`,
+          [productIdBody, organizationId]
+        );
+        if (!stockRow.rows.length) {
+          return new Response(
+            JSON.stringify({ error: 'Produto não encontrado' }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const before = Number(stockRow.rows[0].stock_quantity ?? 0);
+        let after = before;
+        let delta = 0;
+        if (kind === 'in') {
+          delta = amount;
+          after = before + amount;
+        } else if (kind === 'out') {
+          delta = -amount;
+          after = before - amount;
+        } else {
+          after = amount;
+          delta = amount - before;
+        }
+
+        await client.queryObject(
+          `UPDATE products SET stock_quantity = $1, updated_at = now() WHERE id = $2 AND organization_id = $3`,
+          [after, productIdBody, organizationId]
+        );
+
+        const notePrefix = kind === 'in' ? 'Entrada' : kind === 'out' ? 'Saída' : 'Ajuste';
+        const notes = [notePrefix, body.notes].filter(Boolean).join(' — ');
+        try {
+          await client.queryObject(
+            `INSERT INTO pos_stock_movements (
+               organization_id, product_id, movement_type, quantity_delta,
+               stock_before, stock_after, notes, created_by
+             ) VALUES ($1, $2, 'adjustment', $3, $4, $5, $6, $7)`,
+            [organizationId, productIdBody, delta, before, after, notes || null, user.id]
+          );
+        } catch (insertMovementError) {
+          console.warn('Estoque atualizado sem histórico:', insertMovementError);
+        }
+
+        return new Response(
+          JSON.stringify({
+            data: {
+              product_id: productIdBody,
+              product_name: stockRow.rows[0].name,
+              stock_before: before,
+              stock_after: after,
+              quantity_delta: delta,
+            },
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } finally {
+        await client.end();
+      }
+    }
     const search = url.searchParams.get('search');
     const category = url.searchParams.get('category');
     const isActive = url.searchParams.get('is_active');
@@ -374,6 +496,8 @@ serve(async (req) => {
           is_active,
           stock_quantity,
           min_stock,
+          ideal_stock,
+          brand,
           unit,
           image_url,
           commission_percentage,
@@ -429,6 +553,8 @@ serve(async (req) => {
             is_active,
             stock_quantity,
             min_stock,
+            ideal_stock,
+            brand,
             unit,
             image_url,
             commission_percentage,
@@ -436,7 +562,7 @@ serve(async (req) => {
             created_by,
             created_by_name
           ) VALUES (
-            $1, $2, $3, $4, $5, $18, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+            $1, $2, $3, $4, $5, $20, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
           ) RETURNING *
         `;
 
@@ -452,6 +578,8 @@ serve(async (req) => {
           is_active !== undefined ? is_active : true,
           stock_quantity || null,
           min_stock || null,
+          ideal_stock ?? null,
+          brand || null,
           unit || null,
           image_url || null,
           commission_percentage || null,
@@ -539,7 +667,7 @@ serve(async (req) => {
 
         const allowedFields = [
           'name', 'description', 'sku', 'barcode', 'price', 'cost', 'category',
-          'is_active', 'stock_quantity', 'min_stock', 'unit', 'image_url',
+          'is_active', 'stock_quantity', 'min_stock', 'ideal_stock', 'brand', 'unit', 'image_url',
           'commission_percentage', 'commission_fixed'
         ];
 

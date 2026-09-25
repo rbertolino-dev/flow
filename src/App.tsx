@@ -55,6 +55,7 @@ const BudgetsModule = lazy(() => import("./pages/BudgetsModule"));
 const SignContract = lazy(() => import("./pages/SignContract"));
 const Budgets = lazy(() => import("./pages/Budgets"));
 const Pos = lazy(() => import("./pages/Pos"));
+const Estoque = lazy(() => import("./pages/Estoque"));
 const PosSalesHistory = lazy(() => import("./pages/PosSalesHistory"));
 const PosSettings = lazy(() => import("./pages/PosSettings"));
 const ServiceOrders = lazy(() => import("./pages/ServiceOrders"));
@@ -186,6 +187,7 @@ const App = () => {
                 <Route path="/contracts/new-safe-v2" element={<ContractsNewSafe />} />
                 <Route path="/budgets" element={<Budgets />} />
                 <Route path="/pdv" element={<Pos />} />
+                <Route path="/estoque" element={<Estoque />} />
                 <Route path="/pdv/historico" element={<PosSalesHistory />} />
                 <Route path="/pdv/configuracoes" element={<PosSettings />} />
                 <Route path="/service-orders" element={<ServiceOrders />} />

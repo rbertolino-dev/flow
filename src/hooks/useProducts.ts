@@ -84,6 +84,8 @@ export function useProducts(options?: { enabled?: boolean }) {
         barcode: item.barcode,
         stock_quantity: item.stock_quantity,
         min_stock: item.min_stock,
+        ideal_stock: item.ideal_stock,
+        brand: item.brand,
         unit: item.unit,
         image_url: item.image_url,
         is_active: item.is_active,

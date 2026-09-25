@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +42,7 @@ import { useToast } from "@/hooks/use-toast";
 const BUCKET_ID = "whatsapp-workflow-media";
 
 export function ProductsManagement() {
+  const navigate = useNavigate();
   const { activeOrgId } = useActiveOrganization();
   const {
     products,
@@ -244,7 +246,12 @@ export function ProductsManagement() {
             Gerencie os produtos e serviços que podem ser vinculados aos leads
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => navigate("/estoque")}>
+            <Package className="h-4 w-4 mr-2" />
+            Módulo de Estoque
+          </Button>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => handleOpenDialog()}>
               <Plus className="h-4 w-4 mr-2" />
@@ -540,6 +547,7 @@ export function ProductsManagement() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Filtros */}
