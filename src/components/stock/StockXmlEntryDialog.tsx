@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { UserPlus } from "lucide-react";
+import { Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,8 +21,10 @@ import {
 } from "@/lib/nfeXml";
 
 interface XmlLine extends NfeItem {
+  key: string;
   quantityInput: string;
   productId: string;
+  linkedName: string;
   search: string;
   editingUnit: boolean;
   posted: boolean;
@@ -34,7 +36,8 @@ interface StockXmlEntryDialogProps {
   products: Product[];
   posting: boolean;
   onPostEntry: (entry: { productId: string; quantity: number; notes: string }) => Promise<void>;
-  onPosted: (invoice: NfeInvoice, supplierName: string) => void;
+  onPosted: (invoice: NfeInvoice, supplierName: string, amount?: number) => void;
+  onCatalogChanged?: () => void;
 }
 
 export function StockXmlEntryDialog({
@@ -44,16 +47,18 @@ export function StockXmlEntryDialog({
   posting,
   onPostEntry,
   onPosted,
+  onCatalogChanged,
 }: StockXmlEntryDialogProps) {
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
+  const creatingRef = useRef(false);
   const [fileName, setFileName] = useState("");
   const [fileText, setFileText] = useState("");
   const [invoice, setInvoice] = useState<NfeInvoice | null>(null);
   const [supplierName, setSupplierName] = useState("");
   const [lines, setLines] = useState<XmlLine[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
-  const [createIndex, setCreateIndex] = useState<number | null>(null);
+  const [createKey, setCreateKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ name: string; sku: string; unit: string; cost: string } | null>(null);
 
   const reset = () => {
@@ -63,7 +68,8 @@ export function StockXmlEntryDialog({
     setSupplierName("");
     setLines([]);
     setCreateOpen(false);
-    setCreateIndex(null);
+    setCreateKey(null);
+    creatingRef.current = false;
     setDraft(null);
     if (fileRef.current) fileRef.current.value = "";
   };
@@ -88,24 +94,39 @@ export function StockXmlEntryDialog({
     }
     setInvoice(parsed);
     setSupplierName(parsed.supplierName);
-    setLines(parsed.items.map((item) => ({
-      ...item,
-      quantityInput: formatNfeQuantity(item.quantity),
-      productId: findProductByName(products, item.name)?.id || "",
-      search: "",
-      editingUnit: false,
-      posted: false,
-    })));
+    setLines(parsed.items.map((item, index) => {
+      const match = findProductByName(products, item.name);
+      return {
+        ...item,
+        key: `${item.index}-${item.code}-${index}`,
+        quantityInput: formatNfeQuantity(item.quantity),
+        productId: match?.id || "",
+        linkedName: match?.name || "",
+        search: "",
+        editingUnit: false,
+        posted: false,
+      };
+    }));
   };
 
-  const updateLine = (index: number, patch: Partial<XmlLine>) => {
-    setLines((current) => current.map((line, lineIndex) => (lineIndex === index ? { ...line, ...patch } : line)));
+  const updateLine = (key: string, patch: Partial<XmlLine>) => {
+    setLines((current) => current.map((line) => (line.key === key ? { ...line, ...patch } : line)));
   };
 
-  const openCreate = (index: number) => {
-    const line = lines[index];
-    if (!line) return;
-    setCreateIndex(index);
+  const removeLine = (key: string) => {
+    setLines((current) => current.filter((line) => line.key !== key));
+    if (createKey === key) {
+      creatingRef.current = false;
+      setCreateOpen(false);
+      setCreateKey(null);
+    }
+  };
+
+  const openCreate = (key: string) => {
+    const line = lines.find((item) => item.key === key);
+    if (!line || line.posted) return;
+    creatingRef.current = true;
+    setCreateKey(key);
     setDraft({
       name: line.name,
       sku: line.code,
@@ -117,6 +138,10 @@ export function StockXmlEntryDialog({
 
   const finalize = async () => {
     if (!invoice) return;
+    if (!lines.length) {
+      toast({ title: "Nenhum item", description: "Deixe pelo menos um produto da nota para lançar.", variant: "destructive" });
+      return;
+    }
     const pending = lines.filter((line) => !line.posted);
     if (pending.some((line) => !line.productId)) {
       toast({
@@ -127,8 +152,7 @@ export function StockXmlEntryDialog({
       return;
     }
     const notes = `NF ${invoice.number || "s/n"} — ${supplierName.trim() || "Fornecedor"}`;
-    for (let index = 0; index < lines.length; index += 1) {
-      const line = lines[index];
+    for (const line of lines) {
       if (line.posted) continue;
       const quantity = parseXmlQuantity(line.quantityInput);
       if (!Number.isFinite(quantity) || quantity <= 0) {
@@ -145,10 +169,22 @@ export function StockXmlEntryDialog({
         });
         return;
       }
-      updateLine(index, { posted: true });
+      updateLine(line.key, { posted: true });
     }
-    onPosted(invoice, supplierName.trim());
+    const removedSome = lines.length < invoice.items.length;
+    const keptAmount = lines.reduce((sum, line) => {
+      const quantity = parseXmlQuantity(line.quantityInput);
+      if (Number.isFinite(quantity) && quantity > 0 && line.unitPrice > 0) return sum + quantity * line.unitPrice;
+      return sum + line.subtotal;
+    }, 0);
+    onPosted(invoice, supplierName.trim(), removedSome ? keptAmount : undefined);
     reset();
+  };
+
+  const closeXml = (next: boolean) => {
+    if (!next && (creatingRef.current || createOpen || posting)) return;
+    if (!next) reset();
+    onOpenChange(next);
   };
 
   const matches = (query: string) => {
@@ -159,11 +195,12 @@ export function StockXmlEntryDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(next) => { if (!next && !posting) { reset(); onOpenChange(false); } else onOpenChange(next); }}>
+      <Dialog open={open} modal={!createOpen} onOpenChange={closeXml}>
         <DialogContent
           className="max-h-[92vh] overflow-y-auto sm:max-w-4xl"
-          onPointerDownOutside={(event) => { if (createOpen || posting) event.preventDefault(); }}
-          onInteractOutside={(event) => { if (createOpen || posting) event.preventDefault(); }}
+          onPointerDownOutside={(event) => { if (creatingRef.current || createOpen || posting) event.preventDefault(); }}
+          onInteractOutside={(event) => { if (creatingRef.current || createOpen || posting) event.preventDefault(); }}
+          onFocusOutside={(event) => { if (creatingRef.current || createOpen || posting) event.preventDefault(); }}
         >
           <DialogHeader>
             <DialogTitle className="text-3xl font-semibold text-slate-700">Dar entrada em produtos usando XML</DialogTitle>
@@ -217,13 +254,17 @@ export function StockXmlEntryDialog({
 
           <div className="space-y-3">
             <p className="font-semibold text-slate-800">
-              4. Confira os itens. Produtos com o mesmo nome já existente no estoque são vinculados sozinhos. Se não encontrar, busque ou cadastre.
+              4. Confira os itens. Tire os que não quer lançar. Produtos com o mesmo nome já existente no estoque são vinculados sozinhos. Se não encontrar, busque ou cadastre.
             </p>
-            {lines.map((line, index) => {
+            {!lines.length && invoice && (
+              <p className="text-sm text-slate-500">Nenhum item selecionado. Abra o XML de novo se quiser ver a nota inteira.</p>
+            )}
+            {lines.map((line) => {
               const selected = products.find((product) => product.id === line.productId);
+              const linkedName = line.linkedName || selected?.name || "";
               const options = matches(line.search);
               return (
-                <div key={`${line.code}-${line.index}`} className="grid gap-4 rounded-md border p-4 md:grid-cols-2">
+                <div key={line.key} className="grid gap-4 rounded-md border p-4 md:grid-cols-2">
                   <div className="space-y-1 text-sm">
                     <Info label="Nome" value={line.name} />
                     <Info label="Código" value={line.code || "—"} />
@@ -232,7 +273,7 @@ export function StockXmlEntryDialog({
                     {line.editingUnit && (
                       <Input
                         value={line.unit}
-                        onChange={(event) => updateLine(index, { unit: event.target.value })}
+                        onChange={(event) => updateLine(line.key, { unit: event.target.value })}
                         className="max-w-[140px]"
                       />
                     )}
@@ -240,44 +281,66 @@ export function StockXmlEntryDialog({
                       <span className="w-28 font-semibold">Quantidade</span>
                       <Input
                         value={line.quantityInput}
-                        onChange={(event) => updateLine(index, { quantityInput: event.target.value })}
+                        onChange={(event) => updateLine(line.key, { quantityInput: event.target.value })}
                         className="max-w-[140px]"
                         disabled={line.posted}
                       />
                     </div>
                     <Info label="Valor Unitário" value={formatNfeMoney(line.unitPrice)} />
                     <Info label="Subtotal" value={formatNfeMoney(line.subtotal)} />
-                    <Button type="button" variant="secondary" className="mt-2" onClick={() => updateLine(index, { editingUnit: !line.editingUnit })}>
-                      Alterar Medida
-                    </Button>
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      <Button type="button" variant="secondary" onClick={() => updateLine(line.key, { editingUnit: !line.editingUnit })}>
+                        Alterar Medida
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => removeLine(line.key)} disabled={line.posted}>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Não lançar
+                      </Button>
+                    </div>
                   </div>
                   <div className="space-y-3">
-                    <div className="relative">
-                      <Input
-                        placeholder="Buscar produto"
-                        value={line.productId ? selected?.name || line.search : line.search}
-                        onChange={(event) => updateLine(index, { search: event.target.value, productId: "" })}
-                        disabled={line.posted}
-                      />
-                      {!!options.length && !line.productId && (
-                        <div className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-md border bg-white shadow">
-                          {options.map((product) => (
-                            <button
-                              key={product.id}
-                              type="button"
-                              className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
-                              onClick={() => updateLine(index, { productId: product.id, search: product.name })}
-                            >
-                              {product.name}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    {line.productId ? (
+                      <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm">
+                        <p className="font-semibold text-emerald-800">Produto vinculado</p>
+                        <p className="text-emerald-950">{linkedName || "Produto cadastrado"}</p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="mt-2 h-8 px-2"
+                          disabled={line.posted}
+                          onClick={() => updateLine(line.key, { productId: "", linkedName: "", search: "" })}
+                        >
+                          Trocar produto
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <Input
+                          placeholder="Buscar produto"
+                          value={line.search}
+                          onChange={(event) => updateLine(line.key, { search: event.target.value })}
+                          disabled={line.posted}
+                        />
+                        {!!options.length && (
+                          <div className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-md border bg-white shadow">
+                            {options.map((product) => (
+                              <button
+                                key={product.id}
+                                type="button"
+                                className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
+                                onClick={() => updateLine(line.key, { productId: product.id, linkedName: product.name, search: "" })}
+                              >
+                                {product.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <Button
                       type="button"
                       className="bg-blue-700 hover:bg-blue-800"
-                      onClick={() => openCreate(index)}
+                      onClick={() => openCreate(line.key)}
                       disabled={line.posted || !!line.productId}
                     >
                       Cadastrar produto
@@ -292,7 +355,7 @@ export function StockXmlEntryDialog({
           <div className="flex justify-center pt-2">
             <Button
               className="bg-slate-900 px-10 hover:bg-slate-800"
-              disabled={!invoice || posting}
+              disabled={!invoice || posting || !lines.length}
               onClick={() => void finalize()}
             >
               {posting ? "Lançando..." : "FINALIZAR"}
@@ -303,11 +366,22 @@ export function StockXmlEntryDialog({
 
       <CreateProductDialog
         open={createOpen}
-        onOpenChange={setCreateOpen}
+        onOpenChange={(next) => {
+          setCreateOpen(next);
+          if (!next) window.setTimeout(() => { creatingRef.current = false; }, 600);
+        }}
         initialDraft={draft}
         onProductCreated={(product) => {
-          if (createIndex == null) return;
-          updateLine(createIndex, { productId: product.id, search: product.name });
+          if (!createKey || !product?.id) {
+            toast({
+              title: "Cadastro incompleto",
+              description: "O produto não voltou com identificação e não foi vinculado ao item.",
+              variant: "destructive",
+            });
+            return;
+          }
+          updateLine(createKey, { productId: product.id, linkedName: product.name, search: "" });
+          onCatalogChanged?.();
         }}
       />
     </>

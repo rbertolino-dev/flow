@@ -80,9 +80,15 @@ export function CreateProductDialog({
   const [formAttempted, setFormAttempted] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const formSeeded = useRef(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      formSeeded.current = false;
+      return;
+    }
+    if (formSeeded.current) return;
+    formSeeded.current = true;
     setFormAttempted(false);
     setSaving(false);
     setUploadingImage(false);
@@ -278,8 +284,11 @@ export function CreateProductDialog({
               <Field
                 label="Quantidade atual"
                 type="number"
-                hint="Saldo que entra no histórico ao salvar."
+                hint={initialDraft && !product
+                  ? "Na entrada por XML a quantidade da nota entra ao finalizar, para não lançar duas vezes."
+                  : "Saldo que entra no histórico ao salvar."}
                 value={form.stock_quantity}
+                disabled={!!initialDraft && !product}
                 onChange={(value) => setForm({ ...form, stock_quantity: value })}
               />
               <Field
@@ -458,6 +467,7 @@ function Field({
   prominent,
   placeholder,
   tone,
+  disabled,
 }: {
   label: string;
   value: string;
@@ -469,6 +479,7 @@ function Field({
   prominent?: boolean;
   placeholder?: string;
   tone?: "danger" | "success";
+  disabled?: boolean;
 }) {
   const fieldId = `product-${label.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-")}`;
   return (
@@ -486,6 +497,7 @@ function Field({
         type={type}
         value={value}
         placeholder={placeholder}
+        disabled={disabled}
         min={type === "number" ? 0 : undefined}
         step={type === "number" ? "0.001" : undefined}
         className={cn("h-10 bg-white", prominent && "h-12 text-base", error && "border-red-400 focus-visible:ring-red-400")}

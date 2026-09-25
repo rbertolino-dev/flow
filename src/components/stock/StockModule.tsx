@@ -347,15 +347,18 @@ export function StockModule() {
     }
   };
 
-  const offerXmlExpense = (invoice: NfeInvoice, supplierName: string) => {
+  const offerXmlExpense = (invoice: NfeInvoice, supplierName: string, amount?: number) => {
     const supplier = supplierName.trim() || invoice.supplierName || "Fornecedor";
+    const total = amount ?? invoice.total;
     setXmlEntryOpen(false);
     toast({ title: "Entrada por XML registrada", description: "Os produtos entraram no estoque." });
     setExpenseOffer({
       description: `NF ${invoice.number || "s/n"} ${formatNfeDate(invoice.issuedAt)} ${supplier}`,
-      amount: invoice.total > 0 ? invoice.total.toFixed(2).replace(".", ",") : "",
+      amount: total > 0 ? total.toFixed(2).replace(".", ",") : "",
       descriptionHint: "Padrão: número da nota, data e fornecedor. Você pode alterar antes de registrar.",
-      amountHint: "Valor sugerido: total da NF-e.",
+      amountHint: amount != null
+        ? "Valor sugerido: soma dos itens que você escolheu lançar."
+        : "Valor sugerido: total da NF-e.",
     });
     void Promise.all([refetch(), loadMovements(), loadSales()]);
   };
@@ -869,6 +872,7 @@ export function StockModule() {
           }
         }}
         onPosted={offerXmlExpense}
+        onCatalogChanged={() => { void refetch(); }}
       />
       <StockEntryExpenseDialog
         offer={expenseOffer}
