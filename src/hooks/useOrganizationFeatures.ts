@@ -28,6 +28,7 @@ export const AVAILABLE_FEATURES = [
   { value: 'budgets', label: 'Orçamentos', description: 'Criação e gestão de orçamentos' },
   { value: 'pos', label: 'PDV', description: 'Ponto de venda com estoque e histórico' },
   { value: 'service_orders', label: 'Ordem de Serviço', description: 'Ordens de serviço com modelos e produtos' },
+  { value: 'finance', label: 'Financeiro', description: 'Contas a receber, contas a pagar e relatórios' },
   { value: 'employees', label: 'Colaboradores', description: 'Gerenciamento de colaboradores' },
   { value: 'landing_page', label: 'Landing Page', description: 'Página pública de vendas com produtos e WhatsApp' },
   { value: 'wordpress_content', label: 'Conteúdo WordPress', description: 'Gerar posts com IA e publicar via REST API' },

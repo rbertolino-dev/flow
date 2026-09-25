@@ -537,6 +537,16 @@ export function useBudgets(filters?: BudgetFilters) {
 
       if (error) throw error;
 
+      const { error: financeError } = await (supabase as unknown as {
+        rpc: (fn: string, args: Record<string, string>) => Promise<{ error: { message: string } | null }>;
+      }).rpc('sync_budget_receivable', {
+        p_organization_id: activeOrgId,
+        p_budget_id: budgetId,
+      });
+      if (financeError) {
+        console.error('Erro ao lançar orçamento no financeiro:', financeError);
+      }
+
       // Atualizar na lista local
       setBudgets((prev) =>
         prev.map((b) => (b.id === budgetId ? { ...b, approved: true, rejected: false } : b))
@@ -571,6 +581,16 @@ export function useBudgets(filters?: BudgetFilters) {
         .eq('organization_id', activeOrgId);
 
       if (error) throw error;
+
+      const { error: financeError } = await (supabase as unknown as {
+        rpc: (fn: string, args: Record<string, string>) => Promise<{ error: { message: string } | null }>;
+      }).rpc('sync_budget_receivable', {
+        p_organization_id: activeOrgId,
+        p_budget_id: budgetId,
+      });
+      if (financeError) {
+        console.error('Erro ao cancelar previsto do orçamento:', financeError);
+      }
 
       setBudgets((prev) =>
         prev.map((b) => (b.id === budgetId ? { ...b, rejected: true, approved: false } : b))

@@ -227,6 +227,20 @@ serve(async (req) => {
       );
     }
 
+    const { error: financeError } = await supabase.rpc("attach_gateway_receivable", {
+      p_organization_id: organizationId,
+      p_gateway: "mercado_pago",
+      p_gateway_id: paymentRecord.id,
+      p_amount: payment.valor,
+      p_lead_id: leadId,
+      p_description: payment.descricao || "Mercado Pago",
+      p_contact_name: payer?.name || null,
+      p_paid: false,
+    });
+    if (financeError) {
+      console.error("Erro ao lançar Mercado Pago no financeiro:", financeError);
+    }
+
     // Retornar sucesso com dados completos
     return new Response(
       JSON.stringify({

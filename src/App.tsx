@@ -59,6 +59,9 @@ const Estoque = lazy(() => import("./pages/Estoque"));
 const PosSalesHistory = lazy(() => import("./pages/PosSalesHistory"));
 const PosSettings = lazy(() => import("./pages/PosSettings"));
 const ServiceOrders = lazy(() => import("./pages/ServiceOrders"));
+const FinanceDashboard = lazy(() => import("./pages/FinanceDashboard"));
+const FinanceReceivables = lazy(() => import("./pages/FinanceReceivables"));
+const FinancePayables = lazy(() => import("./pages/FinancePayables"));
 const Employees = lazy(() => import("./pages/Employees"));
 const PublicSurvey = lazy(() => import("./pages/PublicSurvey"));
 const PublicBooking = lazy(() => import("./pages/PublicBooking"));
@@ -191,6 +194,9 @@ const App = () => {
                 <Route path="/pdv/historico" element={<PosSalesHistory />} />
                 <Route path="/pdv/configuracoes" element={<PosSettings />} />
                 <Route path="/service-orders" element={<ServiceOrders />} />
+                <Route path="/financeiro" element={<FinanceDashboard />} />
+                <Route path="/financeiro/receber" element={<FinanceReceivables />} />
+                <Route path="/financeiro/pagar" element={<FinancePayables />} />
                 <Route path="/budgets-module" element={<BudgetsModule />} />
                 <Route path="/employees" element={<Employees />} />
                 <Route path="/sign-contract/:contractId" element={<SignContract />} />

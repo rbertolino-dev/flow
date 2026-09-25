@@ -248,6 +248,21 @@ serve(async (req) => {
       );
     }
 
+    const { error: financeError } = await supabase.rpc("attach_gateway_receivable", {
+      p_organization_id: organizationId,
+      p_gateway: "asaas",
+      p_gateway_id: boletoRecord.id,
+      p_amount: boleto.valor,
+      p_due_date: boleto.dataVencimento,
+      p_lead_id: leadId,
+      p_description: boleto.descricao || "Boleto",
+      p_contact_name: customer?.name || null,
+      p_paid: false,
+    });
+    if (financeError) {
+      console.error("Erro ao lançar boleto no financeiro:", financeError);
+    }
+
     // 5) Retornar sucesso com dados completos
     return new Response(
       JSON.stringify({

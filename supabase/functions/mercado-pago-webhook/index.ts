@@ -40,6 +40,27 @@ interface MercadoPagoPayment {
   external_reference?: string;
 }
 
+async function settleMercadoPago(
+  supabase: ReturnType<typeof createClient>,
+  paymentRecord: { id: string; organization_id: string; lead_id?: string | null; valor?: number; descricao?: string | null; payer_name?: string | null },
+  paymentData: MercadoPagoPayment,
+) {
+  const paid = paymentData.status === "approved" || paymentData.status === "authorized";
+  const { error } = await supabase.rpc("attach_gateway_receivable", {
+    p_organization_id: paymentRecord.organization_id,
+    p_gateway: "mercado_pago",
+    p_gateway_id: paymentRecord.id,
+    p_amount: paymentData.transaction_amount ?? paymentRecord.valor,
+    p_lead_id: paymentRecord.lead_id || null,
+    p_description: paymentRecord.descricao || "Mercado Pago",
+    p_contact_name: paymentRecord.payer_name || null,
+    p_paid: paid,
+    p_paid_at: paid ? (paymentData.date_approved || paymentData.date_created || null) : null,
+    p_cancel: false,
+  });
+  if (error) console.error("Erro ao baixar Mercado Pago no financeiro:", error);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -162,6 +183,7 @@ serve(async (req) => {
         console.error("Erro ao atualizar pagamento:", updateError);
       } else {
         console.log("✅ Pagamento atualizado:", paymentRecord.id);
+        await settleMercadoPago(supabase, paymentRecord, paymentData);
 
         // Se pagamento foi aprovado, atualizar lead se necessário
         if (paymentData.status === "approved" && paymentRecord.lead_id) {
@@ -218,6 +240,7 @@ serve(async (req) => {
               console.error("Erro ao atualizar pagamento:", updateError);
             } else {
               console.log("✅ Pagamento atualizado:", paymentRecord.id);
+              await settleMercadoPago(supabase, paymentRecord, paymentData);
 
               // Se pagamento foi aprovado, atualizar lead se necessário
               if (paymentData.status === "approved" && paymentRecord.lead_id) {

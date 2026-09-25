@@ -171,6 +171,24 @@ serve(async (req) => {
           errors.push(`Boleto ${boleto.asaas_payment_id}: Erro ao atualizar`);
         } else {
           syncedCount++;
+          const status = String(updates.status || "").toLowerCase();
+          const paid = ["received", "confirmed", "received_in_cash"].includes(status);
+          const cancelled = ["cancelled", "canceled", "refunded", "deleted"].includes(status);
+          const { error: financeError } = await supabase.rpc("attach_gateway_receivable", {
+            p_organization_id: organizationId,
+            p_gateway: "asaas",
+            p_gateway_id: boleto.id,
+            p_amount: paymentData.value ?? boleto.valor,
+            p_due_date: paymentData.dueDate || boleto.data_vencimento,
+            p_lead_id: boleto.lead_id,
+            p_description: paymentData.description || boleto.descricao || "Boleto",
+            p_paid: paid,
+            p_paid_at: paymentData.clientPaymentDate || paymentData.paymentDate || null,
+            p_cancel: cancelled,
+          });
+          if (financeError) {
+            console.error(`Erro financeiro do boleto ${boleto.id}:`, financeError);
+          }
         }
       } catch (error: any) {
         console.error(`Erro ao processar boleto ${boleto.asaas_payment_id}:`, error);

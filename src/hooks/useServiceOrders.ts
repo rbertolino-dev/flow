@@ -318,6 +318,18 @@ export function useServiceOrders(filters?: ServiceOrderFilters) {
 
       if (error) throw error;
 
+      if (patch.is_closed === false) {
+        const { error: financeError } = await (supabase as unknown as {
+          rpc: (fn: string, args: Record<string, string>) => Promise<{ error: { message: string } | null }>;
+        }).rpc('sync_service_order_finance', {
+          p_organization_id: activeOrgId,
+          p_order_id: id,
+        });
+        if (financeError) {
+          console.error('Erro ao estornar OS no financeiro:', financeError);
+        }
+      }
+
       if (patch.items) {
         // @ts-expect-error tabela ainda nao tipada no client gerado
         await supabase.from('service_order_items').delete().eq('service_order_id', id);
@@ -508,8 +520,24 @@ export function useServiceOrders(filters?: ServiceOrderFilters) {
 
       if (error) throw error;
 
+      const { error: financeError } = await (supabase as unknown as {
+        rpc: (fn: string, args: Record<string, string>) => Promise<{ error: { message: string } | null }>;
+      }).rpc('sync_service_order_finance', {
+        p_organization_id: activeOrgId,
+        p_order_id: orderId,
+      });
+      if (financeError) {
+        console.error('Erro ao lançar OS no financeiro:', financeError);
+        toast({
+          title: 'OS encerrada',
+          description: 'A OS foi encerrada, mas o lançamento financeiro não foi criado.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({ title: 'OS encerrada', description: 'Dados de fechamento salvos com sucesso.' });
+      }
+
       await addLog(orderId, 'Ordem de serviço encerrada', 'closed');
-      toast({ title: 'OS encerrada', description: 'Dados de fechamento salvos com sucesso.' });
       await fetchOrders();
       return true;
     } catch (err) {

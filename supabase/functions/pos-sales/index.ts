@@ -89,6 +89,130 @@ async function getUserName(
   return data?.full_name || null;
 }
 
+const DEFERRED_PAYMENT_METHODS = new Set([
+  "boleto",
+  "parcelado",
+  "cheque",
+  "carne",
+  "crediario",
+  "permuta",
+]);
+
+async function syncPosFinancial(
+  supabase: ReturnType<typeof createClient>,
+  input: {
+    organizationId: string;
+    saleId: string;
+    saleNumber: number;
+    leadId: string | null;
+    customerName: string | null;
+    description: string | null;
+    account: string | null;
+    category: string | null;
+    paymentDate: string;
+    soldAt: string;
+    userId: string;
+    payments: PaymentInput[];
+    commissionAmount: number;
+    commissionUserName: string | null;
+  }
+) {
+  let immediate = 0;
+  let deferred = 0;
+  for (const payment of input.payments) {
+    const method = String(payment.method || "").toLowerCase();
+    const amount = Number(payment.amount || 0);
+    if (DEFERRED_PAYMENT_METHODS.has(method)) deferred += amount;
+    else immediate += amount;
+  }
+
+  const description = input.description || `Venda PDV #${input.saleNumber}`;
+  const account = input.account || "Caixa";
+  const category = input.category || "Vendas";
+  let coveredBy: string | null = null;
+
+  const upsert = async (payload: Record<string, unknown>) => {
+    const { data, error } = await supabase.rpc("upsert_financial_entry", payload);
+    if (error) throw new Error(error.message);
+    return (data as string | null) || null;
+  };
+
+  if (immediate > 0.009) {
+    coveredBy = await upsert({
+      p_organization_id: input.organizationId,
+      p_direction: "receber",
+      p_amount: immediate,
+      p_due_date: input.paymentDate,
+      p_source_type: "pdv",
+      p_source_id: deferred > 0.009 ? `${input.saleId}:avista` : input.saleId,
+      p_status: "paid",
+      p_settlement_status: "confirmado",
+      p_lead_id: input.leadId,
+      p_description: description,
+      p_contact_name: input.customerName,
+      p_billing_name: "Sem contato",
+      p_category: category,
+      p_account: account,
+      p_origin_label: "PDV",
+      p_paid_at: input.soldAt,
+      p_created_by: input.userId,
+    });
+  }
+
+  if (deferred > 0.009) {
+    const deferredId = await upsert({
+      p_organization_id: input.organizationId,
+      p_direction: "receber",
+      p_amount: deferred,
+      p_due_date: input.paymentDate,
+      p_source_type: "pdv",
+      p_source_id: immediate > 0.009 ? `${input.saleId}:aprazo` : input.saleId,
+      p_status: "open",
+      p_settlement_status: "confirmado",
+      p_lead_id: input.leadId,
+      p_description: description,
+      p_contact_name: input.customerName,
+      p_billing_name: "Sem contato",
+      p_category: category,
+      p_account: account,
+      p_origin_label: "PDV",
+      p_created_by: input.userId,
+    });
+    coveredBy = coveredBy || deferredId;
+  }
+
+  if (input.commissionAmount > 0.009) {
+    await upsert({
+      p_organization_id: input.organizationId,
+      p_direction: "pagar",
+      p_amount: input.commissionAmount,
+      p_due_date: input.paymentDate,
+      p_source_type: "comissao",
+      p_source_id: `pdv:${input.saleId}`,
+      p_status: "open",
+      p_settlement_status: "confirmado",
+      p_lead_id: input.leadId,
+      p_description: `Comissão venda #${input.saleNumber}`,
+      p_contact_name: input.commissionUserName || "Vendedor",
+      p_billing_name: "Sem contato",
+      p_category: "Comissão",
+      p_account: account,
+      p_origin_label: "Comissão",
+      p_created_by: input.userId,
+    });
+  }
+
+  if (input.leadId) {
+    const { error } = await supabase.rpc("cover_forecast_receivables", {
+      p_organization_id: input.organizationId,
+      p_lead_id: input.leadId,
+      p_budget_id: null,
+      p_covered_by: coveredBy,
+    });
+    if (error) throw new Error(error.message);
+  }
+}
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data, (_key, value) =>
     typeof value === "bigint" ? Number(value) : value
@@ -923,6 +1047,29 @@ serve(async (req) => {
 
           await tx.queryArray`COMMIT`;
 
+          if (generateFinancial) {
+            try {
+              await syncPosFinancial(supabase, {
+                organizationId,
+                saleId,
+                saleNumber,
+                leadId: body.lead_id || null,
+                customerName: body.customer_name || null,
+                description: body.sale_description || null,
+                account: body.financial_account || null,
+                category: body.financial_category || null,
+                paymentDate,
+                soldAt,
+                userId: user.id,
+                payments,
+                commissionAmount,
+                commissionUserName,
+              });
+            } catch (financeErr) {
+              console.error("Erro ao lançar venda no financeiro:", financeErr);
+            }
+          }
+
           return json({
             data: {
               id: saleId,
@@ -1097,6 +1244,15 @@ serve(async (req) => {
           `;
 
           await pg.queryArray`COMMIT`;
+          try {
+            const { error: financeError } = await supabase.rpc("cancel_financial_by_sale", {
+              p_organization_id: organizationId,
+              p_sale_id: saleId,
+            });
+            if (financeError) console.error("Erro ao estornar financeiro da venda:", financeError);
+          } catch (financeErr) {
+            console.error("Erro ao estornar financeiro da venda:", financeErr);
+          }
           return json({
             data: serializeRows([updated.rows[0] as Record<string, unknown>])[0],
             message: "Venda cancelada e estoque revertido",
