@@ -378,7 +378,9 @@ serve(async (req) => {
     }
 
     const jsonResponse = (status: number, body: unknown) =>
-      new Response(JSON.stringify(body), {
+      new Response(JSON.stringify(body, (_key, value) =>
+        typeof value === 'bigint' ? Number(value) : value
+      ), {
         status,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -388,7 +390,7 @@ serve(async (req) => {
         const result = await client.queryObject(`
           SELECT m.id, m.product_id, m.sale_id, m.movement_type, m.quantity_delta,
                  m.stock_before, m.stock_after, m.notes, m.created_by, m.created_at,
-                 p.name AS product_name, s.sale_number
+                 p.name AS product_name, s.sale_number::bigint AS sale_number
           FROM pos_stock_movements m
           LEFT JOIN products p ON p.id = m.product_id
           LEFT JOIN pos_sales s ON s.id = m.sale_id
@@ -397,19 +399,31 @@ serve(async (req) => {
           LIMIT 300
         `, [organizationId]);
         const rows = result.rows as Array<Record<string, unknown>>;
-        const userIds = [...new Set(rows.map((row) => row.created_by).filter(Boolean))] as string[];
+        const userIds = [...new Set(rows.map((row) => row.created_by).filter(Boolean).map((id) => String(id)))];
         const names = new Map<string, string>();
         if (userIds.length) {
-          const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', userIds);
-          for (const profile of profiles || []) {
-            if (profile.full_name) names.set(profile.id, profile.full_name);
+          try {
+            const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', userIds);
+            for (const profile of profiles || []) {
+              if (profile.full_name) names.set(profile.id, profile.full_name);
+            }
+          } catch (profileError) {
+            console.warn('Nomes dos responsáveis indisponíveis:', profileError);
           }
         }
         return jsonResponse(200, {
-          data: rows.map((row) => ({
-            ...row,
-            created_by_name: row.created_by ? names.get(String(row.created_by)) || null : null,
-          })),
+          data: rows.map((row) => {
+            const safe: Record<string, unknown> = {};
+            for (const [key, value] of Object.entries(row)) {
+              if (typeof value === 'bigint') safe[key] = Number(value);
+              else if (value instanceof Date) safe[key] = value.toISOString();
+              else safe[key] = value;
+            }
+            return {
+              ...safe,
+              created_by_name: row.created_by ? names.get(String(row.created_by)) || null : null,
+            };
+          }),
         });
       } catch (movementError: any) {
         console.warn('Movimentações indisponíveis:', movementError);
