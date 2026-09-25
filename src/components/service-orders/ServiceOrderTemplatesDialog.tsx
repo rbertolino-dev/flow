@@ -437,13 +437,14 @@ export function ServiceOrderTemplatesDialog({
                                 }}
                               />
                             </label>
-                            {!f.is_standard && (
+                            {f.field_key !== 'lead_id' && (
                               <button
                                 type="button"
                                 className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-600"
-                                aria-label="Excluir campo"
+                                aria-label="Excluir pergunta"
+                                data-testid={`os-field-delete-${f.field_key}`}
                                 onClick={async () => {
-                                  if (!window.confirm(`Excluir o campo "${f.label}" deste modelo?`)) return;
+                                  if (!window.confirm(`Excluir a pergunta "${f.label}" deste modelo?`)) return;
                                   await deleteTemplateField(f.id);
                                   await refreshTemplates();
                                 }}

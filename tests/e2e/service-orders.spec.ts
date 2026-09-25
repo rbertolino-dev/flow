@@ -255,4 +255,44 @@ test.describe("Ordem de Serviço — etapas e criação @human-behavior @service
     await human.humanClick(page.getByRole("button", { name: /^finalizar$/i }));
     await expect(page.getByTestId("os-criar-btn")).toBeVisible({ timeout: 30_000 });
   });
+
+  test("oculta período, tira status das opções e permite excluir pergunta @human-behavior", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const orgId = process.env.E2E_ORG_ID?.trim();
+    if (orgId) {
+      await page.addInitScript((id) => {
+        localStorage.setItem("active_organization_id", id);
+      }, orgId);
+    }
+    const logged = await loginAsTestUser(page);
+    test.skip(!logged, "Sessão E2E inválida");
+
+    const human = new HumanBehavior(page);
+    await human.humanNavigate("/service-orders");
+    await expect(page.getByTestId("os-org-ready")).toBeVisible({ timeout: 45_000 });
+
+    await expect(page.getByTestId("os-period-filter-toggle")).toBeVisible();
+    await expect(page.locator('input[type="datetime-local"]')).toHaveCount(0);
+    await human.humanClick(page.getByTestId("os-period-filter-toggle"));
+    await expect(page.locator('input[type="datetime-local"]')).toHaveCount(2);
+
+    const options = page.getByRole("button", { name: /^opções$/i }).first();
+    if (await options.isVisible().catch(() => false)) {
+      await human.humanClick(options);
+      await expect(page.getByRole("menuitem", { name: /mover para/i })).toHaveCount(0);
+      await page.keyboard.press("Escape");
+    }
+
+    await human.humanClick(page.getByTestId("os-criar-btn"));
+    await expect(page.getByText(/nova ordem de serviço/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/empresa comissionada/i)).toHaveCount(0);
+    await human.humanClick(page.getByRole("button", { name: "Close" }));
+
+    await human.humanClick(page.getByTestId("os-modelos-btn"));
+    await expect(page.getByText("Modelo de Ordem de Serviço")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/empresa comissionada/i)).toHaveCount(0);
+    await expect(page.getByTestId("os-field-delete-warranty_terms")).toBeVisible({ timeout: 15_000 });
+  });
 });

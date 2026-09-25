@@ -72,6 +72,7 @@ const STANDARD_KEYS = new Set([
 ]);
 
 const DEFAULT_HIDDEN_KEYS = new Set(['equipment_serial', 'equipment_conditions']);
+const REMOVED_FIELD_KEYS = new Set(['has_commission', 'commission_value']);
 const SCHEDULE_KEYS = new Set(['is_single_day', 'starts_at', 'ends_at']);
 
 function toLocalDateTimeInput(value?: string) {
@@ -127,6 +128,7 @@ export function CreateServiceOrderDialog({
     () =>
       (template?.fields || [])
         .filter((f) => f.is_visible)
+        .filter((f) => !REMOVED_FIELD_KEYS.has(f.field_key))
         .filter((f) => !(template?.is_default && DEFAULT_HIDDEN_KEYS.has(f.field_key)))
         .sort((a, b) => a.sort_order - b.sort_order),
     [template]

@@ -34,6 +34,8 @@ import {
   Settings2,
   Download,
   FileDown,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useServiceOrders } from '@/hooks/useServiceOrders';
 import { useServiceOrderStatuses, useServiceOrderTemplates } from '@/hooks/useServiceOrderTemplates';
@@ -78,6 +80,7 @@ export default function ServiceOrders() {
   const [collaboratorFilter, setCollaboratorFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [periodFilterOpen, setPeriodFilterOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [appliedFilters, setAppliedFilters] = useState<{
     code?: string;
@@ -325,11 +328,6 @@ export default function ServiceOrders() {
           <FileDown className="h-4 w-4 mr-2" />
           PDF sem valores
         </DropdownMenuItem>
-        {statuses.map((s) => (
-          <DropdownMenuItem key={s.id} onClick={() => updateOrder(order.id, { status_id: s.id })}>
-            Mover para: {s.name}
-          </DropdownMenuItem>
-        ))}
         <DropdownMenuItem
           className="text-destructive"
           onClick={() => {
@@ -437,15 +435,29 @@ export default function ServiceOrders() {
 
         {/* Filters */}
         <div className="border rounded-lg p-4 space-y-3 bg-card">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-2 text-left"
+            onClick={() => setPeriodFilterOpen((open) => !open)}
+            aria-expanded={periodFilterOpen}
+            data-testid="os-period-filter-toggle"
+          >
+            <span className="text-sm font-medium">Filtrar por período</span>
+            {periodFilterOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+          {periodFilterOpen && (
+            <div className="grid md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Início</Label>
+                <Input type="datetime-local" className="w-full min-w-0" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Até</Label>
+                <Input type="datetime-local" className="w-full min-w-0" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              </div>
+            </div>
+          )}
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="space-y-1">
-              <Label>Filtrar por período (início)</Label>
-              <Input type="datetime-local" className="w-full min-w-0" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Até</Label>
-              <Input type="datetime-local" className="w-full min-w-0" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-            </div>
             <div className="space-y-1">
               <Label>Código</Label>
               <Input value={codeFilter} onChange={(e) => setCodeFilter(e.target.value)} placeholder="Código" />

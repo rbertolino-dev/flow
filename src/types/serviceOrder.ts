@@ -241,9 +241,7 @@ export const STANDARD_TEMPLATE_FIELDS: Array<{
   { field_key: 'is_single_day', label: 'Um dia só', field_type: 'boolean', is_required: false, section: 'agenda', sort_order: 50 },
   { field_key: 'starts_at', label: 'Data início', field_type: 'datetime', is_required: false, section: 'agenda', sort_order: 60 },
   { field_key: 'ends_at', label: 'Data fim', field_type: 'datetime', is_required: false, section: 'agenda', sort_order: 70 },
-  { field_key: 'has_commission', label: 'Ordem de Serviço com empresa comissionada', field_type: 'boolean', is_required: false, section: 'comissao', sort_order: 80 },
-  { field_key: 'commission_value', label: 'Valor da Comissão', field_type: 'number', is_required: false, section: 'comissao', sort_order: 90 },
-  { field_key: 'address', label: 'Endereço', field_type: 'text', is_required: false, section: 'comissao', sort_order: 100 },
+  { field_key: 'address', label: 'Endereço', field_type: 'text', is_required: false, section: 'local', sort_order: 100 },
   { field_key: 'client_report', label: 'Relato do cliente', field_type: 'textarea', is_required: false, section: 'descricao', sort_order: 130 },
   { field_key: 'diagnosis', label: 'Diagnóstico/Problema', field_type: 'textarea', is_required: false, section: 'descricao', sort_order: 140 },
   { field_key: 'solution', label: 'Solução/Instrução', field_type: 'textarea', is_required: false, section: 'descricao', sort_order: 150 },
@@ -253,11 +251,13 @@ export const STANDARD_TEMPLATE_FIELDS: Array<{
 ];
 
 const HIDDEN_ON_DEFAULT_TEMPLATE = new Set(['equipment_serial', 'equipment_conditions']);
+const REMOVED_TEMPLATE_FIELDS = new Set(['has_commission', 'commission_value']);
 
 export function fieldsForTemplateEditor(
   template: Pick<ServiceOrderTemplate, 'is_default' | 'fields'>
 ): ServiceOrderTemplateField[] {
   return (template.fields || [])
+    .filter((f) => !REMOVED_TEMPLATE_FIELDS.has(f.field_key))
     .filter((f) => !(template.is_default && HIDDEN_ON_DEFAULT_TEMPLATE.has(f.field_key)))
     .slice()
     .sort((a, b) => a.sort_order - b.sort_order);
