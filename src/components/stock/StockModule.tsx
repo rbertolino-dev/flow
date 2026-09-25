@@ -40,7 +40,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useProducts } from "@/hooks/useProducts";
+import { usePosSales } from "@/hooks/usePosSales";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
+import { PosSale } from "@/types/pos";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Product, ProductFormData } from "@/types/product";
@@ -59,6 +61,13 @@ interface StockMovement {
   stock_after: number | null;
   notes: string | null;
   created_at: string;
+  created_by_name?: string | null;
+  sale_number?: number | null;
+}
+
+interface CatalogRow {
+  id: string;
+  name: string;
 }
 
 const TABS: { id: StockTab; label: string; icon: typeof Package }[] = [
@@ -83,14 +92,22 @@ const emptyForm = {
   description: "",
 };
 
-function statusLabel(status: StockStatus) {
-  if (status === "falta") return "Em falta";
-  if (status === "baixa") return "Em baixa";
-  return "Ideal";
+function movementTypeLabel(type: string, saleNumber?: number | null) {
+  const labels: Record<string, string> = {
+    in: "Entrada",
+    out: "Saída",
+    adjust: "Ajuste",
+    adjustment: "Ajuste",
+    sale: "Venda",
+    sale_cancel: "Estorno de venda",
+  };
+  const label = labels[type] || type;
+  return saleNumber ? `${label} #${saleNumber}` : label;
 }
 
 export function StockModule() {
   const { products, loading, createProduct, updateProduct, refetch } = useProducts();
+  const { listSales, cancelSale } = usePosSales();
   const { activeOrgId } = useActiveOrganization();
   const { toast } = useToast();
   const [tab, setTab] = useState<StockTab>("cadastro");
@@ -111,6 +128,12 @@ export function StockModule() {
   const [movementQty, setMovementQty] = useState("");
   const [movementNotes, setMovementNotes] = useState("");
   const [postingMovement, setPostingMovement] = useState(false);
+  const [sales, setSales] = useState<PosSale[]>([]);
+  const [reversingId, setReversingId] = useState<string | null>(null);
+  const [categoriesCatalog, setCategoriesCatalog] = useState<CatalogRow[]>([]);
+  const [brandsCatalog, setBrandsCatalog] = useState<CatalogRow[]>([]);
+  const [catalogName, setCatalogName] = useState("");
+  const [purchaseQty, setPurchaseQty] = useState<Record<string, string>>({});
 
   const categories = useMemo(
     () => Array.from(new Set(products.map((p) => (p.category || "").trim()).filter(Boolean))).sort(),
@@ -190,8 +213,62 @@ export function StockModule() {
     }
   };
 
+  const authHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session || !activeOrgId) throw new Error("Usuário não autenticado");
+    return {
+      Authorization: `Bearer ${session.access_token}`,
+      "Content-Type": "application/json",
+      "X-Organization-Id": activeOrgId,
+    };
+  };
+
+  const loadCatalog = async (kind: "categories" | "brands") => {
+    if (!activeOrgId) return;
+    try {
+      const headers = await authHeaders();
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/products/${kind}`, { headers });
+      const result = await response.json().catch(() => ({ data: [] }));
+      const rows = (result.data || []) as CatalogRow[];
+      if (kind === "categories") setCategoriesCatalog(rows);
+      else setBrandsCatalog(rows);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const mutateCatalog = async (kind: "categories" | "brands", method: "POST" | "PUT" | "DELETE", body: Record<string, string>) => {
+    try {
+      const headers = await authHeaders();
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/products/${kind}`, { method, headers, body: JSON.stringify(body) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Não foi possível atualizar");
+      toast({ title: "Catálogo atualizado" });
+      setCatalogName("");
+      await Promise.all([loadCatalog(kind), refetch()]);
+    } catch (error: unknown) {
+      toast({ title: "Erro no catálogo", description: error instanceof Error ? error.message : "Erro desconhecido", variant: "destructive" });
+    }
+  };
+
+  const loadSales = async () => {
+    try {
+      setSales(await listSales({ limit: 30, include_items: true }));
+    } catch (error) {
+      console.error(error);
+      setSales([]);
+    }
+  };
+
   useEffect(() => {
-    if (tab === "lancamentos") void loadMovements();
+    if (tab === "lancamentos") {
+      void loadMovements();
+      void loadSales();
+    }
+    if (tab === "categorias") void loadCatalog("categories");
+    if (tab === "marcas") void loadCatalog("brands");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, activeOrgId]);
 
@@ -288,13 +365,50 @@ export function StockModule() {
       toast({ title: "Lançamento registrado", description: "A quantidade em estoque foi atualizada." });
       setMovementQty("");
       setMovementNotes("");
-      await Promise.all([refetch(), loadMovements()]);
+      await Promise.all([refetch(), loadMovements(), loadSales()]);
     } catch (error: unknown) {
       toast({
         title: "Erro no lançamento",
         description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
+    } finally {
+      setPostingMovement(false);
+    }
+  };
+
+  const reverseSale = async (sale: PosSale) => {
+    const confirmed = window.confirm(`Estornar a venda #${sale.sale_number}? Os produtos dessa venda voltam para o estoque e a venda fica cancelada.`);
+    if (!confirmed) return;
+    setReversingId(sale.id);
+    try {
+      await cancelSale(sale.id);
+      toast({ title: "Venda estornada", description: "Os produtos voltaram para o estoque." });
+      await Promise.all([refetch(), loadMovements(), loadSales()]);
+    } catch {
+      // o hook já informa o erro
+    } finally {
+      setReversingId(null);
+    }
+  };
+
+  const registerPurchase = async (productId: string, quantity: number) => {
+    if (!activeOrgId) return;
+    setPostingMovement(true);
+    try {
+      const headers = await authHeaders();
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/products/movements`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ product_id: productId, kind: "in", quantity, notes: "Compra — lista de reposição" }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Não foi possível registrar a compra");
+      toast({ title: "Compra registrada", description: "A entrada foi lançada no estoque." });
+      await refetch();
+    } catch (error: unknown) {
+      toast({ title: "Erro na compra", description: error instanceof Error ? error.message : "Erro desconhecido", variant: "destructive" });
     } finally {
       setPostingMovement(false);
     }
@@ -504,6 +618,7 @@ export function StockModule() {
                     <TableHead>Antes</TableHead>
                     <TableHead>Depois</TableHead>
                     <TableHead>Obs.</TableHead>
+                    <TableHead>Responsável</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -511,16 +626,17 @@ export function StockModule() {
                     <TableRow key={movement.id}>
                       <TableCell>{new Date(movement.created_at).toLocaleString("pt-BR")}</TableCell>
                       <TableCell>{movement.product_name || "—"}</TableCell>
-                      <TableCell>{movement.movement_type}</TableCell>
+                      <TableCell>{movementTypeLabel(movement.movement_type, movement.sale_number)}</TableCell>
                       <TableCell>{Number(movement.quantity_delta)}</TableCell>
                       <TableCell>{movement.stock_before ?? "—"}</TableCell>
                       <TableCell>{movement.stock_after ?? "—"}</TableCell>
                       <TableCell>{movement.notes || "—"}</TableCell>
+                      <TableCell>{movement.created_by_name || "—"}</TableCell>
                     </TableRow>
                   ))}
                   {!movements.length && (
                     <TableRow>
-                      <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                         Nenhum lançamento ainda. Vendas do PDV e ajustes feitos aqui aparecem nesta lista.
                       </TableCell>
                     </TableRow>
@@ -528,14 +644,61 @@ export function StockModule() {
                 </TableBody>
               </Table>
             )}
+            <div className="space-y-2 border-t pt-4">
+              <h3 className="text-base font-semibold">Vendas do PDV</h3>
+              <p className="text-sm text-muted-foreground">Estornar devolve os produtos da venda para o estoque e cancela a venda.</p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Venda</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sales.map((sale) => {
+                    const cancelled = sale.status === "cancelled";
+                    return (
+                      <TableRow key={sale.id}>
+                        <TableCell>#{sale.sale_number}</TableCell>
+                        <TableCell>{new Date(sale.sold_at || sale.created_at).toLocaleString("pt-BR")}</TableCell>
+                        <TableCell>{sale.customer_name || "—"}</TableCell>
+                        <TableCell>{formatBRL(Number(sale.total || 0))}</TableCell>
+                        <TableCell>{cancelled ? "Cancelada" : "Ativa"}</TableCell>
+                        <TableCell className="text-right">
+                          <Button size="sm" variant="outline" disabled={cancelled || reversingId === sale.id} onClick={() => reverseSale(sale)}>
+                            {reversingId === sale.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Estornar venda"}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {!sales.length && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-6 text-center text-muted-foreground">Nenhuma venda recente do PDV.</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </section>
         )}
 
         {tab === "categorias" && (
-          <GroupTable
+          <CatalogPanel
             title="Categorias"
-            empty="Nenhuma categoria cadastrada nos produtos."
-            rows={categories.map((name) => summarizeGroup(products.filter((p) => p.category === name), name))}
+            empty="Nenhuma categoria cadastrada."
+            names={categoriesCatalog.map((row) => row.name)}
+            products={products}
+            field="category"
+            draft={catalogName}
+            onDraft={setCatalogName}
+            onCreate={() => mutateCatalog("categories", "POST", { name: catalogName.trim() })}
+            onRename={(from, to) => mutateCatalog("categories", "PUT", { from, to })}
+            onDelete={(name) => mutateCatalog("categories", "DELETE", { name })}
             onOpen={(name) => {
               setCategoryFilter(name);
               setShowFilters(true);
@@ -545,10 +708,17 @@ export function StockModule() {
         )}
 
         {tab === "marcas" && (
-          <GroupTable
+          <CatalogPanel
             title="Marcas"
-            empty="Nenhuma marca informada. Edite um produto e preencha a marca."
-            rows={brands.map((name) => summarizeGroup(products.filter((p) => p.brand === name), name))}
+            empty="Nenhuma marca cadastrada."
+            names={brandsCatalog.map((row) => row.name)}
+            products={products}
+            field="brand"
+            draft={catalogName}
+            onDraft={setCatalogName}
+            onCreate={() => mutateCatalog("brands", "POST", { name: catalogName.trim() })}
+            onRename={(from, to) => mutateCatalog("brands", "PUT", { from, to })}
+            onDelete={(name) => mutateCatalog("brands", "DELETE", { name })}
             onOpen={(name) => {
               setBrandFilter(name);
               setShowFilters(true);
@@ -574,6 +744,7 @@ export function StockModule() {
                   <TableHead>Comprar</TableHead>
                   <TableHead>Custo estimado</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -587,12 +758,35 @@ export function StockModule() {
                       <TableCell>{missing}</TableCell>
                       <TableCell>{formatBRL(missing * Number(product.cost ?? 0))}</TableCell>
                       <TableCell><StatusBadge status={status} /></TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            className="h-8 w-20"
+                            type="number"
+                            min="0"
+                            step="0.001"
+                            value={purchaseQty[product.id] ?? String(missing)}
+                            onChange={(e) => setPurchaseQty((prev) => ({ ...prev, [product.id]: e.target.value }))}
+                          />
+                          <Button
+                            size="sm"
+                            disabled={postingMovement}
+                            onClick={() => {
+                              const qty = Number(purchaseQty[product.id] ?? missing);
+                              if (!Number.isFinite(qty) || qty <= 0) return;
+                              void registerPurchase(product.id, qty);
+                            }}
+                          >
+                            Registrar compra
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
                 {!shoppingList.length && (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                       Nenhum produto precisa de reposição.
                     </TableCell>
                   </TableRow>
@@ -687,22 +881,45 @@ function summarizeGroup(items: Product[], name: string) {
   return { name, count: items.length, cost, sale };
 }
 
-function GroupTable({
+function CatalogPanel({
   title,
   empty,
-  rows,
+  names,
+  products,
+  field,
+  draft,
+  onDraft,
+  onCreate,
+  onRename,
+  onDelete,
   onOpen,
 }: {
   title: string;
   empty: string;
-  rows: { name: string; count: number; cost: number; sale: number }[];
+  names: string[];
+  products: Product[];
+  field: "category" | "brand";
+  draft: string;
+  onDraft: (value: string) => void;
+  onCreate: () => void;
+  onRename: (from: string, to: string) => void;
+  onDelete: (name: string) => void;
   onOpen: (name: string) => void;
 }) {
+  const rows = names.map((name) => summarizeGroup(products.filter((product) => (product[field] || "") === name), name));
   return (
     <section className="space-y-3 rounded-lg bg-background p-4 shadow-sm">
-      <h2 className="flex items-center gap-2 text-lg font-semibold">
-        <Search className="h-5 w-5" /> {title}
-      </h2>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <h2 className="flex items-center gap-2 text-lg font-semibold">
+          <Search className="h-5 w-5" /> {title}
+        </h2>
+        <div className="flex gap-2">
+          <Input placeholder={`Nova ${title.toLowerCase().replace(/s$/, "")}`} value={draft} onChange={(e) => onDraft(e.target.value)} />
+          <Button disabled={!draft.trim()} onClick={onCreate}>
+            <Plus className="mr-2 h-4 w-4" /> Criar
+          </Button>
+        </div>
+      </div>
       <Table>
         <TableHeader>
           <TableRow>
@@ -710,20 +927,42 @@ function GroupTable({
             <TableHead>Produtos</TableHead>
             <TableHead>Custo em estoque</TableHead>
             <TableHead>Potencial de venda</TableHead>
+            <TableHead />
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map((row) => (
-            <TableRow key={row.name} className="cursor-pointer" onClick={() => onOpen(row.name)}>
-              <TableCell>{row.name}</TableCell>
+            <TableRow key={row.name}>
+              <TableCell className="cursor-pointer" onClick={() => onOpen(row.name)}>{row.name}</TableCell>
               <TableCell>{row.count}</TableCell>
               <TableCell>{formatBRL(row.cost)}</TableCell>
               <TableCell>{formatBRL(row.sale)}</TableCell>
+              <TableCell className="space-x-2 text-right">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const next = window.prompt("Novo nome", row.name);
+                    if (next && next.trim() && next.trim() !== row.name) onRename(row.name, next.trim());
+                  }}
+                >
+                  Renomear
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (window.confirm(`Excluir "${row.name}"? Os produtos ficam sem esse vínculo.`)) onDelete(row.name);
+                  }}
+                >
+                  Excluir
+                </Button>
+              </TableCell>
             </TableRow>
           ))}
           {!rows.length && (
             <TableRow>
-              <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">{empty}</TableCell>
+              <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">{empty}</TableCell>
             </TableRow>
           )}
         </TableBody>
