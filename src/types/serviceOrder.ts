@@ -188,6 +188,7 @@ export interface ServiceOrderCloseData {
   execution_ends_at?: string;
   close_attachments: string[];
   signature_url: string;
+  account: string;
 }
 
 export interface ServiceOrderFormData {

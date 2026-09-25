@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -152,6 +153,8 @@ export function ServiceOrderCloseDialog({
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [walletAccounts, setWalletAccounts] = useState<string[]>([]);
+  const [account, setAccount] = useState('');
 
   useEffect(() => {
     if (!open) {
@@ -163,7 +166,35 @@ export function ServiceOrderCloseDialog({
     setEndDate(toDateTimeLocal(order.execution_ends_at || order.ends_at));
     setAttachments(order.close_attachments || []);
     setSignaturePreview(order.signature_url || '');
+    setAccount('');
   }, [open, order]);
+
+  useEffect(() => {
+    if (!open || !organizationId) return;
+    const client = supabase as unknown as {
+      from: (table: string) => {
+        select: (columns: string) => {
+          eq: (column: string, value: string) => {
+            order: (column: string) => Promise<{ data: Array<{ name: string }> | null }>;
+          };
+        };
+      };
+    };
+    void client
+      .from('financial_accounts')
+      .select('name')
+      .eq('organization_id', organizationId)
+      .order('name')
+      .then(({ data }) => {
+        const names = (data || []).map((row) => row.name).filter(Boolean);
+        setWalletAccounts(names);
+        setAccount((current) => {
+          if (current && names.includes(current)) return current;
+          const caixa = names.find((name) => name.toLowerCase() === 'caixa');
+          return caixa || names[0] || '';
+        });
+      });
+  }, [open, organizationId]);
 
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -290,6 +321,14 @@ export function ServiceOrderCloseDialog({
       });
       return;
     }
+    if (!account) {
+      toast({
+        title: 'Escolha a conta',
+        description: 'Selecione a conta da carteira que recebe o lançamento.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setSaving(true);
     try {
@@ -300,6 +339,7 @@ export function ServiceOrderCloseDialog({
         execution_ends_at: endDate ? new Date(endDate).toISOString() : undefined,
         close_attachments: attachments,
         signature_url,
+        account,
       });
       if (ok) onOpenChange(false);
     } catch (err) {
@@ -365,6 +405,24 @@ export function ServiceOrderCloseDialog({
                 className="min-h-[104px] resize-none rounded-xl text-base sm:text-sm"
                 data-testid="os-close-summary"
               />
+            </section>
+
+            <section className="space-y-3 rounded-2xl border bg-card p-3.5 shadow-sm">
+              <div>
+                <Label className="text-sm font-medium">Conta da carteira</Label>
+                <p className="text-xs text-muted-foreground">Onde o recebimento da OS entra</p>
+              </div>
+              <Select value={account || 'none'} onValueChange={(value) => setAccount(value === 'none' ? '' : value)}>
+                <SelectTrigger data-testid="os-close-account">
+                  <SelectValue placeholder="Selecione a conta" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Selecione a conta</SelectItem>
+                  {walletAccounts.map((name) => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </section>
 
             <section className="space-y-3 rounded-2xl border bg-card p-3.5 shadow-sm">

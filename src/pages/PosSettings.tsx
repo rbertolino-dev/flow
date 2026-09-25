@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,24 @@ import { formatPercent, formatPromotionDate, surchargeConditionLabel } from "@/l
 import { ArrowLeft, Loader2, Pencil, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const LEGACY_INCOME_CATEGORY: Record<string, string> = {
+  vendas: "Vendas",
+  servicos: "Serviços",
+  serviços: "Serviços",
+  outros: "Outros",
+};
+
+function matchIncomeCategory(value: string, names: string[]): string {
+  if (!value) return "";
+  const exact = names.find((name) => name === value);
+  if (exact) return exact;
+  const folded = names.find((name) => name.toLowerCase() === value.toLowerCase());
+  if (folded) return folded;
+  const legacy = LEGACY_INCOME_CATEGORY[value.toLowerCase()];
+  if (!legacy) return value;
+  return names.find((name) => name.toLowerCase() === legacy.toLowerCase()) || legacy;
+}
+
 interface LeadOption {
   id: string;
   name: string;
@@ -51,6 +69,8 @@ export default function PosSettings() {
   const { getPosSettings, savePosSettings } = usePosSales();
   const [form, setForm] = useState<PosSettings>(DEFAULT_POS_SETTINGS);
   const [walletAccounts, setWalletAccounts] = useState<string[]>([]);
+  const [incomeCategories, setIncomeCategories] = useState<string[]>([]);
+  const incomeNamesRef = useRef<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [leadQuery, setLeadQuery] = useState("");
@@ -72,7 +92,12 @@ export default function PosSettings() {
     setLoading(true);
     getPosSettings()
       .then((settings) => {
-        if (!cancelled) setForm(settings);
+        if (!cancelled) {
+          setForm({
+            ...settings,
+            financial_category: matchIncomeCategory(settings.financial_category, incomeNamesRef.current),
+          });
+        }
       })
       .catch(() => {
         if (!cancelled) setForm(DEFAULT_POS_SETTINGS);
@@ -111,6 +136,9 @@ export default function PosSettings() {
         select: (columns: string) => {
           eq: (column: string, value: string) => {
             order: (column: string) => Promise<{ data: Array<{ name: string }> | null }>;
+            in: (column: string, values: string[]) => {
+              order: (column: string) => Promise<{ data: Array<{ name: string }> | null }>;
+            };
           };
         };
       };
@@ -121,6 +149,21 @@ export default function PosSettings() {
       .eq("organization_id", activeOrgId)
       .order("name")
       .then(({ data }) => setWalletAccounts((data || []).map((row) => row.name).filter(Boolean)));
+    void client
+      .from("financial_categories")
+      .select("name")
+      .eq("organization_id", activeOrgId)
+      .in("direction", ["receber", "ambos"])
+      .order("name")
+      .then(({ data }) => {
+        const names = (data || []).map((row) => row.name).filter(Boolean);
+        incomeNamesRef.current = names;
+        setIncomeCategories(names);
+        setForm((current) => ({
+          ...current,
+          financial_category: matchIncomeCategory(current.financial_category, names),
+        }));
+      });
   }, [activeOrgId]);
 
   const set = <K extends keyof PosSettings>(key: K, value: PosSettings[K]) => {
@@ -551,20 +594,23 @@ export default function PosSettings() {
 
             <SettingRow
               title="Categoria Financeira"
-              description="Categoria sugerida no lançamento da venda."
+              description="Categoria de entrada do plano de contas, usada no lançamento da venda."
             >
               <Select
                 value={form.financial_category || "__none__"}
                 onValueChange={(value) => set("financial_category", value === "__none__" ? "" : value)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
+                  <SelectValue placeholder="Selecione a categoria" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Selecione</SelectItem>
-                  <SelectItem value="vendas">Vendas</SelectItem>
-                  <SelectItem value="servicos">Serviços</SelectItem>
-                  <SelectItem value="outros">Outros</SelectItem>
+                  <SelectItem value="__none__">Selecione a categoria</SelectItem>
+                  {form.financial_category && !incomeCategories.includes(form.financial_category) && (
+                    <SelectItem value={form.financial_category}>{form.financial_category}</SelectItem>
+                  )}
+                  {incomeCategories.map((name) => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </SettingRow>

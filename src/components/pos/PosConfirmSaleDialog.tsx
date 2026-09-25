@@ -50,6 +50,24 @@ type Props = {
   onConfirm: (values: PosConfirmSaleValues, payment: PosPaymentLine) => void;
 };
 
+const LEGACY_INCOME_CATEGORY: Record<string, string> = {
+  vendas: "Vendas",
+  servicos: "Serviços",
+  serviços: "Serviços",
+  outros: "Outros",
+};
+
+function matchIncomeCategory(value: string, names: string[]): string {
+  if (!value) return "";
+  const exact = names.find((name) => name === value);
+  if (exact) return exact;
+  const folded = names.find((name) => name.toLowerCase() === value.toLowerCase());
+  if (folded) return folded;
+  const legacy = LEGACY_INCOME_CATEGORY[value.toLowerCase()];
+  if (!legacy) return value;
+  return names.find((name) => name.toLowerCase() === legacy.toLowerCase()) || legacy;
+}
+
 function todayInputDate() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -79,6 +97,7 @@ export function PosConfirmSaleDialog({
   const [paymentNotes, setPaymentNotes] = useState("");
   const [splitRecurrence, setSplitRecurrence] = useState(false);
   const [walletAccounts, setWalletAccounts] = useState<string[]>([]);
+  const [incomeCategories, setIncomeCategories] = useState<string[]>([]);
   const { activeOrgId } = useActiveOrganization();
 
   useEffect(() => {
@@ -90,7 +109,7 @@ export function PosConfirmSaleDialog({
     setSaleDescription(desc);
     setPaymentDate(todayInputDate());
     setFinancialAccount(defaultFinancialAccount || organizationName || "Conta principal");
-    setFinancialCategory(defaultFinancialCategory || "");
+    setFinancialCategory(matchIncomeCategory(defaultFinancialCategory || "", []));
     setPaymentMethod(defaultPaymentMethod || "pix");
     setPaymentNotes(defaultNotes || "");
     setApplyStock(true);
@@ -111,9 +130,12 @@ export function PosConfirmSaleDialog({
     const client = supabase as unknown as {
       from: (table: string) => {
         select: (columns: string) => {
-          eq: (column: string, value: string) => {
+        eq: (column: string, value: string) => {
+          order: (column: string) => Promise<{ data: Array<{ name: string }> | null }>;
+          in: (column: string, values: string[]) => {
             order: (column: string) => Promise<{ data: Array<{ name: string }> | null }>;
           };
+        };
         };
       };
     };
@@ -126,6 +148,17 @@ export function PosConfirmSaleDialog({
         const names = (data || []).map((row) => row.name).filter(Boolean);
         setWalletAccounts(names);
         setFinancialAccount((current) => current || names[0] || '');
+      });
+    void client
+      .from('financial_categories')
+      .select('name')
+      .eq('organization_id', activeOrgId)
+      .in('direction', ['receber', 'ambos'])
+      .order('name')
+      .then(({ data }) => {
+        const names = (data || []).map((row) => row.name).filter(Boolean);
+        setIncomeCategories(names);
+        setFinancialCategory((current) => matchIncomeCategory(current, names));
       });
   }, [open, activeOrgId]);
 
@@ -204,10 +237,13 @@ export function PosConfirmSaleDialog({
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Selecione</SelectItem>
-                  <SelectItem value="vendas">Vendas</SelectItem>
-                  <SelectItem value="servicos">Serviços</SelectItem>
-                  <SelectItem value="outros">Outros</SelectItem>
+                  <SelectItem value="__none__">Selecione a categoria</SelectItem>
+                  {financialCategory && !incomeCategories.includes(financialCategory) && (
+                    <SelectItem value={financialCategory}>{financialCategory}</SelectItem>
+                  )}
+                  {incomeCategories.map((name) => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

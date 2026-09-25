@@ -480,6 +480,7 @@ export function useServiceOrders(
       execution_ends_at?: string;
       close_attachments: string[];
       signature_url: string;
+      account: string;
     }
   ) => {
     if (!activeOrgId) return false;
@@ -533,6 +534,7 @@ export function useServiceOrders(
       }).rpc('sync_service_order_finance', {
         p_organization_id: activeOrgId,
         p_order_id: orderId,
+        p_account: data.account,
       });
       if (financeError) {
         console.error('Erro ao lançar OS no financeiro:', financeError);

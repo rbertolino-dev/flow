@@ -128,7 +128,14 @@ async function syncPosFinancial(
 
   const description = input.description || `Venda PDV #${input.saleNumber}`;
   const account = input.account || "Caixa";
-  const category = input.category || "Vendas";
+  const categoryAliases: Record<string, string> = {
+    vendas: "Vendas",
+    servicos: "Serviços",
+    serviços: "Serviços",
+    outros: "Outros",
+  };
+  const rawCategory = (input.category || "Vendas").trim();
+  const category = categoryAliases[rawCategory.toLowerCase()] || rawCategory;
   const upsert = async (payload: Record<string, unknown>) => {
     const { data, error } = await supabase.rpc("upsert_financial_entry", payload);
     if (error) throw new Error(error.message);
