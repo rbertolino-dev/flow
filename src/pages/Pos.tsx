@@ -994,8 +994,8 @@ export default function Pos() {
           ))}
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
-          <div className="flex min-h-0 max-h-[46%] flex-1 flex-col border-r bg-white lg:max-h-none lg:min-w-0">
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(340px,1fr)_minmax(460px,560px)]">
+          <div className="flex h-full min-h-0 max-h-[42%] flex-col overflow-hidden border-r bg-white lg:max-h-none">
             <Tabs
               value={catalogTab}
               onValueChange={(v) => setCatalogTab(v as "products" | "services")}
@@ -1099,17 +1099,17 @@ export default function Pos() {
                       : "Nenhum produto encontrado."}
                   </p>
                 ) : (
-                  <ul data-pos-catalog="products" className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <ul data-pos-catalog="products" className="divide-y">
                     {filteredProducts.map((p) => (
-                      <li key={p.id} className="min-w-0">
+                      <li key={p.id}>
                         <button
                           type="button"
-                          className="flex h-full w-full flex-col justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-blue-400 hover:bg-blue-50"
+                          className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-blue-50"
                           onClick={() => addProductToCart(p.id)}
                         >
                           <div className="min-w-0">
-                            <p className="line-clamp-2 font-semibold leading-snug text-slate-900">{p.name}</p>
-                            <p className="mt-1 truncate text-xs text-slate-500">
+                            <p className="truncate font-medium text-slate-900">{p.name}</p>
+                            <p className="truncate text-xs text-slate-500">
                               {(posSettings.stock_code_field === "barcode"
                                 ? p.barcode || p.sku
                                 : p.sku || p.barcode) || "Sem código"}
@@ -1118,9 +1118,8 @@ export default function Pos() {
                               {stockLabel(p.stock_quantity)}
                             </p>
                           </div>
-                          <p className="w-fit rounded-full bg-emerald-100 px-2.5 py-1 text-sm font-bold text-emerald-800">
-                            {formatMoney(Number(p.price))}
-                            <span className="ml-1 font-medium text-emerald-700">{p.unit || "Un"}</span>
+                          <p className="shrink-0 text-sm font-bold text-emerald-700">
+                            {formatMoney(Number(p.price))} {p.unit || "Un"}
                           </p>
                         </button>
                       </li>
@@ -1137,21 +1136,21 @@ export default function Pos() {
                 ) : filteredServices.length === 0 ? (
                   <p className="p-6 text-sm text-muted-foreground">Nenhum serviço encontrado.</p>
                 ) : (
-                  <ul data-pos-catalog="services" className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <ul data-pos-catalog="services" className="divide-y">
                     {filteredServices.map((s) => (
-                      <li key={s.id} className="min-w-0">
+                      <li key={s.id}>
                         <button
                           type="button"
-                          className="flex h-full w-full flex-col justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-amber-400 hover:bg-amber-50"
+                          className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-amber-50"
                           onClick={() => addServiceToCart(s.id)}
                         >
                           <div className="min-w-0">
-                            <p className="line-clamp-2 font-semibold leading-snug text-slate-900">{s.name}</p>
+                            <p className="truncate font-medium text-slate-900">{s.name}</p>
                             {s.category && (
-                              <p className="mt-1 truncate text-xs text-slate-500">{s.category}</p>
+                              <p className="truncate text-xs text-slate-500">{s.category}</p>
                             )}
                           </div>
-                          <p className="w-fit rounded-full bg-amber-100 px-2.5 py-1 text-sm font-bold text-amber-900">
+                          <p className="shrink-0 text-sm font-bold text-amber-800">
                             {formatMoney(Number(s.price))} Un
                           </p>
                         </button>
@@ -1163,7 +1162,7 @@ export default function Pos() {
             </Tabs>
           </div>
 
-          <div className="flex min-h-0 w-full flex-1 flex-col bg-white shadow-2xl lg:w-[400px] lg:max-w-[42%] lg:flex-none lg:shrink-0">
+          <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-white shadow-2xl">
             <div className="flex items-center justify-between bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 px-4 py-4 text-white">
               <div>
                 <h2 className="text-3xl font-bold tracking-tight">Resumo</h2>
@@ -1305,9 +1304,10 @@ export default function Pos() {
               )}
             </div>
 
-            <div className="max-h-[46%] shrink-0 space-y-3 overflow-y-auto border-t border-indigo-100 bg-indigo-50/70 p-3">
+            <div className="max-h-[230px] shrink-0 space-y-3 overflow-y-auto border-t border-indigo-100 bg-white p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label className="text-sm text-muted-foreground">Promoção</Label>
+                <Label className="text-sm font-medium text-slate-700">Promoção</Label>
                 <Select
                   value={promotionId || "__none__"}
                   onValueChange={(value) => setPromotionId(value === "__none__" ? "" : value)}
@@ -1335,7 +1335,7 @@ export default function Pos() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-sm text-muted-foreground">Desconto geral</Label>
+                <Label className="text-sm font-medium text-slate-700">Desconto geral</Label>
                 {activePaymentDiscount ? (
                   <p className="text-xs text-muted-foreground">
                     {activePaymentDiscount.percent}% à vista nesta forma de pagamento
@@ -1358,16 +1358,17 @@ export default function Pos() {
                   placeholder="0,00"
                 />
               </div>
+              </div>
 
               {posSettings.show_payment_method && (
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Formas de pagamento</Label>
+              <div className="space-y-2 rounded-xl border border-indigo-100 bg-indigo-50/70 p-3">
+                <Label className="text-sm font-medium text-slate-700">Formas de pagamento</Label>
                 {payments.map((p) => {
                   const change = Math.max(0, roundMoney(Number(p.tendered_amount || 0) - Number(p.amount)));
                   return (
                   <div
                     key={p.id}
-                    className="space-y-2 rounded-md border bg-background px-3 py-2 text-sm"
+                    className="space-y-2 rounded-lg border border-indigo-100 bg-white px-3 py-2.5 text-sm"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span>
@@ -1500,8 +1501,8 @@ export default function Pos() {
               </div>
             </div>
 
-            <div className="mt-auto shrink-0 pr-16">
-              <div className="flex items-center justify-between bg-gradient-to-r from-blue-700 via-indigo-700 to-violet-700 px-4 py-3 text-white">
+            <div className="mt-auto shrink-0">
+              <div className="flex items-center justify-between bg-gradient-to-r from-blue-700 via-indigo-700 to-violet-700 px-4 py-3 pr-14 text-white">
                 <span className="text-xl font-bold">Subtotal:</span>
                 <span className="text-4xl font-bold tabular-nums">
                   {total.toLocaleString("pt-BR", {
