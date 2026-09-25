@@ -514,7 +514,7 @@ export function useBudgets(filters?: BudgetFilters) {
     }
   };
 
-  const approveBudget = async (budgetId: string, choice: { received: boolean; date: string }) => {
+  const approveBudget = async (budgetId: string, choice: { received: boolean; date: string; account: string }) => {
     if (!activeOrgId) throw new Error('Organização não encontrada');
     if (!choice?.date) throw new Error('Informe a data do lançamento');
 
@@ -545,6 +545,7 @@ export function useBudgets(filters?: BudgetFilters) {
         p_budget_id: budgetId,
         p_received: choice.received,
         p_receive_date: choice.date,
+        p_account: choice.account,
       });
       if (financeError) {
         console.error('Erro ao lançar orçamento no financeiro:', financeError);

@@ -15,6 +15,42 @@ export interface FinancialAccount {
   id: string;
   organization_id: string;
   name: string;
+  bank_name: string | null;
+  account_type: string | null;
+  last_digits: string | null;
+}
+
+export const WALLET_BANKS = [
+  'Banco do Brasil',
+  'Bradesco',
+  'Caixa Econômica',
+  'Cora',
+  'Inter',
+  'Itaú',
+  'Mercado Pago',
+  'NuBank',
+  'PagBank',
+  'Santander',
+  'Sicoob',
+  'Sicredi',
+  'Outro',
+] as const;
+
+export const WALLET_ACCOUNT_TYPES = [
+  'Conta Corrente',
+  'Conta Poupança',
+  'Conta de Investimento',
+  'Cartão de Crédito',
+  'Caixa',
+] as const;
+
+export function accountCashBalance(entries: FinancialEntry[], accountName: string): number {
+  const key = accountName.trim().toLowerCase();
+  return entries.reduce((sum, entry) => {
+    if ((entry.account || '').trim().toLowerCase() !== key || entry.status !== 'paid') return sum;
+    const amount = Number(entry.amount) || 0;
+    return sum + (entry.direction === 'receber' ? amount : -amount);
+  }, 0);
 }
 
 export type DreClass =

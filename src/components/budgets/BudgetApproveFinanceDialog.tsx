@@ -12,11 +12,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { todayIsoDate } from '@/lib/finance';
 
 export interface BudgetFinanceChoice {
   received: boolean;
   date: string;
+  account: string;
 }
 
 interface BudgetApproveFinanceDialogProps {
@@ -43,12 +52,16 @@ export function BudgetApproveFinanceDialog({
   const [date, setDate] = useState(todayIsoDate());
   const [total, setTotal] = useState(0);
   const [number, setNumber] = useState('');
+  const [account, setAccount] = useState('');
+  const [accounts, setAccounts] = useState<string[]>([]);
+  const { activeOrgId } = useActiveOrganization();
 
   useEffect(() => {
     if (!open || !budgetId) return;
     setMode('receivable');
     const today = todayIsoDate();
     setDate(today);
+    setAccount('');
     let cancelled = false;
 
     void (async () => {
@@ -83,6 +96,29 @@ export function BudgetApproveFinanceDialog({
     };
   }, [open, budgetId]);
 
+  useEffect(() => {
+    if (!open || !activeOrgId) return;
+    const client = supabase as unknown as {
+      from: (table: string) => {
+        select: (columns: string) => {
+          eq: (column: string, value: string) => {
+            order: (column: string) => Promise<{ data: Array<{ name: string }> | null }>;
+          };
+        };
+      };
+    };
+    void client
+      .from('financial_accounts')
+      .select('name')
+      .eq('organization_id', activeOrgId)
+      .order('name')
+      .then(({ data }) => {
+        const names = (data || []).map((row) => row.name).filter(Boolean);
+        setAccounts(names);
+        setAccount((current) => current || names.find((name) => name.toLowerCase() === 'caixa') || names[0] || '');
+      });
+  }, [open, activeOrgId]);
+
   const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(total);
 
   return (
@@ -114,6 +150,18 @@ export function BudgetApproveFinanceDialog({
           <Label>{mode === 'received' ? 'Data do recebimento' : 'Data a receber'}</Label>
           <Input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
         </div>
+        <div>
+          <Label>Conta da carteira</Label>
+          <Select value={account || 'none'} onValueChange={(value) => setAccount(value === 'none' ? '' : value)}>
+            <SelectTrigger><SelectValue placeholder="Selecione a conta" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Selecione a conta</SelectItem>
+              {accounts.map((name) => (
+                <SelectItem key={name} value={name}>{name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancelar
@@ -121,8 +169,8 @@ export function BudgetApproveFinanceDialog({
           <Button
             type="button"
             className="bg-green-600 hover:bg-green-700"
-            disabled={saving || !date}
-            onClick={() => void onConfirm({ received: mode === 'received', date })}
+            disabled={saving || !date || !account}
+            onClick={() => void onConfirm({ received: mode === 'received', date, account })}
           >
             Confirmar e lançar
           </Button>

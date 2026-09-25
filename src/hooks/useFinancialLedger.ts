@@ -92,7 +92,7 @@ export function useFinancialLedger() {
           .limit(2000),
         db()
           .from('financial_accounts')
-          .select('id, organization_id, name')
+          .select('id, organization_id, name, bank_name, account_type, last_digits')
           .eq('organization_id', activeOrgId)
           .order('name'),
         db()
@@ -225,5 +225,92 @@ export function useFinancialLedger() {
     await reload();
   };
 
-  return { entries, accounts, categories, loading, reload, createManual, setStatus, saveCategory, deleteCategory, activeOrgId };
+  const saveAccount = async (input: {
+    id?: string;
+    name: string;
+    bank_name: string;
+    account_type: string;
+    last_digits: string;
+  }) => {
+    if (!activeOrgId) throw new Error('Organização não encontrada');
+    const name = input.name.trim();
+    if (!name) throw new Error('Informe o nome da conta');
+    const payload = {
+      name,
+      bank_name: input.bank_name || null,
+      account_type: input.account_type || null,
+      last_digits: input.last_digits.replace(/\D/g, '').slice(0, 4) || null,
+    };
+    if (input.id) {
+      const current = accounts.find((account) => account.id === input.id);
+      const updated = await db().from('financial_accounts').update(payload).eq('id', input.id).eq('organization_id', activeOrgId);
+      if (updated.error) throw new Error(updated.error.message);
+      if (current && current.name !== name) {
+        const renamed = await db().from('financial_entries').update({ account: name }).eq('organization_id', activeOrgId).eq('account', current.name);
+        if (renamed.error) throw new Error(renamed.error.message);
+      }
+    } else {
+      const created = await db().from('financial_accounts').insert({ organization_id: activeOrgId, ...payload });
+      if (created.error) throw new Error(created.error.message);
+    }
+    await reload();
+  };
+
+  const deleteAccount = async (accountId: string) => {
+    if (!activeOrgId) throw new Error('Organização não encontrada');
+    const current = accounts.find((account) => account.id === accountId);
+    if (!current) return;
+    const used = entries.some((entry) => (entry.account || '').trim().toLowerCase() === current.name.trim().toLowerCase());
+    if (used) throw new Error('Esta conta já tem lançamentos. Ela continua disponível no PDV, no orçamento e nas contas.');
+    const removed = await db().from('financial_accounts').delete().eq('id', accountId).eq('organization_id', activeOrgId);
+    if (removed.error) throw new Error(removed.error.message);
+    await reload();
+  };
+
+  const transferAccounts = async (fromName: string, toName: string, amount: number, date: string) => {
+    if (!activeOrgId) throw new Error('Organização não encontrada');
+    if (!fromName || !toName || fromName === toName) throw new Error('Escolha duas contas diferentes');
+    if (!amount || amount <= 0) throw new Error('Informe o valor');
+    const transferId = crypto.randomUUID();
+    const paidAt = paymentTimestamp(date);
+    const send = async (direction: FinanceDirection, account: string, sourceId: string) => {
+      const { error } = await db().rpc('upsert_financial_entry', {
+        p_organization_id: activeOrgId,
+        p_direction: direction,
+        p_amount: amount,
+        p_due_date: date,
+        p_source_type: 'manual',
+        p_source_id: sourceId,
+        p_status: 'paid',
+        p_settlement_status: 'confirmado',
+        p_description: `Transferência ${fromName} para ${toName}`,
+        p_contact_name: 'Transferência',
+        p_billing_name: 'Sem contato',
+        p_account: account,
+        p_origin_label: 'Transferência',
+        p_paid_at: paidAt,
+        p_competence_date: date,
+      });
+      if (error) throw new Error(error.message);
+    };
+    await send('pagar', fromName, `${transferId}:saida`);
+    await send('receber', toName, `${transferId}:entrada`);
+    await reload();
+  };
+
+  return {
+    entries,
+    accounts,
+    categories,
+    loading,
+    reload,
+    createManual,
+    setStatus,
+    saveCategory,
+    deleteCategory,
+    saveAccount,
+    deleteAccount,
+    transferAccounts,
+    activeOrgId,
+  };
 }

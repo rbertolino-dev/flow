@@ -50,6 +50,7 @@ export default function PosSettings() {
   const { toast } = useToast();
   const { getPosSettings, savePosSettings } = usePosSales();
   const [form, setForm] = useState<PosSettings>(DEFAULT_POS_SETTINGS);
+  const [walletAccounts, setWalletAccounts] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [leadQuery, setLeadQuery] = useState("");
@@ -102,6 +103,25 @@ export default function PosSettings() {
     }, 300);
     return () => clearTimeout(timer);
   }, [leadQuery, activeOrgId]);
+
+  useEffect(() => {
+    if (!activeOrgId) return;
+    const client = supabase as unknown as {
+      from: (table: string) => {
+        select: (columns: string) => {
+          eq: (column: string, value: string) => {
+            order: (column: string) => Promise<{ data: Array<{ name: string }> | null }>;
+          };
+        };
+      };
+    };
+    void client
+      .from("financial_accounts")
+      .select("name")
+      .eq("organization_id", activeOrgId)
+      .order("name")
+      .then(({ data }) => setWalletAccounts((data || []).map((row) => row.name).filter(Boolean)));
+  }, [activeOrgId]);
 
   const set = <K extends keyof PosSettings>(key: K, value: PosSettings[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -508,13 +528,25 @@ export default function PosSettings() {
 
             <SettingRow
               title="Conta Financeira"
-              description="Conta usada no confirmar venda. Não há um plano de contas separado, então o nome fica salvo aqui."
+              description="Conta da carteira sugerida ao confirmar a venda no PDV."
             >
-              <Input
-                placeholder="Ex.: Conta principal"
-                value={form.financial_account}
-                onChange={(e) => set("financial_account", e.target.value)}
-              />
+              <Select
+                value={form.financial_account || "__none__"}
+                onValueChange={(value) => set("financial_account", value === "__none__" ? "" : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a conta" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Selecione a conta</SelectItem>
+                  {form.financial_account && !walletAccounts.includes(form.financial_account) && (
+                    <SelectItem value={form.financial_account}>{form.financial_account}</SelectItem>
+                  )}
+                  {walletAccounts.map((name) => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </SettingRow>
 
             <SettingRow

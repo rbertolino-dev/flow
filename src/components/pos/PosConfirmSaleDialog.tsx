@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PAYMENT_METHODS } from "@/lib/paymentMethods";
+import { supabase } from "@/integrations/supabase/client";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import type { PosPaymentLine } from "@/types/pos";
 
 export type PosConfirmSaleValues = {
@@ -76,6 +78,8 @@ export function PosConfirmSaleDialog({
   const [paymentMethod, setPaymentMethod] = useState(defaultPaymentMethod || "pix");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [splitRecurrence, setSplitRecurrence] = useState(false);
+  const [walletAccounts, setWalletAccounts] = useState<string[]>([]);
+  const { activeOrgId } = useActiveOrganization();
 
   useEffect(() => {
     if (!open) return;
@@ -101,6 +105,29 @@ export function PosConfirmSaleDialog({
     defaultFinancialCategory,
     defaultNotes,
   ]);
+
+  useEffect(() => {
+    if (!open || !activeOrgId) return;
+    const client = supabase as unknown as {
+      from: (table: string) => {
+        select: (columns: string) => {
+          eq: (column: string, value: string) => {
+            order: (column: string) => Promise<{ data: Array<{ name: string }> | null }>;
+          };
+        };
+      };
+    };
+    void client
+      .from('financial_accounts')
+      .select('name')
+      .eq('organization_id', activeOrgId)
+      .order('name')
+      .then(({ data }) => {
+        const names = (data || []).map((row) => row.name).filter(Boolean);
+        setWalletAccounts(names);
+        setFinancialAccount((current) => current || names[0] || '');
+      });
+  }, [open, activeOrgId]);
 
   const canConfirm = useMemo(
     () => !!paymentMethod && total >= 0 && !loading,
@@ -155,11 +182,17 @@ export function PosConfirmSaleDialog({
             </div>
             <div className="space-y-1">
               <Label>Conta financeira</Label>
-              <Input
-                value={financialAccount}
-                onChange={(e) => setFinancialAccount(e.target.value)}
-                placeholder="Conta"
-              />
+              <Select value={financialAccount || 'none'} onValueChange={(value) => setFinancialAccount(value === 'none' ? '' : value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a conta" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Selecione a conta</SelectItem>
+                  {walletAccounts.map((name) => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Categoria</Label>

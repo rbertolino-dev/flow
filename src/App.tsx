@@ -64,6 +64,7 @@ const FinanceDashboard = lazyWithRetry(() => import("./pages/FinanceDashboard"))
 const FinanceReceivables = lazyWithRetry(() => import("./pages/FinanceReceivables"));
 const FinancePayables = lazyWithRetry(() => import("./pages/FinancePayables"));
 const FinanceCategories = lazyWithRetry(() => import("./pages/FinanceCategories"));
+const FinanceBanks = lazyWithRetry(() => import("./pages/FinanceBanks"));
 const Employees = lazyWithRetry(() => import("./pages/Employees"));
 const PublicSurvey = lazyWithRetry(() => import("./pages/PublicSurvey"));
 const PublicBooking = lazyWithRetry(() => import("./pages/PublicBooking"));
@@ -200,6 +201,7 @@ const App = () => {
                 <Route path="/financeiro/receber" element={<FinanceReceivables />} />
                 <Route path="/financeiro/pagar" element={<FinancePayables />} />
                 <Route path="/financeiro/categorias" element={<FinanceCategories />} />
+                <Route path="/financeiro/bancos" element={<FinanceBanks />} />
                 <Route path="/budgets-module" element={<BudgetsModule />} />
                 <Route path="/employees" element={<Employees />} />
                 <Route path="/sign-contract/:contractId" element={<SignContract />} />
