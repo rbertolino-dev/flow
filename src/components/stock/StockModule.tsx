@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -24,14 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -45,7 +36,8 @@ import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { PosSale } from "@/types/pos";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Product, ProductFormData } from "@/types/product";
+import { Product } from "@/types/product";
+import { CreateProductDialog } from "@/components/shared/CreateProductDialog";
 import { formatBRL, getStockStatus, stockNumbers, StockStatus } from "@/lib/stockStatus";
 import { cn } from "@/lib/utils";
 
@@ -78,20 +70,6 @@ const TABS: { id: StockTab; label: string; icon: typeof Package }[] = [
   { id: "compras", label: "Lista de Compras", icon: ShoppingCart },
 ];
 
-const emptyForm = {
-  name: "",
-  sku: "",
-  category: "",
-  brand: "",
-  cost: "",
-  price: "",
-  min_stock: "",
-  ideal_stock: "",
-  stock_quantity: "",
-  unit: "un",
-  description: "",
-};
-
 function movementTypeLabel(type: string, saleNumber?: number | null) {
   const labels: Record<string, string> = {
     in: "Entrada",
@@ -106,7 +84,7 @@ function movementTypeLabel(type: string, saleNumber?: number | null) {
 }
 
 export function StockModule() {
-  const { products, loading, createProduct, updateProduct, refetch } = useProducts();
+  const { products, loading, refetch } = useProducts();
   const { listSales, cancelSale } = usePosSales();
   const { activeOrgId } = useActiveOrganization();
   const { toast } = useToast();
@@ -118,10 +96,7 @@ export function StockModule() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [brandFilter, setBrandFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [formAttempted, setFormAttempted] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
-  const [form, setForm] = useState(emptyForm);
-  const [saving, setSaving] = useState(false);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [movementsLoading, setMovementsLoading] = useState(false);
   const [movementProductId, setMovementProductId] = useState("");
@@ -282,68 +257,12 @@ export function StockModule() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm(emptyForm);
-    setFormAttempted(false);
     setDialogOpen(true);
   };
 
   const openEdit = (product: Product) => {
     setEditing(product);
-    setForm({
-      name: product.name,
-      sku: product.sku || "",
-      category: product.category || "",
-      brand: product.brand || "",
-      cost: product.cost != null ? String(product.cost) : "",
-      price: String(product.price ?? 0),
-      min_stock: product.min_stock != null ? String(product.min_stock) : "",
-      ideal_stock: product.ideal_stock != null ? String(product.ideal_stock) : "",
-      stock_quantity: product.stock_quantity != null ? String(product.stock_quantity) : "0",
-      unit: product.unit || "un",
-      description: product.description || "",
-    });
-    setFormAttempted(false);
     setDialogOpen(true);
-  };
-
-  const formErrors = validateProductForm(form);
-
-  const saveProduct = async () => {
-    const errors = validateProductForm(form);
-    if (Object.keys(errors).length) {
-      setFormAttempted(true);
-      toast({
-        title: "Campos obrigatórios",
-        description: "Informe nome, preço de venda, limite de falta e limite ideal.",
-        variant: "destructive",
-      });
-      return;
-    }
-    const payload: ProductFormData = {
-      name: form.name.trim(),
-      description: form.description || null,
-      price: Number(form.price) || 0,
-      cost: form.cost === "" ? null : Number(form.cost),
-      category: form.category.trim() || "Geral",
-      sku: form.sku.trim() || null,
-      brand: form.brand.trim() || null,
-      stock_quantity: form.stock_quantity === "" ? 0 : Number(form.stock_quantity),
-      min_stock: form.min_stock === "" ? null : Number(form.min_stock),
-      ideal_stock: form.ideal_stock === "" ? null : Number(form.ideal_stock),
-      unit: form.unit || "un",
-      is_active: editing?.is_active ?? true,
-      image_url: editing?.image_url || null,
-      commission_percentage: editing?.commission_percentage ?? null,
-      commission_fixed: editing?.commission_fixed ?? null,
-    };
-    setSaving(true);
-    try {
-      if (editing) await updateProduct(editing.id, payload);
-      else await createProduct(payload);
-      setDialogOpen(false);
-    } finally {
-      setSaving(false);
-    }
   };
 
   const postMovement = async () => {
@@ -811,124 +730,11 @@ export function StockModule() {
         )}
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="gap-0 bg-white p-0 sm:max-w-3xl">
-          <div className="sticky top-0 z-10 bg-slate-950 px-6 py-5 pr-12 text-white">
-            <DialogHeader>
-              <p className="text-xs font-medium uppercase tracking-wider text-slate-400">Estoque</p>
-              <DialogTitle className="text-xl text-white">{editing ? "Editar produto" : "Cadastrar produto"}</DialogTitle>
-              <DialogDescription className="text-slate-300">
-                Nome, preço e os dois limites de estoque definem como o produto aparece no funil de reposição.
-              </DialogDescription>
-            </DialogHeader>
-          </div>
-
-          <div className="space-y-5 bg-white px-6 pb-24 pt-5">
-            <Field
-              label="Nome do produto"
-              required
-              prominent
-              placeholder="Ex.: Café especial 250g"
-              value={form.name}
-              error={formAttempted ? formErrors.name : undefined}
-              onChange={(v) => setForm({ ...form, name: v })}
-            />
-
-            <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900">Níveis de estoque</h3>
-                  <p className="text-xs text-slate-500">Abaixo do limite de falta o produto fica em falta. Entre os dois limites, fica em baixa.</p>
-                </div>
-                <StockPreview form={form} />
-              </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                <Field
-                  label="Quantidade atual"
-                  type="number"
-                  hint="Saldo que entra no histórico ao salvar."
-                  value={form.stock_quantity}
-                  onChange={(v) => setForm({ ...form, stock_quantity: v })}
-                />
-                <Field
-                  label="Limite de falta"
-                  type="number"
-                  required
-                  tone="danger"
-                  hint="Obrigatório. Ponto em que o estoque acaba."
-                  value={form.min_stock}
-                  error={formAttempted ? formErrors.min_stock : undefined}
-                  onChange={(v) => setForm({ ...form, min_stock: v })}
-                />
-                <Field
-                  label="Limite ideal"
-                  type="number"
-                  required
-                  tone="success"
-                  hint="Obrigatório. Meta para repor o produto."
-                  value={form.ideal_stock}
-                  error={formAttempted ? formErrors.ideal_stock : undefined}
-                  onChange={(v) => setForm({ ...form, ideal_stock: v })}
-                />
-              </div>
-            </section>
-
-            <section className="grid gap-3 md:grid-cols-2">
-              <Field
-                label="Preço de venda"
-                type="number"
-                required
-                hint="Valor usado no PDV e nos orçamentos."
-                value={form.price}
-                error={formAttempted ? formErrors.price : undefined}
-                onChange={(v) => setForm({ ...form, price: v })}
-              />
-              <Field
-                label="Custo unitário"
-                type="number"
-                hint="Opcional. Entra no custo em estoque."
-                value={form.cost}
-                onChange={(v) => setForm({ ...form, cost: v })}
-              />
-            </section>
-
-            <section className="grid gap-3 border-t bg-white pt-4 md:grid-cols-2">
-              <p className="text-xs font-medium uppercase tracking-wider text-slate-400 md:col-span-2">Complemento</p>
-              <Field label="Código / SKU" value={form.sku} onChange={(v) => setForm({ ...form, sku: v })} />
-              <Field label="Unidade" placeholder="un, kg, cx" value={form.unit} onChange={(v) => setForm({ ...form, unit: v })} />
-              <CatalogField
-                label="Categoria"
-                value={form.category}
-                options={categories}
-                newPlaceholder="Nome da nova categoria"
-                onChange={(v) => setForm({ ...form, category: v })}
-              />
-              <CatalogField
-                label="Marca"
-                value={form.brand}
-                options={brands}
-                newPlaceholder="Nome da nova marca"
-                onChange={(v) => setForm({ ...form, brand: v })}
-              />
-              <div className="space-y-1.5 md:col-span-2">
-                <Label>Descrição</Label>
-                <Textarea
-                  placeholder="Detalhe opcional para quem consulta o produto."
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                />
-              </div>
-            </section>
-          </div>
-
-          <DialogFooter className="sticky bottom-0 z-10 border-t bg-white px-6 py-4">
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={saveProduct} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : editing ? "Salvar alterações" : "Cadastrar produto"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CreateProductDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        product={editing}
+      />
     </div>
   );
 }
@@ -949,137 +755,8 @@ function StatusBadge({ status }: { status: StockStatus }) {
   return <Badge className="bg-emerald-500 hover:bg-emerald-500">Ideal</Badge>;
 }
 
-function validateProductForm(form: typeof emptyForm) {
-  const errors: Partial<Record<"name" | "price" | "min_stock" | "ideal_stock", string>> = {};
-  if (!form.name.trim()) errors.name = "Informe o nome do produto.";
-  const price = Number(form.price);
-  if (form.price === "" || !Number.isFinite(price) || price < 0) errors.price = "Informe o preço de venda.";
-  const min = Number(form.min_stock);
-  if (form.min_stock === "" || !Number.isFinite(min) || min < 0) errors.min_stock = "Informe o limite de falta.";
-  const ideal = Number(form.ideal_stock);
-  if (form.ideal_stock === "" || !Number.isFinite(ideal) || ideal < 0) {
-    errors.ideal_stock = "Informe o limite ideal.";
-  } else if (!errors.min_stock && ideal < min) {
-    errors.ideal_stock = "O limite ideal precisa ser igual ou maior que o limite de falta.";
-  }
-  return errors;
-}
-
-function StockPreview({ form }: { form: typeof emptyForm }) {
-  const errors = validateProductForm(form);
-  if (errors.min_stock || errors.ideal_stock) {
-    return <Badge variant="outline" className="border-slate-300 bg-white text-slate-500">Defina os limites</Badge>;
-  }
-  const status = getStockStatus({
-    stock_quantity: Number(form.stock_quantity || 0),
-    min_stock: Number(form.min_stock),
-    ideal_stock: Number(form.ideal_stock),
-  } as Product);
-  return <StatusBadge status={status} />;
-}
-
 function uniqueNames(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR"));
-}
-
-function CatalogField({
-  label,
-  value,
-  onChange,
-  options,
-  newPlaceholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: string[];
-  newPlaceholder: string;
-}) {
-  const [creating, setCreating] = useState(false);
-  const choices = uniqueNames([...options, creating ? "" : value]);
-  const selected = creating || (value && !choices.includes(value)) ? "__new__" : value || "__none__";
-  return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      <Select
-        value={selected}
-        onValueChange={(next) => {
-          if (next === "__new__") {
-            setCreating(true);
-            onChange("");
-            return;
-          }
-          setCreating(false);
-          onChange(next === "__none__" ? "" : next);
-        }}
-      >
-        <SelectTrigger className="bg-white"><SelectValue placeholder={`Selecione a ${label.toLowerCase()}`} /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="__none__">Sem {label.toLowerCase()}</SelectItem>
-          {choices.map((option) => (
-            <SelectItem key={option} value={option}>{option}</SelectItem>
-          ))}
-          <SelectItem value="__new__">+ Nova {label.toLowerCase()}</SelectItem>
-        </SelectContent>
-      </Select>
-      {selected === "__new__" && (
-        <Input className="bg-white" placeholder={newPlaceholder} value={value} onChange={(e) => onChange(e.target.value)} />
-      )}
-    </div>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  type = "text",
-  required,
-  error,
-  hint,
-  prominent,
-  placeholder,
-  tone,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-  required?: boolean;
-  error?: string;
-  hint?: string;
-  prominent?: boolean;
-  placeholder?: string;
-  tone?: "danger" | "success";
-}) {
-  const fieldId = label.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-");
-  return (
-    <div className={cn(
-      "space-y-1.5 rounded-xl",
-      tone === "danger" && "bg-red-50 p-3 ring-1 ring-red-100",
-      tone === "success" && "bg-emerald-50 p-3 ring-1 ring-emerald-100",
-    )}>
-      <Label htmlFor={fieldId} className={cn(prominent && "text-sm font-semibold text-slate-900")}>
-        {label}
-        {required && <span className="ml-1 text-red-500">*</span>}
-      </Label>
-      <Input
-        id={fieldId}
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        min={type === "number" ? 0 : undefined}
-        step={type === "number" ? "0.001" : undefined}
-        className={cn(
-          "h-10 bg-white",
-          prominent && "h-12 text-base",
-          error && "border-red-400 focus-visible:ring-red-400",
-        )}
-        onChange={(e) => onChange(e.target.value)}
-      />
-      {error ? <p className="text-xs text-red-600">{error}</p> : hint ? <p className="text-xs text-slate-500">{hint}</p> : null}
-    </div>
-  );
 }
 
 function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: string[] }) {
