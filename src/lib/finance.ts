@@ -188,6 +188,165 @@ export function todayIsoDate(): string {
   return `${now.getFullYear()}-${month}-${day}`;
 }
 
+const MONTH_NAMES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
+export const CASH_FLOW_MAX_MONTHS = 6;
+
+function isoFromDate(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+export function cashFlowDefaultRange(base = new Date()): { from: string; to: string } {
+  const start = new Date(base.getFullYear(), base.getMonth() - (CASH_FLOW_MAX_MONTHS - 1), 1);
+  const end = new Date(base.getFullYear(), base.getMonth() + 1, 0);
+  return { from: isoFromDate(start), to: isoFromDate(end) };
+}
+
+export function cashFlowMonthCount(from: string, to: string): number {
+  const [fromYear, fromMonth] = from.slice(0, 7).split('-').map(Number);
+  const [toYear, toMonth] = to.slice(0, 7).split('-').map(Number);
+  if (!fromYear || !fromMonth || !toYear || !toMonth) return 0;
+  return (toYear - fromYear) * 12 + (toMonth - fromMonth) + 1;
+}
+
+export interface CashFlowMonth {
+  key: string;
+  label: string;
+  includesForecast: boolean;
+}
+
+export interface CashFlowCell {
+  amount: number;
+  hasEntries: boolean;
+}
+
+export interface CashFlowCategoryRow {
+  name: string;
+  cells: CashFlowCell[];
+}
+
+export interface CashFlowReport {
+  months: CashFlowMonth[];
+  entrada: CashFlowCell[];
+  saida: CashFlowCell[];
+  saldo: number[];
+  entradaCategories: CashFlowCategoryRow[];
+  saidaCategories: CashFlowCategoryRow[];
+  periodBalance: number;
+}
+
+export function cashFlowMonths(from: string, to: string, today = todayIsoDate()): CashFlowMonth[] {
+  const total = cashFlowMonthCount(from, to);
+  if (total < 1) return [];
+  const [yearText, monthText] = from.slice(0, 7).split('-');
+  let year = Number(yearText);
+  let month = Number(monthText);
+  const currentKey = today.slice(0, 7);
+  const months: CashFlowMonth[] = [];
+  const count = Math.min(total, CASH_FLOW_MAX_MONTHS);
+  for (let index = 0; index < count; index += 1) {
+    const key = `${year}-${String(month).padStart(2, '0')}`;
+    months.push({
+      key,
+      label: `${MONTH_NAMES[month - 1]}, ${year}`,
+      includesForecast: key >= currentKey,
+    });
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+  return months;
+}
+
+function cashFlowCategoryName(entry: FinancialEntry, categories: FinancialCategory[]): string {
+  const linked = entry.category_id
+    ? categories.find((category) => category.id === entry.category_id)
+    : categories.find((category) => category.name === entry.category && (category.direction === entry.direction || category.direction === 'ambos'));
+  return linked?.name || entry.category || 'Sem categoria';
+}
+
+function cashFlowMonthKey(entry: FinancialEntry, allowed: Set<string>, currentKey: string): string | null {
+  if (entry.status === 'cancelled') return null;
+  if (entry.status === 'paid' && entry.paid_at) {
+    const key = entry.paid_at.slice(0, 7);
+    return allowed.has(key) ? key : null;
+  }
+  if (entry.status !== 'open' || !entry.due_date) return null;
+  const key = entry.due_date.slice(0, 7);
+  if (key < currentKey || !allowed.has(key)) return null;
+  return key;
+}
+
+export function buildCashFlow(
+  entries: FinancialEntry[],
+  categories: FinancialCategory[],
+  from: string,
+  to: string,
+  today = todayIsoDate(),
+): CashFlowReport {
+  const months = cashFlowMonths(from, to, today);
+  const allowed = new Set(months.map((month) => month.key));
+  const currentKey = today.slice(0, 7);
+  const entradaMap = new Map<string, Map<string, { amount: number; count: number }>>();
+  const saidaMap = new Map<string, Map<string, { amount: number; count: number }>>();
+
+  entries.forEach((entry) => {
+    const key = cashFlowMonthKey(entry, allowed, currentKey);
+    if (!key) return;
+    const bucket = entry.direction === 'receber' ? entradaMap : saidaMap;
+    const name = cashFlowCategoryName(entry, categories);
+    const row = bucket.get(name) || new Map<string, { amount: number; count: number }>();
+    const cell = row.get(key) || { amount: 0, count: 0 };
+    cell.amount += Number(entry.amount) || 0;
+    cell.count += 1;
+    row.set(key, cell);
+    bucket.set(name, row);
+  });
+
+  const toRows = (source: Map<string, Map<string, { amount: number; count: number }>>): CashFlowCategoryRow[] => (
+    Array.from(source.entries())
+      .map(([name, values]) => ({
+        name,
+        cells: months.map((month) => {
+          const cell = values.get(month.key);
+          return { amount: cell?.amount || 0, hasEntries: (cell?.count || 0) > 0 };
+        }),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+  );
+
+  const sumColumn = (rows: CashFlowCategoryRow[], index: number): CashFlowCell => {
+    const used = rows.filter((row) => row.cells[index]?.hasEntries);
+    return {
+      amount: used.reduce((sum, row) => sum + row.cells[index].amount, 0),
+      hasEntries: used.length > 0,
+    };
+  };
+
+  const entradaCategories = toRows(entradaMap);
+  const saidaCategories = toRows(saidaMap);
+  const entrada = months.map((_, index) => sumColumn(entradaCategories, index));
+  const saida = months.map((_, index) => sumColumn(saidaCategories, index));
+  const saldo = months.map((_, index) => entrada[index].amount - saida[index].amount);
+
+  return {
+    months,
+    entrada,
+    saida,
+    saldo,
+    entradaCategories,
+    saidaCategories,
+    periodBalance: saldo.reduce((sum, value) => sum + value, 0),
+  };
+}
+
 export function monthRange(base = new Date()): { from: string; to: string } {
   const start = new Date(base.getFullYear(), base.getMonth(), 1);
   const end = new Date(base.getFullYear(), base.getMonth() + 1, 0);
