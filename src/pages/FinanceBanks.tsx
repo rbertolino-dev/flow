@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeftRight, Landmark, LayoutDashboard, Loader2, Pencil, Plus, RefreshCw, Tags, Trash2, Wallet } from 'lucide-react';
+import { ArrowLeftRight, Landmark, Loader2, Pencil, Plus, RefreshCw, Trash2, Wallet } from 'lucide-react';
 import { CRMLayout } from '@/components/crm/CRMLayout';
+import { FinanceSubnav } from '@/components/finance/FinanceSubnav';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -99,20 +99,7 @@ export default function FinanceBanks() {
   return (
     <CRMLayout activeView="finance" onViewChange={() => {}}>
       <div className="mx-auto max-w-[1100px] p-4 md:p-6">
-        <div className="mb-6 flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-2 rounded-full bg-sky-600 px-4 py-2 text-sm font-medium text-white shadow-sm">
-            <Landmark className="h-5 w-5" />
-            Bancos
-          </span>
-          <Link to="/financeiro/categorias" className="inline-flex items-center gap-2 rounded-full bg-violet-100 px-4 py-2 text-sm font-medium text-violet-800 hover:bg-violet-200">
-            <Tags className="h-5 w-5" />
-            Categorias
-          </Link>
-          <Link to="/financeiro" className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-4 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-200">
-            <LayoutDashboard className="h-5 w-5" />
-            Dashboard
-          </Link>
-        </div>
+        <FinanceSubnav />
 
         <div className="relative mb-6 rounded-2xl bg-gradient-to-r from-sky-50 via-white to-emerald-50 px-4 py-6">
           <h1 className="text-center text-3xl font-semibold text-slate-800">{activeOrganization?.name || 'Carteira'}</h1>
