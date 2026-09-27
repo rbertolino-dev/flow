@@ -1181,8 +1181,12 @@ export function StockModule() {
 
       <CreateProductDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        product={editing}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setEditing(null);
+        }}
+        product={editing ? products.find((item) => item.id === editing.id) ?? editing : null}
+        onSaved={() => refetch()}
       />
       <Dialog open={singleEntryOpen} onOpenChange={setSingleEntryOpen}>
         <DialogContent className="sm:max-w-3xl">

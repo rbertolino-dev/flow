@@ -36,6 +36,7 @@ interface CreateProductDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onProductCreated?: (product: Product) => void;
+  onSaved?: () => void | Promise<void>;
   product?: Product | null;
   defaultCategory?: string;
   autoSelectAfterCreate?: boolean;
@@ -68,6 +69,7 @@ export function CreateProductDialog({
   open,
   onOpenChange,
   onProductCreated,
+  onSaved,
   product = null,
   defaultCategory = "",
   autoSelectAfterCreate = false,
@@ -82,15 +84,19 @@ export function CreateProductDialog({
   const [formAttempted, setFormAttempted] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const formSeeded = useRef(false);
+  const formSeeded = useRef("");
+  const productSeed = product
+    ? `${product.id}|${product.updated_at ?? ""}|${product.is_supply ? "1" : "0"}`
+    : "new";
 
   useEffect(() => {
+    const seedKey = open ? `${productSeed}|${defaultCategory}|${initialDraft?.name ?? ""}|${initialDraft?.sku ?? ""}` : "";
     if (!open) {
-      formSeeded.current = false;
+      formSeeded.current = "";
       return;
     }
-    if (formSeeded.current) return;
-    formSeeded.current = true;
+    if (formSeeded.current === seedKey) return;
+    formSeeded.current = seedKey;
     setFormAttempted(false);
     setSaving(false);
     setUploadingImage(false);
@@ -125,7 +131,7 @@ export function CreateProductDialog({
       stock_quantity: "0",
     });
     setImagePreview(null);
-  }, [open, product, defaultCategory, initialDraft]);
+  }, [open, product, productSeed, defaultCategory, initialDraft]);
 
   const categories = uniqueNames(products.map((item) => item.category || ""));
   const brands = uniqueNames(products.map((item) => item.brand || ""));
@@ -204,6 +210,7 @@ export function CreateProductDialog({
           });
         }
       }
+      await onSaved?.();
       onOpenChange(false);
     } catch {
       // o hook já mostra o erro
