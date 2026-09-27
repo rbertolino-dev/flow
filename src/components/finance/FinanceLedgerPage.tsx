@@ -554,6 +554,7 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
               recurrence_interval: draft.recurrence_interval,
               realized: draft.realized,
               attachment_name: draft.attachment_name,
+              attachment_file: draft.attachment_file,
             });
             setCreateOpen(false);
           }, draft.is_recurring && draft.recurrence_count > 1

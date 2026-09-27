@@ -38,6 +38,7 @@ export interface FinanceEntryDraft {
   recurrence_interval: number;
   realized: boolean;
   attachment_name: string;
+  attachment_file: File | null;
 }
 
 interface LeadOption {
@@ -89,6 +90,7 @@ export function FinanceEntryDialog({
   const [realized, setRealized] = useState(false);
   const [attach, setAttach] = useState(false);
   const [attachmentName, setAttachmentName] = useState('');
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [clientOpen, setClientOpen] = useState(false);
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -119,6 +121,7 @@ export function FinanceEntryDialog({
     setRealized(false);
     setAttach(false);
     setAttachmentName('');
+    setAttachmentFile(null);
     setError('');
   }, [open, today]);
 
@@ -205,6 +208,10 @@ export function FinanceEntryDialog({
       setError('Informe o intervalo em meses');
       return;
     }
+    if (attach && !attachmentFile) {
+      setError('Selecione o arquivo para anexar');
+      return;
+    }
     setError('');
     const category = categoryOptions.find((item) => item.id === categoryId);
     await onSubmit({
@@ -223,6 +230,7 @@ export function FinanceEntryDialog({
       recurrence_interval: recurring ? interval : 1,
       realized,
       attachment_name: attach ? attachmentName : '',
+      attachment_file: attach ? attachmentFile : null,
     });
   };
 
@@ -412,7 +420,11 @@ export function FinanceEntryDialog({
             {attach && (
               <Input
                 type="file"
-                onChange={(e) => setAttachmentName(e.target.files?.[0]?.name || '')}
+                onChange={(event) => {
+                  const file = event.target.files?.[0] || null;
+                  setAttachmentFile(file);
+                  setAttachmentName(file?.name || '');
+                }}
               />
             )}
           </div>

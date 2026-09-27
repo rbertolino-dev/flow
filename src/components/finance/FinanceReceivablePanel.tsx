@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { downloadFinanceAttachment } from '@/lib/financeAttachments';
 import { PAYMENT_METHODS, getPaymentMethodLabel, type PaymentMethod } from '@/lib/paymentMethods';
 import {
   formatFinanceMoney,
@@ -63,6 +64,8 @@ export interface FinanceEntryPatch {
   payment_method?: string | null;
   is_recurring?: boolean;
   attachment_name?: string | null;
+  attachment_path?: string | null;
+  attachment_file?: File | null;
   notes?: string | null;
   apply_to_future?: boolean;
 }
@@ -202,6 +205,28 @@ export function FinanceReceivablePanel({
               </div>
             )}
           </div>
+          {(entry.attachment_name || entry.attachment_path) && (
+            <div className="mt-3 text-sm">
+              <p className="text-slate-500">Anexo</p>
+              <div className="mt-1 flex items-center justify-between gap-2">
+                <span className="truncate text-slate-800">{entry.attachment_name || 'Arquivo'}</span>
+                {entry.attachment_path && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-8 shrink-0"
+                    onClick={() => {
+                      void downloadFinanceAttachment(entry.attachment_path || '', entry.attachment_name || 'anexo').catch(() => {
+                        window.alert('Não foi possível baixar o anexo');
+                      });
+                    }}
+                  >
+                    Baixar
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
           <div className="mt-3">
             <p className="mb-1 text-sm text-slate-500">Observações</p>
             <Input
@@ -350,6 +375,7 @@ function FinanceReceivableEditDialog({
   const [editNext, setEditNext] = useState(false);
   const [attach, setAttach] = useState(false);
   const [attachmentName, setAttachmentName] = useState('');
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -366,8 +392,9 @@ function FinanceReceivableEditDialog({
     setPaymentMethod(entry.payment_method || '');
     setRecurring(Boolean(entry.is_recurring));
     setEditNext(false);
-    setAttach(Boolean(entry.attachment_name));
+    setAttach(Boolean(entry.attachment_name || entry.attachment_path));
     setAttachmentName(entry.attachment_name || '');
+    setAttachmentFile(null);
   }, [open, entry, categories]);
 
   const categoryName = categories.find((category) => category.id === categoryId)?.name
@@ -490,10 +517,33 @@ function FinanceReceivableEditDialog({
             Anexar documento
           </label>
           {attach && (
-            <Input
-              type="file"
-              onChange={(event) => setAttachmentName(event.target.files?.[0]?.name || attachmentName)}
-            />
+            <div className="space-y-2">
+              {entry.attachment_path && !attachmentFile && (
+                <div className="flex items-center justify-between gap-2 rounded-md border bg-slate-50 px-3 py-2">
+                  <span className="truncate">{entry.attachment_name || 'Arquivo anexado'}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-8 shrink-0"
+                    onClick={() => {
+                      void downloadFinanceAttachment(entry.attachment_path || '', entry.attachment_name || 'anexo').catch(() => {
+                        window.alert('Não foi possível baixar o anexo');
+                      });
+                    }}
+                  >
+                    Baixar
+                  </Button>
+                </div>
+              )}
+              <Input
+                type="file"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] || null;
+                  setAttachmentFile(file);
+                  if (file) setAttachmentName(file.name);
+                }}
+              />
+            </div>
           )}
         </div>
 
@@ -516,6 +566,8 @@ function FinanceReceivableEditDialog({
                 payment_method: paymentMethod || null,
                 is_recurring: recurring,
                 attachment_name: attach ? attachmentName || null : null,
+                attachment_path: attach ? (attachmentFile ? undefined : entry.attachment_path || null) : null,
+                attachment_file: attach ? attachmentFile : null,
                 apply_to_future: editNext,
               }).then(() => onOpenChange(false));
             }}

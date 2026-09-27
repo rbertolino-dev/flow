@@ -107,6 +107,7 @@ export interface FinancialEntry {
   recurrence_index?: number | null;
   recurrence_total?: number | null;
   attachment_name?: string | null;
+  attachment_path?: string | null;
   notes?: string | null;
   created_by?: string | null;
   created_at: string;

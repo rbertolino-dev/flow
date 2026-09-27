@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { useToast } from '@/hooks/use-toast';
+import { uploadFinanceAttachment } from '@/lib/financeAttachments';
 import { addMonthsIso } from '@/lib/posFinanceSchedule';
 import {
   formatParcelDescription,
@@ -146,6 +147,7 @@ export function useFinancialLedger() {
     recurrence_interval?: number;
     realized?: boolean;
     attachment_name?: string;
+    attachment_file?: File | null;
   }) => {
     if (!activeOrgId) throw new Error('Organização não encontrada');
     if (!input.lead_id) throw new Error('Vincule um contato do CRM');
@@ -154,6 +156,7 @@ export function useFinancialLedger() {
     const interval = Math.max(1, Math.floor(input.recurrence_interval || 1));
     const { data: userData } = await supabase.auth.getUser();
     const groupId = count > 1 ? crypto.randomUUID() : null;
+    let firstEntryId: string | null = null;
     for (let index = 0; index < count; index += 1) {
       const realized = Boolean(input.realized) && index === 0;
       const dueDate = addMonthsIso(input.due_date, index * interval);
@@ -184,6 +187,7 @@ export function useFinancialLedger() {
       });
       if (created.error) throw new Error(created.error.message);
       const createdId = typeof created.data === 'string' ? created.data : null;
+      if (index === 0) firstEntryId = createdId;
       if (groupId && createdId) {
         const stamped = await db()
           .from('financial_entries')
@@ -196,6 +200,15 @@ export function useFinancialLedger() {
           .eq('organization_id', activeOrgId);
         if (stamped.error) throw new Error(stamped.error.message);
       }
+    }
+    if (input.attachment_file && firstEntryId) {
+      const uploaded = await uploadFinanceAttachment(activeOrgId, firstEntryId, input.attachment_file);
+      const attached = await db()
+        .from('financial_entries')
+        .update({ attachment_name: uploaded.name, attachment_path: uploaded.path })
+        .eq('id', firstEntryId)
+        .eq('organization_id', activeOrgId);
+      if (attached.error) throw new Error(attached.error.message);
     }
     await reload();
   };
@@ -215,6 +228,8 @@ export function useFinancialLedger() {
       payment_method?: string | null;
       is_recurring?: boolean;
       attachment_name?: string | null;
+      attachment_path?: string | null;
+      attachment_file?: File | null;
       notes?: string | null;
       apply_to_future?: boolean;
     }
@@ -223,6 +238,13 @@ export function useFinancialLedger() {
     const applyToFuture = Boolean(patch.apply_to_future);
     const fields = { ...patch };
     delete fields.apply_to_future;
+    const attachmentFile = fields.attachment_file;
+    delete fields.attachment_file;
+    if (attachmentFile) {
+      const uploaded = await uploadFinanceAttachment(activeOrgId, entryId, attachmentFile);
+      fields.attachment_name = uploaded.name;
+      fields.attachment_path = uploaded.path;
+    }
     const updated = await db()
       .from('financial_entries')
       .update(fields)
@@ -260,6 +282,7 @@ export function useFinancialLedger() {
           if (fields.billing_name !== undefined) futurePatch.billing_name = fields.billing_name;
           if (fields.payment_method !== undefined) futurePatch.payment_method = fields.payment_method;
           if (fields.attachment_name !== undefined) futurePatch.attachment_name = fields.attachment_name;
+          if (fields.attachment_path !== undefined) futurePatch.attachment_path = fields.attachment_path;
           if (fields.is_recurring !== undefined) futurePatch.is_recurring = fields.is_recurring;
           if (fields.description && sibling.recurrence_index && sibling.recurrence_total) {
             futurePatch.description = formatParcelDescription(sibling.recurrence_index, sibling.recurrence_total, base);
