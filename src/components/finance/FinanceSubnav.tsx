@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { ArrowDownLeft, ArrowUpRight, Landmark, LayoutDashboard, Tags } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, FileBarChart, Landmark, LayoutDashboard, Tags } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const LINKS = [
@@ -8,6 +8,7 @@ const LINKS = [
   { to: '/financeiro/pagar', label: 'Contas a pagar', end: false, icon: ArrowUpRight },
   { to: '/financeiro/bancos', label: 'Bancos', end: false, icon: Landmark },
   { to: '/financeiro/categorias', label: 'Categorias', end: false, icon: Tags },
+  { to: '/financeiro/dre', label: 'Relatório DRE', end: false, icon: FileBarChart },
 ];
 
 export function FinanceSubnav() {

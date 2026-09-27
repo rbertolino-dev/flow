@@ -54,23 +54,49 @@ export function accountCashBalance(entries: FinancialEntry[], accountName: strin
 }
 
 export type DreClass =
-  | 'receita_vendas'
-  | 'receita_servicos'
+  | 'receita_bruta_vendas'
+  | 'receitas_financeiras'
   | 'outras_receitas'
-  | 'custo'
-  | 'despesa_operacional'
-  | 'despesa_financeira'
-  | 'impostos';
+  | 'recuperacao_despesas'
+  | 'custo_mercadoria'
+  | 'custo_servicos'
+  | 'despesas_gerais'
+  | 'despesas_administrativas'
+  | 'despesas_pessoal'
+  | 'despesas_vendas_marketing'
+  | 'despesas_financeiras'
+  | 'outros_custos'
+  | 'impostos_lucro'
+  | 'impostos'
+  | 'deducoes_receita'
+  | 'outros_tributos';
 
 export const DRE_CLASSES: Array<{ value: DreClass; label: string; direction: FinanceDirection }> = [
-  { value: 'receita_vendas', label: 'Receita de vendas', direction: 'receber' },
-  { value: 'receita_servicos', label: 'Receita de serviços', direction: 'receber' },
-  { value: 'outras_receitas', label: 'Outras receitas', direction: 'receber' },
-  { value: 'custo', label: 'Custo', direction: 'pagar' },
-  { value: 'despesa_operacional', label: 'Despesa operacional', direction: 'pagar' },
-  { value: 'despesa_financeira', label: 'Despesa financeira', direction: 'pagar' },
+  { value: 'receita_bruta_vendas', label: 'Receita Bruta de Vendas', direction: 'receber' },
+  { value: 'receitas_financeiras', label: 'Receitas Financeiras', direction: 'receber' },
+  { value: 'outras_receitas', label: 'Outras Receitas', direction: 'receber' },
+  { value: 'recuperacao_despesas', label: 'Recuperação de Despesas Variáveis', direction: 'receber' },
+  { value: 'custo_mercadoria', label: 'Custo de Mercadoria Vendida', direction: 'pagar' },
+  { value: 'custo_servicos', label: 'Custo dos Serviços Prestados', direction: 'pagar' },
+  { value: 'despesas_gerais', label: 'Despesas Gerais', direction: 'pagar' },
+  { value: 'despesas_administrativas', label: 'Despesas Administrativas', direction: 'pagar' },
+  { value: 'despesas_pessoal', label: 'Despesas com Pessoal', direction: 'pagar' },
+  { value: 'despesas_vendas_marketing', label: 'Despesas de Vendas e Marketing', direction: 'pagar' },
+  { value: 'despesas_financeiras', label: 'Despesas Financeiras', direction: 'pagar' },
+  { value: 'outros_custos', label: 'Outros Custos', direction: 'pagar' },
+  { value: 'impostos_lucro', label: 'Impostos sobre Lucro', direction: 'pagar' },
   { value: 'impostos', label: 'Impostos', direction: 'pagar' },
+  { value: 'deducoes_receita', label: 'Deduções de Receita', direction: 'pagar' },
+  { value: 'outros_tributos', label: 'Outros Tributos', direction: 'pagar' },
 ];
+
+const LEGACY_DRE_CLASS: Record<string, DreClass> = {
+  receita_vendas: 'receita_bruta_vendas',
+  receita_servicos: 'receita_bruta_vendas',
+  custo: 'custo_mercadoria',
+  despesa_operacional: 'despesas_gerais',
+  despesa_financeira: 'despesas_financeiras',
+};
 
 export interface FinancialCategory {
   id: string;
@@ -209,8 +235,149 @@ export function entryInCompetencePeriod(entry: FinancialEntry, from: string, to:
   return competence >= from && competence <= to;
 }
 
+export function normalizeDreClass(value: string | null | undefined): DreClass | null {
+  if (!value) return null;
+  if (DRE_CLASSES.some((item) => item.value === value)) return value as DreClass;
+  return LEGACY_DRE_CLASS[value] || null;
+}
+
 export function dreClassLabel(value: string | null | undefined): string {
-  return DRE_CLASSES.find((item) => item.value === value)?.label || 'Sem classificação';
+  const normalized = normalizeDreClass(value);
+  return DRE_CLASSES.find((item) => item.value === normalized)?.label || 'Sem classificação';
+}
+
+export type DreMode = 'realizacao' | 'competencia';
+
+export interface DreReportLine {
+  key: string;
+  label: string;
+  prefix: '(+)' | '(-)' | '(=)';
+  amount: number;
+  total: boolean;
+}
+
+const DRE_TOTALS: Array<{ key: string; label: string; parts: DreClass[] }> = [
+  { key: 'lucro_bruto', label: 'Lucro Bruto', parts: ['receita_bruta_vendas', 'custo_mercadoria', 'custo_servicos'] },
+  {
+    key: 'resultado_operacional',
+    label: 'Resultado Operacional',
+    parts: [
+      'receita_bruta_vendas',
+      'custo_mercadoria',
+      'custo_servicos',
+      'receitas_financeiras',
+      'outras_receitas',
+      'despesas_gerais',
+      'despesas_administrativas',
+      'despesas_pessoal',
+      'despesas_vendas_marketing',
+      'despesas_financeiras',
+      'outros_custos',
+    ],
+  },
+  {
+    key: 'resultado_liquido',
+    label: 'Resultado Líquido',
+    parts: [
+      'receita_bruta_vendas',
+      'custo_mercadoria',
+      'custo_servicos',
+      'receitas_financeiras',
+      'outras_receitas',
+      'despesas_gerais',
+      'despesas_administrativas',
+      'despesas_pessoal',
+      'despesas_vendas_marketing',
+      'despesas_financeiras',
+      'outros_custos',
+      'recuperacao_despesas',
+      'impostos_lucro',
+      'impostos',
+      'deducoes_receita',
+      'outros_tributos',
+    ],
+  },
+];
+
+const DRE_REPORT_ORDER: Array<{ key: DreClass | 'lucro_bruto' | 'resultado_operacional' | 'resultado_liquido' }> = [
+  { key: 'receita_bruta_vendas' },
+  { key: 'custo_mercadoria' },
+  { key: 'custo_servicos' },
+  { key: 'lucro_bruto' },
+  { key: 'receitas_financeiras' },
+  { key: 'outras_receitas' },
+  { key: 'despesas_gerais' },
+  { key: 'despesas_administrativas' },
+  { key: 'despesas_pessoal' },
+  { key: 'despesas_vendas_marketing' },
+  { key: 'despesas_financeiras' },
+  { key: 'outros_custos' },
+  { key: 'resultado_operacional' },
+  { key: 'recuperacao_despesas' },
+  { key: 'impostos_lucro' },
+  { key: 'impostos' },
+  { key: 'deducoes_receita' },
+  { key: 'outros_tributos' },
+  { key: 'resultado_liquido' },
+];
+
+export function resolveEntryDreClass(entry: FinancialEntry, categories: FinancialCategory[]): DreClass | null {
+  const linked = (entry.category_id ? categories.find((category) => category.id === entry.category_id) : undefined)
+    || categories.find((category) => category.name === entry.category && (category.direction === entry.direction || category.direction === 'ambos'));
+  return normalizeDreClass(linked?.dre_class);
+}
+
+function dreSigned(dreClass: DreClass, sums: Map<DreClass, number>): number {
+  const direction = DRE_CLASSES.find((item) => item.value === dreClass)?.direction;
+  const sign = direction === 'receber' ? 1 : -1;
+  return sign * (sums.get(dreClass) || 0);
+}
+
+export function buildDreReport(
+  entries: FinancialEntry[],
+  categories: FinancialCategory[],
+  mode: DreMode,
+  from: string,
+  to: string,
+): DreReportLine[] {
+  const sums = new Map<DreClass, number>();
+  entries.forEach((entry) => {
+    if (entry.status === 'cancelled') return;
+    const inPeriod = mode === 'realizacao'
+      ? entryPaidInPeriod(entry, from, to)
+      : entryInCompetencePeriod(entry, from, to);
+    if (!inPeriod) return;
+    const dreClass = resolveEntryDreClass(entry, categories);
+    if (!dreClass) return;
+    sums.set(dreClass, (sums.get(dreClass) || 0) + (Number(entry.amount) || 0));
+  });
+
+  return DRE_REPORT_ORDER.map((item) => {
+    const total = DRE_TOTALS.find((row) => row.key === item.key);
+    if (total) {
+      const amount = total.parts.reduce((sum, part) => sum + dreSigned(part, sums), 0);
+      return { key: total.key, label: total.label, prefix: '(=)' as const, amount, total: true };
+    }
+    const line = DRE_CLASSES.find((row) => row.value === item.key);
+    return {
+      key: item.key,
+      label: line?.label || item.key,
+      prefix: line?.direction === 'receber' ? '(+)' as const : '(-)' as const,
+      amount: sums.get(item.key as DreClass) || 0,
+      total: false,
+    };
+  });
+}
+
+export function drePeriodHasGap(entries: FinancialEntry[], categories: FinancialCategory[], mode: DreMode, from: string, to: string): boolean {
+  if (categories.some((category) => !normalizeDreClass(category.dre_class))) return true;
+  return entries.some((entry) => {
+    if (entry.status === 'cancelled') return false;
+    const inPeriod = mode === 'realizacao'
+      ? entryPaidInPeriod(entry, from, to)
+      : entryInCompetencePeriod(entry, from, to);
+    return inPeriod && !resolveEntryDreClass(entry, categories);
+  });
 }
 
 export function paymentTimestamp(date: string): string {

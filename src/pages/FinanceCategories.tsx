@@ -9,9 +9,9 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useFinancialLedger } from '@/hooks/useFinancialLedger';
-import { DRE_CLASSES, dreClassLabel, type DreClass, type FinanceDirection, type FinancialCategory } from '@/lib/finance';
+import { DRE_CLASSES, dreClassLabel, normalizeDreClass, type DreClass, type FinanceDirection, type FinancialCategory } from '@/lib/finance';
 
-const EMPTY = { id: '', name: '', direction: 'receber' as FinanceDirection, dre_class: 'receita_vendas' as DreClass };
+const EMPTY = { id: '', name: '', direction: 'receber' as FinanceDirection, dre_class: 'receita_bruta_vendas' as DreClass };
 
 export default function FinanceCategories() {
   const { toast } = useToast();
@@ -63,7 +63,7 @@ export default function FinanceCategories() {
           <div><Label>Nome</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
           <div>
             <Label>Tipo</Label>
-            <Select value={form.direction} onValueChange={(value: FinanceDirection) => setForm({ ...form, direction: value, dre_class: DRE_CLASSES.find((item) => item.direction === value)?.value || 'receita_vendas' })}>
+            <Select value={form.direction} onValueChange={(value: FinanceDirection) => setForm({ ...form, direction: value, dre_class: DRE_CLASSES.find((item) => item.direction === value)?.value || 'receita_bruta_vendas' })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="receber">Entrada</SelectItem>
@@ -97,7 +97,7 @@ export default function FinanceCategories() {
                 <Label>Tipo</Label>
                 <Select value={editing.direction} onValueChange={(value: FinanceDirection | 'ambos') => {
                   if (value === 'ambos') { setEditing({ ...editing, direction: 'ambos' }); return; }
-                  setEditing({ ...editing, direction: value, dre_class: DRE_CLASSES.find((item) => item.direction === value)?.value || editing.dre_class || 'receita_vendas' });
+                  setEditing({ ...editing, direction: value, dre_class: DRE_CLASSES.find((item) => item.direction === value)?.value || editing.dre_class || 'receita_bruta_vendas' });
                 }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -109,7 +109,7 @@ export default function FinanceCategories() {
               </div>
               <div>
                 <Label>Classificação DRE</Label>
-                <Select value={editing.dre_class || editDreOptions[0]?.value} onValueChange={(value: DreClass) => setEditing({ ...editing, dre_class: value })}>
+                <Select value={normalizeDreClass(editing.dre_class) || editDreOptions[0]?.value} onValueChange={(value: DreClass) => setEditing({ ...editing, dre_class: value })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{editDreOptions.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
                 </Select>
@@ -118,7 +118,7 @@ export default function FinanceCategories() {
           )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
-            <Button type="button" disabled={saving || !editing?.dre_class} onClick={() => { if (!editing?.dre_class) return; void submit({ id: editing.id, name: editing.name, direction: editing.direction, dre_class: editing.dre_class }); }}>Salvar</Button>
+            <Button type="button" disabled={saving || !editing?.dre_class} onClick={() => { if (!editing) return; const dreClass = normalizeDreClass(editing.dre_class); if (!dreClass) return; void submit({ id: editing.id, name: editing.name, direction: editing.direction, dre_class: dreClass }); }}>Salvar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

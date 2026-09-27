@@ -531,7 +531,7 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
           await saveCategory({
             name,
             direction,
-            dre_class: direction === 'receber' ? 'receita_vendas' : 'despesa_operacional',
+            dre_class: direction === 'receber' ? 'receita_bruta_vendas' : 'despesas_gerais',
           });
         }}
         onSubmit={async (draft) => {

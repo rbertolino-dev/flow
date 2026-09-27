@@ -56,12 +56,12 @@ async function ensureFinanceDefaults(organizationId: string) {
   ]);
 
   await db().from('financial_categories').insert([
-    { organization_id: organizationId, name: 'Vendas', direction: 'receber', dre_class: 'receita_vendas' },
-    { organization_id: organizationId, name: 'Serviços', direction: 'receber', dre_class: 'receita_servicos' },
+    { organization_id: organizationId, name: 'Vendas', direction: 'receber', dre_class: 'receita_bruta_vendas' },
+    { organization_id: organizationId, name: 'Serviços', direction: 'receber', dre_class: 'receita_bruta_vendas' },
     { organization_id: organizationId, name: 'Outros', direction: 'ambos', dre_class: 'outras_receitas' },
-    { organization_id: organizationId, name: 'Comissão', direction: 'pagar', dre_class: 'despesa_operacional' },
-    { organization_id: organizationId, name: 'Fornecedores', direction: 'pagar', dre_class: 'custo' },
-    { organization_id: organizationId, name: 'Despesas', direction: 'pagar', dre_class: 'despesa_operacional' },
+    { organization_id: organizationId, name: 'Comissão', direction: 'pagar', dre_class: 'despesas_gerais' },
+    { organization_id: organizationId, name: 'Fornecedores', direction: 'pagar', dre_class: 'custo_mercadoria' },
+    { organization_id: organizationId, name: 'Despesas', direction: 'pagar', dre_class: 'despesas_gerais' },
   ]);
 }
 
