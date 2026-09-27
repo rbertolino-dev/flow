@@ -651,7 +651,7 @@ serve(async (req) => {
         const desired = new Map<string, number>();
         for (const item of items) {
           const productId = String(item?.product_id || '');
-          const quantity = Number(item?.quantity);
+          const quantity = Math.round(Number(item?.quantity));
           if (!productId || !Number.isFinite(quantity) || quantity <= 0) {
             return jsonResponse(400, { error: 'Informe o produto e uma quantidade válida' });
           }
@@ -689,9 +689,9 @@ serve(async (req) => {
           }
           const target = desired.has(productId) ? -Number(desired.get(productId)) : 0;
           const current = netByProduct.get(productId) || 0;
-          const diff = target - current;
+          const diff = Math.round(target - current);
           if (!diff) continue;
-          const before = Number(product.stock_quantity ?? 0);
+          const before = Math.round(Number(product.stock_quantity ?? 0));
           const after = before + diff;
           if (blockStock && after < 0) {
             await client.queryArray('ROLLBACK');

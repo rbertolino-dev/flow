@@ -77,7 +77,7 @@ function supplyLines(items: ServiceOrderItem[], supplyIds: Set<string>) {
   const totals = new Map<string, number>();
   for (const item of items) {
     if (item.item_type !== 'product' || !item.item_id || !supplyIds.has(item.item_id)) continue;
-    const quantity = Number(item.quantity);
+    const quantity = Math.round(Number(item.quantity));
     if (!Number.isFinite(quantity) || quantity <= 0) continue;
     totals.set(item.item_id, (totals.get(item.item_id) || 0) + quantity);
   }

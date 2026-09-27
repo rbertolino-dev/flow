@@ -15,8 +15,29 @@ interface ServiceOrderProductsStepProps {
   orderCode?: string;
 }
 
-function money(value: number) {
-  return value.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+function asNumber(value: unknown): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const raw = String(value ?? '').trim().replace(/\s/g, '');
+  if (!raw) return 0;
+  const normalized = raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function moneyAmount(value: unknown): number {
+  return Math.round(asNumber(value) * 100) / 100;
+}
+
+function wholeQuantity(value: unknown): number {
+  const rounded = Math.round(asNumber(value));
+  return rounded > 0 ? rounded : 1;
+}
+
+function money(value: unknown) {
+  return moneyAmount(value).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function isSupplyLine(item: ServiceOrderItem, products: Product[]) {
@@ -70,7 +91,7 @@ export function ServiceOrderProductsStep({
   const orderTotal = items.reduce((sum, item) => sum + (item.total_price || 0), 0);
 
   const addProduct = (product: Product) => {
-    const unitPrice = priceMode === 'cost' ? product.cost || 0 : product.price;
+    const unitPrice = moneyAmount(priceMode === 'cost' ? product.cost : product.price);
     const existing = items.findIndex(
       (item) => item.item_type === 'product' && item.item_id === product.id
     );
@@ -97,7 +118,7 @@ export function ServiceOrderProductsStep({
         unit: product.unit || 'un',
         quantity: 1,
         unit_price: unitPrice,
-        unit_cost: product.cost || 0,
+        unit_cost: moneyAmount(product.cost),
         use_cost: priceMode === 'cost',
         discount_amount: 0,
         total_price: unitPrice,
@@ -113,12 +134,12 @@ export function ServiceOrderProductsStep({
 
     if (existing >= 0) {
       const next = [...items];
-      const qty = next[existing].quantity + 1;
-      const unitPrice = Number(next[existing].unit_price) || 0;
+      const qty = wholeQuantity(asNumber(next[existing].quantity) + 1);
+      const unitPrice = moneyAmount(next[existing].unit_price);
       next[existing] = {
         ...next[existing],
         quantity: qty,
-        unit_cost: product.cost || next[existing].unit_cost || 0,
+        unit_cost: moneyAmount(product.cost || next[existing].unit_cost),
         use_cost: true,
         total_price: unitPrice === 0 ? 0 : qty * unitPrice - (next[existing].discount_amount || 0),
       };
@@ -136,7 +157,7 @@ export function ServiceOrderProductsStep({
         unit: product.unit || 'un',
         quantity: 1,
         unit_price: 0,
-        unit_cost: product.cost || 0,
+        unit_cost: moneyAmount(product.cost),
         use_cost: true,
         discount_amount: 0,
         total_price: 0,
@@ -146,17 +167,16 @@ export function ServiceOrderProductsStep({
   };
 
   const updateQty = (index: number, quantity: number) => {
-    const qty = Math.max(0.001, quantity);
     const next = [...items];
     const current = next[index];
-    const unitPrice = Number(current.unit_price) || 0;
+    const supply = isSupplyLine(current, products);
+    const qty = supply ? wholeQuantity(quantity) : Math.max(0.001, asNumber(quantity) || 1);
+    const unitPrice = moneyAmount(current.unit_price);
     next[index] = {
       ...current,
       quantity: qty,
-      total_price:
-        isSupplyLine(current, products) && unitPrice === 0
-          ? 0
-          : qty * unitPrice - (current.discount_amount || 0),
+      unit_cost: supply ? moneyAmount(current.unit_cost) : current.unit_cost,
+      total_price: supply && unitPrice === 0 ? 0 : qty * unitPrice - (asNumber(current.discount_amount) || 0),
     };
     onChange(next);
   };
@@ -319,8 +339,8 @@ export function ServiceOrderProductsStep({
                       <Badge className="ml-2 bg-violet-100 text-violet-700 hover:bg-violet-100">Insumo</Badge>
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {product.unit || 'un'} · Saldo: {Number(product.stock_quantity ?? 0)} · Custo: R${' '}
-                      {money(product.cost || 0)}
+                      {product.unit || 'un'} · Saldo: {Math.round(asNumber(product.stock_quantity))} · Custo: R${' '}
+                      {money(product.cost)}
                     </p>
                   </div>
                   <Plus className="h-4 w-4 shrink-0" />
@@ -336,7 +356,7 @@ export function ServiceOrderProductsStep({
             {supplyItems.map((item) => {
               const idx = items.indexOf(item);
               const catalog = products.find((product) => product.id === item.item_id);
-              const stock = Number(catalog?.stock_quantity ?? 0);
+              const stock = Math.round(asNumber(catalog?.stock_quantity));
               const overStock = item.quantity > stock;
               return (
                 <div key={`${item.item_id}-${idx}`} className="flex items-center gap-2 rounded-md border p-2">
@@ -347,7 +367,7 @@ export function ServiceOrderProductsStep({
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {item.unit || catalog?.unit || 'un'} · Saldo: {stock} · Custo: R${' '}
-                      {money(item.unit_cost || catalog?.cost || 0)}
+                      {money(item.unit_cost || catalog?.cost)}
                     </p>
                     {overStock && (
                       <p className="text-xs text-amber-700">Quantidade maior que o saldo atual</p>
@@ -358,8 +378,9 @@ export function ServiceOrderProductsStep({
                     min={0.001}
                     step={1}
                     className="w-20 h-8"
-                    value={item.quantity}
-                    onChange={(e) => updateQty(idx, parseFloat(e.target.value) || 1)}
+                    step={1}
+                    value={wholeQuantity(item.quantity)}
+                    onChange={(e) => updateQty(idx, wholeQuantity(e.target.value))}
                     data-testid={`os-supply-qty-${item.item_id}`}
                   />
                   <Button type="button" size="icon" variant="ghost" onClick={() => removeItem(idx)}>
