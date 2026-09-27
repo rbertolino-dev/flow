@@ -638,8 +638,10 @@ serve(async (req) => {
         const result = await client.queryObject(`
           SELECT m.id::text AS id,
                  m.product_id::text AS product_id,
+                 m.organization_id::text AS organization_id,
                  m.sale_id::text AS sale_id,
                  m.movement_type,
+                 m.source,
                  m.quantity_delta::float8 AS quantity_delta,
                  m.stock_before::float8 AS stock_before,
                  m.stock_after::float8 AS stock_after,
