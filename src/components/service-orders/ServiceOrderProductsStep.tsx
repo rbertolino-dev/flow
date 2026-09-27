@@ -151,8 +151,14 @@ export function ServiceOrderProductsStep({
                 <div className="flex items-center gap-2 min-w-0">
                   <Package className="h-4 w-4 text-primary shrink-0" />
                   <div className="min-w-0">
-                    <p className="font-medium truncate">{p.name}</p>
-                    {p.sku && <p className="text-xs text-muted-foreground">SKU: {p.sku}</p>}
+                    <p className="font-medium truncate">
+                      {p.name}
+                      {p.is_supply && <Badge className="ml-2 bg-violet-100 text-violet-700 hover:bg-violet-100">Insumo</Badge>}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {p.sku ? `SKU: ${p.sku} · ` : ""}
+                      Saldo: {Number(p.stock_quantity ?? 0)}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -177,13 +183,22 @@ export function ServiceOrderProductsStep({
           <div className="w-full space-y-2">
             {productItems.map((item) => {
               const idx = items.indexOf(item);
+              const catalog = products.find((product) => product.id === item.item_id);
               return (
                 <div
                   key={`${item.item_id}-${idx}`}
                   className="flex items-center gap-2 bg-white/10 rounded-md p-2"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{item.name}</p>
+                    <p className="text-sm font-medium truncate">
+                      {item.name}
+                      {catalog?.is_supply && (
+                        <Badge className="ml-2 bg-violet-100 text-violet-800 hover:bg-violet-100">Insumo</Badge>
+                      )}
+                    </p>
+                    {catalog?.is_supply && (
+                      <p className="text-xs opacity-80">Saldo: {Number(catalog.stock_quantity ?? 0)}</p>
+                    )}
                     <p className="text-xs opacity-80">
                       R${' '}
                       {item.unit_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}

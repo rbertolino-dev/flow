@@ -148,6 +148,7 @@ export function StockModule() {
   const [showFilters, setShowFilters] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [supplyFilter, setSupplyFilter] = useState<"all" | "supply">("all");
   const [brandFilter, setBrandFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
@@ -178,6 +179,7 @@ export function StockModule() {
   const [shopCategory, setShopCategory] = useState("all");
   const [shopBrand, setShopBrand] = useState("all");
   const [shopStatus, setShopStatus] = useState<"all" | "falta" | "baixa">("all");
+  const [shopSupply, setShopSupply] = useState<"all" | "supply">("all");
   const [printCategory, setPrintCategory] = useState<string | null>(null);
   const [printStatus, setPrintStatus] = useState<"all" | "falta" | "baixa">("all");
   const [shopPage, setShopPage] = useState(0);
@@ -226,9 +228,10 @@ export function StockModule() {
       if (categoryFilter !== "all" && (product.category || "").trim() !== categoryFilter) return false;
       if (brandFilter !== "all" && (product.brand || "").trim() !== brandFilter) return false;
       if (statusFilter !== "all" && getStockStatus(product) !== statusFilter) return false;
+      if (supplyFilter === "supply" && !product.is_supply) return false;
       return true;
     });
-  }, [products, nameQuery, codeQuery, categoryFilter, brandFilter, statusFilter]);
+  }, [products, nameQuery, codeQuery, categoryFilter, brandFilter, statusFilter, supplyFilter]);
 
   const productPageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safeProductPage = Math.min(productPage, productPageCount - 1);
@@ -236,7 +239,7 @@ export function StockModule() {
 
   useEffect(() => {
     setProductPage(0);
-  }, [nameQuery, codeQuery, categoryFilter, brandFilter, statusFilter]);
+  }, [nameQuery, codeQuery, categoryFilter, brandFilter, statusFilter, supplyFilter]);
 
   const shoppingList = useMemo(() => {
     return products
@@ -254,9 +257,10 @@ export function StockModule() {
       if (shopCategory !== "all" && (row.product.category || "").trim() !== shopCategory) return false;
       if (shopBrand !== "all" && (row.product.brand || "").trim() !== shopBrand) return false;
       if (shopStatus !== "all" && row.status !== shopStatus) return false;
+      if (shopSupply === "supply" && !row.product.is_supply) return false;
       return true;
     });
-  }, [shoppingList, shopCategory, shopBrand, shopStatus]);
+  }, [shoppingList, shopCategory, shopBrand, shopStatus, shopSupply]);
 
   const shopPageCount = Math.max(1, Math.ceil(shoppingFiltered.length / PAGE_SIZE));
   const safeShopPage = Math.min(shopPage, shopPageCount - 1);
@@ -264,16 +268,17 @@ export function StockModule() {
 
   useEffect(() => {
     setShopPage(0);
-  }, [shopCategory, shopBrand, shopStatus]);
+  }, [shopCategory, shopBrand, shopStatus, shopSupply]);
 
   const printRows = useMemo(() => {
     return shoppingList.filter((row) => {
       const category = (row.product.category || "").trim() || "Sem categoria";
       if (printCategory && category !== printCategory) return false;
       if (printStatus !== "all" && row.status !== printStatus) return false;
+      if (shopSupply === "supply" && !row.product.is_supply) return false;
       return true;
     });
-  }, [shoppingList, printCategory, printStatus]);
+  }, [shoppingList, printCategory, printStatus, shopSupply]);
 
   const printGroups = useMemo(() => {
     const groups = new Map<string, typeof printRows>();
@@ -675,9 +680,19 @@ export function StockModule() {
             </div>
 
             {showFilters && (
-              <div className="grid gap-3 rounded-md border p-3 md:grid-cols-3">
+              <div className="grid gap-3 rounded-md border p-3 md:grid-cols-4">
                 <FilterSelect label="Categoria" value={categoryFilter} onChange={setCategoryFilter} options={categories} />
                 <FilterSelect label="Marca" value={brandFilter} onChange={setBrandFilter} options={brands} />
+                <div className="space-y-1">
+                  <Label>Uso</Label>
+                  <Select value={supplyFilter} onValueChange={(value) => setSupplyFilter(value as "all" | "supply")}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="supply">Insumos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-1">
                   <Label>Status</Label>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -737,7 +752,10 @@ export function StockModule() {
                                 status === "ideal" && "bg-emerald-500",
                               )} />
                               <div>
-                                <div className="font-medium text-slate-900">{product.name}</div>
+                                <div className="flex items-center gap-2">
+                                  <div className="font-medium text-slate-900">{product.name}</div>
+                                  {product.is_supply && <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100">Insumo</Badge>}
+                                </div>
                                 {product.sku && <div className="text-xs text-slate-400">{product.sku}</div>}
                               </div>
                             </div>
@@ -958,6 +976,16 @@ export function StockModule() {
                     <FilterSelect label="Categoria" value={shopCategory} onChange={setShopCategory} options={categories} />
                     <FilterSelect label="Marca" value={shopBrand} onChange={setShopBrand} options={brands} />
                     <div className="space-y-1">
+                      <Label>Uso</Label>
+                      <Select value={shopSupply} onValueChange={(value) => setShopSupply(value as "all" | "supply")}>
+                        <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos</SelectItem>
+                          <SelectItem value="supply">Insumos</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
                       <Label>Status</Label>
                       <Select value={shopStatus} onValueChange={(value) => setShopStatus(value as "all" | "falta" | "baixa")}>
                         <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
@@ -1004,7 +1032,10 @@ export function StockModule() {
                               />
                             </TableCell>
                             <TableCell>
-                              <div className="font-medium text-slate-900">{product.name}</div>
+                              <div className="flex items-center gap-2">
+                                <div className="font-medium text-slate-900">{product.name}</div>
+                                {product.is_supply && <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100">Insumo</Badge>}
+                              </div>
                               <StatusBadge status={status} />
                             </TableCell>
                             <TableCell className={qty < 0 ? "text-rose-600" : undefined}>{qty} {unit}</TableCell>

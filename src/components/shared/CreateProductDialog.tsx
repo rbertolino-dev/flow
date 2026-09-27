@@ -27,6 +27,7 @@ import { Product, ProductFormData } from "@/types/product";
 import { supabase } from "@/integrations/supabase/client";
 import { getStockStatus } from "@/lib/stockStatus";
 import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
 import { ImagePlus, Loader2, X } from "lucide-react";
 
 const BUCKET_ID = "whatsapp-workflow-media";
@@ -60,6 +61,7 @@ const emptyForm = {
   unit: "un",
   description: "",
   image_url: "" as string | null,
+  is_supply: false,
 };
 
 export function CreateProductDialog({
@@ -108,6 +110,7 @@ export function CreateProductDialog({
         unit: product.unit || "un",
         description: product.description || "",
         image_url: product.image_url || null,
+        is_supply: Boolean(product.is_supply),
       });
       setImagePreview(product.image_url || null);
       return;
@@ -183,6 +186,7 @@ export function CreateProductDialog({
       unit: form.unit.trim() || "un",
       image_url: form.image_url || null,
       is_active: product?.is_active ?? true,
+      is_supply: form.is_supply,
       commission_percentage: product?.commission_percentage ?? null,
       commission_fixed: product?.commission_fixed ?? null,
     };
@@ -352,6 +356,17 @@ export function CreateProductDialog({
               newPlaceholder="Nome da nova marca"
               onChange={(value) => setForm({ ...form, brand: value })}
             />
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 md:col-span-2">
+              <div>
+                <Label htmlFor="product-insumo">Usar como insumo na ordem de serviço</Label>
+                <p className="text-xs text-slate-500">Continua à venda. Ao entrar numa OS, a quantidade sai do estoque.</p>
+              </div>
+              <Switch
+                id="product-insumo"
+                checked={form.is_supply}
+                onCheckedChange={(checked) => setForm({ ...form, is_supply: checked })}
+              />
+            </div>
             <div className="space-y-1.5 md:col-span-2">
               <Label>Descrição</Label>
               <Textarea

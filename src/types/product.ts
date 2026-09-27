@@ -16,6 +16,7 @@ export interface Product {
   unit?: string | null; // Unidade de medida (ex: un, kg, m, m², etc.)
   image_url?: string | null;
   is_active: boolean;
+  is_supply?: boolean;
   commission_percentage?: number | null;
   commission_fixed?: number | null;
   created_at: string;
@@ -41,6 +42,7 @@ export interface ProductFormData {
   unit?: string | null; // Unidade de medida (ex: un, kg, m, m², etc.)
   image_url?: string | null;
   is_active: boolean;
+  is_supply?: boolean;
   commission_percentage?: number | null;
   commission_fixed?: number | null;
 }

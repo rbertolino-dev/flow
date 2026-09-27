@@ -89,6 +89,7 @@ export function useProducts(options?: { enabled?: boolean }) {
         unit: item.unit,
         image_url: item.image_url,
         is_active: item.is_active,
+        is_supply: Boolean(item.is_supply),
         commission_percentage: item.commission_percentage,
         commission_fixed: item.commission_fixed,
         created_at: item.created_at,

@@ -24,6 +24,61 @@ function calcTotals(items: ServiceOrderItem[]) {
   return { subtotal, discount: 0, total: subtotal };
 }
 
+async function loadSupplyIds(activeOrgId: string) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Usuário não autenticado');
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/products`, {
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'X-Organization-Id': activeOrgId,
+    },
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || 'Não foi possível ler os produtos');
+  const ids = new Set<string>();
+  for (const item of result.data || []) {
+    if (item?.is_supply && item.id) ids.add(String(item.id));
+  }
+  return ids;
+}
+
+function supplyLines(items: ServiceOrderItem[], supplyIds: Set<string>) {
+  const totals = new Map<string, number>();
+  for (const item of items) {
+    if (item.item_type !== 'product' || !item.item_id || !supplyIds.has(item.item_id)) continue;
+    const quantity = Number(item.quantity);
+    if (!Number.isFinite(quantity) || quantity <= 0) continue;
+    totals.set(item.item_id, (totals.get(item.item_id) || 0) + quantity);
+  }
+  return Array.from(totals.entries()).map(([product_id, quantity]) => ({ product_id, quantity }));
+}
+
+async function syncServiceOrderStock(
+  activeOrgId: string,
+  orderId: string,
+  code: string,
+  items: ServiceOrderItem[],
+) {
+  const supplyIds = await loadSupplyIds(activeOrgId);
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Usuário não autenticado');
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/products/service-order-stock`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+      'X-Organization-Id': activeOrgId,
+    },
+    body: JSON.stringify({
+      service_order_id: orderId,
+      code,
+      items: supplyLines(items, supplyIds),
+    }),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || 'Não foi possível lançar o insumo');
+}
+
 export function useServiceOrders(
   filters?: ServiceOrderFilters,
   options?: { enabled?: boolean }
@@ -210,6 +265,14 @@ export function useServiceOrders(
 
       if (error) throw error;
 
+      try {
+        await syncServiceOrderStock(activeOrgId, order.id, String(order.code || ''), items);
+      } catch (stockError) {
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        await supabase.from('service_orders').delete().eq('id', order.id).eq('organization_id', activeOrgId);
+        throw stockError;
+      }
+
       if (items.length > 0) {
         const itemRows = items.map((i) => ({
           service_order_id: order.id,
@@ -229,7 +292,12 @@ export function useServiceOrders(
         }));
         // @ts-expect-error tabela ainda nao tipada no client gerado
         const { error: itemsError } = await supabase.from('service_order_items').insert(itemRows);
-        if (itemsError) throw itemsError;
+        if (itemsError) {
+          await syncServiceOrderStock(activeOrgId, order.id, String(order.code || ''), []).catch(() => undefined);
+          // @ts-expect-error tabela ainda nao tipada no client gerado
+          await supabase.from('service_orders').delete().eq('id', order.id).eq('organization_id', activeOrgId);
+          throw itemsError;
+        }
       }
 
       if (form.checklist?.length) {
@@ -313,8 +381,26 @@ export function useServiceOrders(
         if (patch[k] !== undefined) updatePayload[k] = patch[k];
       });
 
+      let previousItems: ServiceOrderItem[] | null = null;
+      let orderCode = '';
       if (patch.items) {
         Object.assign(updatePayload, calcTotals(patch.items));
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        const { data: existing } = await supabase
+          .from('service_orders')
+          .select('code')
+          .eq('id', id)
+          .eq('organization_id', activeOrgId)
+          .maybeSingle();
+        orderCode = String((existing as { code?: string } | null)?.code || '');
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        const { data: prev } = await supabase
+          .from('service_order_items')
+          .select('*')
+          .eq('service_order_id', id)
+          .eq('organization_id', activeOrgId);
+        previousItems = (prev || []) as ServiceOrderItem[];
+        await syncServiceOrderStock(activeOrgId, id, orderCode, patch.items);
       }
 
       // @ts-expect-error tabela ainda nao tipada no client gerado
@@ -324,7 +410,12 @@ export function useServiceOrders(
         .eq('id', id)
         .eq('organization_id', activeOrgId);
 
-      if (error) throw error;
+      if (error) {
+        if (previousItems) {
+          await syncServiceOrderStock(activeOrgId, id, orderCode, previousItems).catch(() => undefined);
+        }
+        throw error;
+      }
 
       if (patch.is_closed === false) {
         const { error: financeError } = await (supabase as unknown as {
@@ -360,7 +451,31 @@ export function useServiceOrders(
           }));
           // @ts-expect-error tabela ainda nao tipada no client gerado
           const { error: itemsError } = await supabase.from('service_order_items').insert(itemRows);
-          if (itemsError) throw itemsError;
+          if (itemsError) {
+            if (previousItems) {
+              await syncServiceOrderStock(activeOrgId, id, orderCode, previousItems).catch(() => undefined);
+              if (previousItems.length) {
+                // @ts-expect-error tabela ainda nao tipada no client gerado
+                await supabase.from('service_order_items').insert(previousItems.map((i) => ({
+                  service_order_id: id,
+                  organization_id: activeOrgId,
+                  item_type: i.item_type,
+                  item_id: i.item_id || null,
+                  name: i.name,
+                  sku: i.sku || null,
+                  unit: i.unit || 'un',
+                  quantity: i.quantity,
+                  unit_price: i.unit_price,
+                  unit_cost: i.unit_cost || 0,
+                  use_cost: i.use_cost || false,
+                  discount_amount: i.discount_amount || 0,
+                  total_price: i.total_price,
+                  notes: i.notes || null,
+                })));
+              }
+            }
+            throw itemsError;
+          }
         }
       }
 
@@ -405,13 +520,31 @@ export function useServiceOrders(
     if (!activeOrgId) return false;
     try {
       // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { data: existing } = await supabase
+        .from('service_orders')
+        .select('code')
+        .eq('id', id)
+        .eq('organization_id', activeOrgId)
+        .maybeSingle();
+      const orderCode = String((existing as { code?: string } | null)?.code || '');
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { data: prev } = await supabase
+        .from('service_order_items')
+        .select('*')
+        .eq('service_order_id', id)
+        .eq('organization_id', activeOrgId);
+      await syncServiceOrderStock(activeOrgId, id, orderCode, []);
+      // @ts-expect-error tabela ainda nao tipada no client gerado
       const { error } = await supabase
         .from('service_orders')
         .update({ deleted_at: new Date().toISOString() })
         .eq('id', id)
         .eq('organization_id', activeOrgId);
 
-      if (error) throw error;
+      if (error) {
+        await syncServiceOrderStock(activeOrgId, id, orderCode, (prev || []) as ServiceOrderItem[]).catch(() => undefined);
+        throw error;
+      }
       toast({ title: 'OS excluída' });
       await fetchOrders();
       return true;

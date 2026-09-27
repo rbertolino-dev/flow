@@ -199,7 +199,9 @@ async function ensureStockSchema(client: any) {
     CHECK (movement_type IN ('sale', 'sale_cancel', 'adjustment', 'in', 'out', 'adjust', 'return'))
   `);
   await client.queryArray(`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS source TEXT`);
+  await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_supply BOOLEAN NOT NULL DEFAULT false`);
   await client.queryArray(`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS budget_id UUID`);
+  await client.queryArray(`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS service_order_id UUID`);
   await client.queryArray(`ALTER TABLE pos_sales ADD COLUMN IF NOT EXISTS client_request_id TEXT`);
   await client.queryArray(`
     CREATE TABLE IF NOT EXISTS budget_stock_posts (
@@ -231,11 +233,16 @@ async function ensureStockSchema(client: any) {
     ON pos_stock_movements (organization_id, budget_id)
     WHERE budget_id IS NOT NULL
   `);
+  await client.queryArray(`
+    CREATE INDEX IF NOT EXISTS idx_pos_stock_movements_service_order
+    ON pos_stock_movements (organization_id, service_order_id)
+    WHERE service_order_id IS NOT NULL
+  `);
 }
 
 const CATALOG_FIELDS = [
   'name', 'description', 'sku', 'barcode', 'price', 'cost', 'category',
-  'brand', 'unit', 'min_stock', 'ideal_stock', 'is_active',
+  'brand', 'unit', 'min_stock', 'ideal_stock', 'is_active', 'is_supply',
 ];
 
 function catalogSnapshot(row: Record<string, unknown> | null) {
@@ -463,6 +470,7 @@ serve(async (req) => {
     const isCategoriesEndpoint = lastPart === 'categories';
     const isBrandsEndpoint = lastPart === 'brands';
     const isBudgetStockEndpoint = lastPart === 'budget-stock';
+    const isServiceOrderStockEndpoint = lastPart === 'service-order-stock';
     const isAuditEndpoint = lastPart === 'audit';
 
     try {
@@ -624,6 +632,94 @@ serve(async (req) => {
       }
     }
 
+    if (isServiceOrderStockEndpoint && req.method === 'POST') {
+      if (!permissions.canWrite) {
+        await client.end();
+        return jsonResponse(403, { error: 'Sem permissão para lançar estoque' });
+      }
+      try {
+        const body = await req.json();
+        if (body.organization_id && body.organization_id !== organizationId) {
+          return jsonResponse(403, { error: 'Não é possível operar outra organização' });
+        }
+        const serviceOrderId = String(body.service_order_id || '');
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(serviceOrderId)) {
+          return jsonResponse(400, { error: 'service_order_id obrigatório' });
+        }
+        const code = String(body.code || '').replace(/\s+/g, ' ').trim().slice(0, 40) || serviceOrderId;
+        const items = Array.isArray(body.items) ? body.items : [];
+        const desired = new Map<string, number>();
+        for (const item of items) {
+          const productId = String(item?.product_id || '');
+          const quantity = Number(item?.quantity);
+          if (!productId || !Number.isFinite(quantity) || quantity <= 0) {
+            return jsonResponse(400, { error: 'Informe o produto e uma quantidade válida' });
+          }
+          desired.set(productId, (desired.get(productId) || 0) + quantity);
+        }
+        const policy = await client.queryObject<{ block_out_of_stock: boolean | null }>(
+          `SELECT block_out_of_stock FROM pos_settings WHERE organization_id = $1 LIMIT 1`,
+          [organizationId]
+        );
+        const blockStock = Boolean(policy.rows[0]?.block_out_of_stock);
+        const note = `OS ${code}`;
+        await client.queryArray('BEGIN');
+        const nets = await client.queryObject<{ product_id: string; net: number }>(
+          `SELECT product_id::text AS product_id, COALESCE(SUM(quantity_delta), 0)::float8 AS net
+           FROM pos_stock_movements
+           WHERE organization_id = $1 AND service_order_id = $2
+           GROUP BY product_id`,
+          [organizationId, serviceOrderId]
+        );
+        const netByProduct = new Map(nets.rows.map((row) => [String(row.product_id), Number(row.net)]));
+        const productIds = [...new Set([...desired.keys(), ...netByProduct.keys()])].sort();
+        for (const productId of productIds) {
+          const stockRow = await client.queryObject<{ stock_quantity: number | null; name: string; is_supply: boolean }>(
+            `SELECT stock_quantity, name, is_supply FROM products WHERE id = $1 AND organization_id = $2 FOR UPDATE`,
+            [productId, organizationId]
+          );
+          if (!stockRow.rows.length) {
+            await client.queryArray('ROLLBACK');
+            return jsonResponse(400, { error: 'Produto não encontrado nesta empresa' });
+          }
+          const product = stockRow.rows[0];
+          if (desired.has(productId) && product.is_supply !== true) {
+            await client.queryArray('ROLLBACK');
+            return jsonResponse(400, { error: 'Produto não está marcado como insumo nesta empresa' });
+          }
+          const target = desired.has(productId) ? -Number(desired.get(productId)) : 0;
+          const current = netByProduct.get(productId) || 0;
+          const diff = target - current;
+          if (!diff) continue;
+          const before = Number(product.stock_quantity ?? 0);
+          const after = before + diff;
+          if (blockStock && after < 0) {
+            await client.queryArray('ROLLBACK');
+            return jsonResponse(400, { error: `Estoque insuficiente para ${product.name}` });
+          }
+          const movementType = diff < 0 ? 'out' : 'in';
+          await client.queryArray(
+            `UPDATE products SET stock_quantity = $1, updated_at = now() WHERE id = $2 AND organization_id = $3`,
+            [after, productId, organizationId]
+          );
+          await client.queryArray(
+            `INSERT INTO pos_stock_movements (
+               organization_id, product_id, movement_type, source, service_order_id,
+               quantity_delta, stock_before, stock_after, notes, created_by
+             ) VALUES ($1, $2, $3, 'service_order', $4, $5, $6, $7, $8, $9)`,
+            [organizationId, productId, movementType, serviceOrderId, diff, before, after, note, user.id]
+          );
+        }
+        await client.queryArray('COMMIT');
+        return jsonResponse(200, { synced: true });
+      } catch (supplyError: any) {
+        try { await client.queryArray('ROLLBACK'); } catch (_rollbackError) { /* já revertido */ }
+        return jsonResponse(500, { error: supplyError?.message || 'Não foi possível lançar o insumo da ordem' });
+      } finally {
+        await client.end();
+      }
+    }
+
     if (isMovementsEndpoint && req.method === 'GET') {
       try {
         const requestedLimit = Number(url.searchParams.get('limit') || 30);
@@ -642,6 +738,7 @@ serve(async (req) => {
                  m.sale_id::text AS sale_id,
                  m.movement_type,
                  m.source,
+                 m.service_order_id::text AS service_order_id,
                  m.quantity_delta::float8 AS quantity_delta,
                  m.stock_before::float8 AS stock_before,
                  m.stock_after::float8 AS stock_after,
@@ -965,9 +1062,10 @@ serve(async (req) => {
             commission_percentage,
             commission_fixed,
             created_by,
-            created_by_name
+            created_by_name,
+            is_supply
           ) VALUES (
-            $1, $2, $3, $4, $5, $20, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+            $1, $2, $3, $4, $5, $20, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $21
           ) RETURNING *
         `;
 
@@ -992,6 +1090,7 @@ serve(async (req) => {
           user.id,
           userName,
           barcode || null,
+          body.is_supply === true,
         ];
 
         const result = await client.queryObject<Product>(insertQuery, insertParams);
@@ -1121,6 +1220,11 @@ serve(async (req) => {
             updateFields.push(`${field} = $${paramCount}`);
             updateParams.push(body[field]);
           }
+        }
+        if (body.is_supply !== undefined) {
+          paramCount++;
+          updateFields.push(`is_supply = $${paramCount}`);
+          updateParams.push(body.is_supply === true);
         }
 
         // Sempre atualizar updated_by e updated_by_name
