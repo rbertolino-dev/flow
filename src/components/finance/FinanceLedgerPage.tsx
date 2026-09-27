@@ -550,11 +550,15 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
               lead_id: draft.lead_id,
               payment_method: draft.payment_method,
               is_recurring: draft.is_recurring,
+              recurrence_count: draft.recurrence_count,
+              recurrence_interval: draft.recurrence_interval,
               realized: draft.realized,
               attachment_name: draft.attachment_name,
             });
             setCreateOpen(false);
-          }, 'Lançamento criado');
+          }, draft.is_recurring && draft.recurrence_count > 1
+            ? `${draft.recurrence_count} lançamentos criados`
+            : 'Lançamento criado');
         }}
       />
       <FinanceReceivablePanel

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { useToast } from '@/hooks/use-toast';
+import { addMonthsIso } from '@/lib/posFinanceSchedule';
 import {
   paymentTimestamp,
   todayIsoDate,
@@ -139,38 +140,47 @@ export function useFinancialLedger() {
     lead_id: string;
     payment_method?: string;
     is_recurring?: boolean;
+    recurrence_count?: number;
+    recurrence_interval?: number;
     realized?: boolean;
     attachment_name?: string;
   }) => {
     if (!activeOrgId) throw new Error('Organização não encontrada');
     if (!input.lead_id) throw new Error('Vincule um contato do CRM');
-    const realized = Boolean(input.realized);
+    const recurring = Boolean(input.is_recurring);
+    const count = recurring ? Math.min(60, Math.max(1, Math.floor(input.recurrence_count || 1))) : 1;
+    const interval = Math.max(1, Math.floor(input.recurrence_interval || 1));
     const { data: userData } = await supabase.auth.getUser();
-    const { data, error } = await db().rpc('upsert_financial_entry', {
-      p_organization_id: activeOrgId,
-      p_direction: input.direction,
-      p_amount: input.amount,
-      p_due_date: input.due_date,
-      p_source_type: 'manual',
-      p_source_id: crypto.randomUUID(),
-      p_status: realized ? 'paid' : 'open',
-      p_settlement_status: 'confirmado',
-      p_lead_id: input.lead_id,
-      p_description: input.description,
-      p_contact_name: input.contact_name,
-      p_billing_name: input.contact_name || 'Sem contato',
-      p_category: input.category || null,
-      p_account: input.account || null,
-      p_origin_label: 'Normal',
-      p_paid_at: realized ? paymentTimestamp(todayIsoDate()) : null,
-      p_competence_date: input.competence_date || input.due_date,
-      p_category_id: input.category_id || null,
-      p_created_by: userData.user?.id || null,
-      p_payment_method: input.payment_method || null,
-      p_attachment_name: input.attachment_name || null,
-      p_is_recurring: Boolean(input.is_recurring),
-    });
-    if (error) throw new Error(error.message);
+    for (let index = 0; index < count; index += 1) {
+      const realized = Boolean(input.realized) && index === 0;
+      const dueDate = addMonthsIso(input.due_date, index * interval);
+      const competenceDate = addMonthsIso(input.competence_date || input.due_date, index * interval);
+      const { error } = await db().rpc('upsert_financial_entry', {
+        p_organization_id: activeOrgId,
+        p_direction: input.direction,
+        p_amount: input.amount,
+        p_due_date: dueDate,
+        p_source_type: 'manual',
+        p_source_id: crypto.randomUUID(),
+        p_status: realized ? 'paid' : 'open',
+        p_settlement_status: 'confirmado',
+        p_lead_id: input.lead_id,
+        p_description: count > 1 ? `${input.description} (${index + 1}/${count})` : input.description,
+        p_contact_name: input.contact_name,
+        p_billing_name: input.contact_name || 'Sem contato',
+        p_category: input.category || null,
+        p_account: input.account || null,
+        p_origin_label: count > 1 ? 'Recorrente' : 'Normal',
+        p_paid_at: realized ? paymentTimestamp(todayIsoDate()) : null,
+        p_competence_date: competenceDate,
+        p_category_id: input.category_id || null,
+        p_created_by: userData.user?.id || null,
+        p_payment_method: input.payment_method || null,
+        p_attachment_name: input.attachment_name || null,
+        p_is_recurring: recurring,
+      });
+      if (error) throw new Error(error.message);
+    }
     await reload();
   };
 

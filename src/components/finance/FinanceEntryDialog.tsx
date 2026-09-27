@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { PAYMENT_METHODS } from '@/lib/paymentMethods';
-import { todayIsoDate, type FinanceDirection, type FinancialAccount, type FinancialCategory } from '@/lib/finance';
+import { formatFinanceMoney, todayIsoDate, type FinanceDirection, type FinancialAccount, type FinancialCategory } from '@/lib/finance';
 
 export interface FinanceEntryDraft {
   amount: number;
@@ -34,6 +34,8 @@ export interface FinanceEntryDraft {
   account: string;
   payment_method: string;
   is_recurring: boolean;
+  recurrence_count: number;
+  recurrence_interval: number;
   realized: boolean;
   attachment_name: string;
 }
@@ -82,6 +84,8 @@ export function FinanceEntryDialog({
   const [selectedLead, setSelectedLead] = useState<LeadOption | null>(null);
   const [paymentMethod, setPaymentMethod] = useState('');
   const [recurring, setRecurring] = useState(false);
+  const [recurrenceCount, setRecurrenceCount] = useState('');
+  const [recurrenceInterval, setRecurrenceInterval] = useState('1');
   const [realized, setRealized] = useState(false);
   const [attach, setAttach] = useState(false);
   const [attachmentName, setAttachmentName] = useState('');
@@ -110,6 +114,8 @@ export function FinanceEntryDialog({
     setSelectedLead(null);
     setPaymentMethod('');
     setRecurring(false);
+    setRecurrenceCount('');
+    setRecurrenceInterval('1');
     setRealized(false);
     setAttach(false);
     setAttachmentName('');
@@ -185,6 +191,20 @@ export function FinanceEntryDialog({
       setError('Vincule um contato que já está no CRM');
       return;
     }
+    const count = recurring ? Math.floor(Number(recurrenceCount)) : 1;
+    const interval = Math.floor(Number(recurrenceInterval) || 1);
+    if (recurring && (!Number.isFinite(count) || count < 1)) {
+      setError('Informe o total de lançamentos');
+      return;
+    }
+    if (recurring && count > 60) {
+      setError('O total de lançamentos pode ir até 60');
+      return;
+    }
+    if (recurring && (!Number.isFinite(interval) || interval < 1)) {
+      setError('Informe o intervalo em meses');
+      return;
+    }
     setError('');
     const category = categoryOptions.find((item) => item.id === categoryId);
     await onSubmit({
@@ -199,10 +219,19 @@ export function FinanceEntryDialog({
       account,
       payment_method: paymentMethod,
       is_recurring: recurring,
+      recurrence_count: recurring ? count : 1,
+      recurrence_interval: recurring ? interval : 1,
       realized,
       attachment_name: attach ? attachmentName : '',
     });
   };
+
+  const intervalNumber = Math.max(1, Math.floor(Number(recurrenceInterval) || 1));
+  const previewAmount = Number(String(amount).replace(/\./g, '').replace(',', '.'));
+  const previewMoney = amount.trim() && Number.isFinite(previewAmount) && previewAmount > 0
+    ? formatFinanceMoney(previewAmount)
+    : '';
+  const recurrenceSummary = `${recurrenceCount.trim() ? `${recurrenceCount.trim()} ` : ''}lançamentos de ${previewMoney} a cada ${intervalNumber} ${intervalNumber === 1 ? 'mês' : 'meses'}`;
 
   return (
     <>
@@ -348,6 +377,30 @@ export function FinanceEntryDialog({
               <Switch checked={recurring} onCheckedChange={setRecurring} />
               Pagamento recorrente
             </label>
+            {recurring && (
+              <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label>Total de lançamentos:</Label>
+                    <Input
+                      inputMode="numeric"
+                      placeholder="Total lançamentos"
+                      value={recurrenceCount}
+                      onChange={(event) => setRecurrenceCount(event.target.value.replace(/\D/g, ''))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Intervalo em meses</Label>
+                    <Input
+                      inputMode="numeric"
+                      value={recurrenceInterval}
+                      onChange={(event) => setRecurrenceInterval(event.target.value.replace(/\D/g, ''))}
+                    />
+                  </div>
+                </div>
+                <p className="text-base font-semibold text-slate-800">{recurrenceSummary}</p>
+              </div>
+            )}
             <label className="flex items-center gap-3">
               <Switch checked={realized} onCheckedChange={setRealized} />
               Realizado (pago ou recebido)
