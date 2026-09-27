@@ -27,6 +27,7 @@ import {
   ServiceOrderStatus,
   ServiceOrderTemplateField,
   ServiceOrder,
+  normalizeTableConfig,
 } from '@/types/serviceOrder';
 import { ServiceOrderProductsStep } from './ServiceOrderProductsStep';
 import { osDialogContentClass } from './osResponsive';
@@ -510,6 +511,61 @@ export function CreateServiceOrderDialog({
               Nenhum serviço ativo cadastrado. Cadastre em Produtos e Serviços.
             </p>
           )}
+        </div>
+      );
+    }
+
+    if (field.field_type === 'table') {
+      const config = normalizeTableConfig(field.table_config);
+      const grid =
+        value && typeof value === 'object' && !Array.isArray(value)
+          ? (value as Record<string, Record<string, string>>)
+          : {};
+      const setCell = (rowKey: string, colKey: string, cell: string) => {
+        const next = {
+          ...grid,
+          [rowKey]: { ...(grid[rowKey] || {}), [colKey]: cell },
+        };
+        setField(field.field_key, next, true);
+      };
+      return (
+        <div key={field.id} className="space-y-2 md:col-span-2">
+          <Label>
+            {field.label}
+            {field.is_required && ' *'}
+          </Label>
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full min-w-[520px] text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-2 py-2 text-left font-medium text-slate-600">Olho</th>
+                  {config.columns.map((col) => (
+                    <th key={col.key} className="px-2 py-2 text-left font-medium text-slate-600">
+                      {col.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {config.rows.map((row) => (
+                  <tr key={row.key} className="border-t">
+                    <td className="px-2 py-2 font-semibold" style={{ color: row.color || '#334155' }}>
+                      {row.label}
+                    </td>
+                    {config.columns.map((col) => (
+                      <td key={col.key} className="px-1 py-1">
+                        <Input
+                          value={grid[row.key]?.[col.key] || ''}
+                          onChange={(e) => setCell(row.key, col.key, e.target.value)}
+                          className="h-9"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       );
     }

@@ -4,11 +4,12 @@ import { ptBR } from 'date-fns/locale';
 import { ServiceOrder, ServiceOrderTemplateField, fieldsShownOnPdf } from '@/types/serviceOrder';
 import { organizationNameForDocuments } from '@/lib/organizationDisplayName';
 import { fitImageInBox, loadImageForBudgetPdf } from '@/lib/budgetPdfImage';
+import { generateThreeSlipPDF } from '@/lib/serviceOrderThreeSlipPdf';
 
 export interface ServiceOrderPdfOptions {
   order: ServiceOrder;
   /** full = com valores; no_values = sem preços/totais, inclui fechamento */
-  mode?: 'full' | 'no_values';
+  mode?: 'full' | 'no_values' | 'three_slips';
   organizationName?: string;
   organizationData?: {
     name?: string | null;
@@ -92,6 +93,7 @@ function valueForTemplateField(
  * mode=no_values: omite valores monetários; inclui execução, fotos e assinatura do fechamento
  */
 export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): Promise<Blob> {
+  if (options.mode === 'three_slips') return generateThreeSlipPDF(options);
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const order = options.order;
   const includeValues = (options.mode || 'full') !== 'no_values';

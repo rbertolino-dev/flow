@@ -121,7 +121,7 @@ export default function ServiceOrders() {
           *,
           status:service_order_statuses(*),
           template:service_order_templates(
-            id, name, is_default,
+            id, name, is_default, pdf_layout, slip_config,
             fields:service_order_template_fields(*)
           ),
           lead:leads(id, name, phone, email, company),
@@ -212,7 +212,7 @@ export default function ServiceOrders() {
 
   const exportOrderPdf = async (
     order: ServiceOrder,
-    opts?: { open?: boolean; mode?: 'full' | 'no_values' }
+    opts?: { open?: boolean; mode?: 'full' | 'no_values' | 'three_slips' }
   ) => {
     try {
       setExportingId(order.id);
@@ -242,7 +242,7 @@ export default function ServiceOrders() {
       if (opts?.open) {
         openServiceOrderPDF(blob);
       }
-      const suffix = mode === 'no_values' ? '-sem-valores' : '';
+      const suffix = mode === 'no_values' ? '-sem-valores' : mode === 'three_slips' ? '-3-vias' : '';
       downloadServiceOrderPDF(blob, `${order.code}${suffix}`);
 
       toast({
@@ -328,7 +328,7 @@ export default function ServiceOrders() {
             `
             *,
             status:service_order_statuses(*),
-            template:service_order_templates(id, name, is_default),
+            template:service_order_templates(id, name, is_default, pdf_layout, slip_config, fields:service_order_template_fields(*)),
             lead:leads(id, name, phone, email, company),
             items:service_order_items(*),
             checklist:service_order_checklist_items(*)
@@ -406,6 +406,15 @@ export default function ServiceOrders() {
           <FileDown className="h-4 w-4 mr-2" />
           PDF sem valores
         </DropdownMenuItem>
+        {order.template?.pdf_layout === 'three_slips' && (
+          <DropdownMenuItem
+            onClick={() => exportOrderPdf(order, { open: true, mode: 'three_slips' })}
+            disabled={exportingId === order.id}
+          >
+            <FileDown className="h-4 w-4 mr-2" />
+            PDF em 3 vias
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           className="text-destructive"
           onClick={() => {

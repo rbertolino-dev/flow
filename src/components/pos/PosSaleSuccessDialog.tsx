@@ -61,7 +61,7 @@ const ORDER_SELECT = `
   *,
   status:service_order_statuses(*),
   template:service_order_templates(
-    id, name, is_default,
+    id, name, is_default, pdf_layout, slip_config,
     fields:service_order_template_fields(*)
   ),
   lead:leads(id, name, phone, email, company),

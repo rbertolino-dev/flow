@@ -146,10 +146,10 @@ export function ServiceSelector({ services, selectedServices, onServicesChange, 
         title: 'Serviço criado',
         description: 'Serviço criado e adicionado ao orçamento',
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Erro',
-        description: error.message || 'Erro ao criar serviço',
+        description: error instanceof Error ? error.message : 'Erro ao criar serviço',
         variant: 'destructive',
       });
     }
@@ -358,12 +358,12 @@ export function ServiceSelector({ services, selectedServices, onServicesChange, 
                     setNewServiceImageUrl(data.publicUrl);
                     setNewServiceImagePreview(data.publicUrl);
                     toast({ title: 'Imagem enviada', description: 'Imagem carregada' });
-                  } catch (err: any) {
-                    toast({ title: 'Erro no upload', description: err.message, variant: 'destructive' });
+                  } catch (err: unknown) {
+                    toast({ title: 'Erro no upload', description: err instanceof Error ? err.message : 'Erro no upload', variant: 'destructive' });
                   } finally {
                     setUploadingNewServiceImage(false);
                     if (newServiceFileInputRef.current) newServiceFileInputRef.current.value = '';
-                  }}
+                  }
                 }}
               />
               {newServiceImagePreview ? (

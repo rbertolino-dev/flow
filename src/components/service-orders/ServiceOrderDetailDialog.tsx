@@ -36,7 +36,7 @@ interface ServiceOrderDetailDialogProps {
   onCloseOrder: (order: ServiceOrder) => void;
   onDelete: (order: ServiceOrder) => void;
   onCopy: (order: ServiceOrder) => void;
-  onExportPdf: (order: ServiceOrder, mode: 'full' | 'no_values') => void;
+  onExportPdf: (order: ServiceOrder, mode: 'full' | 'no_values' | 'three_slips') => void;
   exporting?: boolean;
 }
 
@@ -222,6 +222,16 @@ export function ServiceOrderDetailDialog({
                 <FileText className="h-4 w-4 mr-2" />
                 PDF sem valores (com fechamento)
               </Button>
+              {order.template?.pdf_layout === 'three_slips' && (
+                <Button
+                  variant="outline"
+                  onClick={() => onExportPdf(order, 'three_slips')}
+                  disabled={!!exporting}
+                >
+                  <FileDown className="h-4 w-4 mr-2" />
+                  PDF em 3 vias
+                </Button>
+              )}
             </div>
           </TabsContent>
 

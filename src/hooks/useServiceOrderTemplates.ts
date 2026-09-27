@@ -8,6 +8,11 @@ import {
   ServiceOrderTemplateField,
   STANDARD_TEMPLATE_FIELDS,
   DEFAULT_STATUSES,
+  OPTICAL_SLIP_CONFIG,
+  OPTICAL_TEMPLATE_FIELDS,
+  OPTICAL_PRESCRIPTION_TABLE,
+  ServiceOrderSlipConfig,
+  ServiceOrderTableConfig,
 } from '@/types/serviceOrder';
 
 /** Evita seed duplicado quando vários hooks montam ao mesmo tempo */
@@ -534,6 +539,12 @@ export function useServiceOrderTemplates() {
           is_active: true,
           sort_order: templates.length * 10 + 10,
           created_by: user?.id || null,
+          ...(input.copyFromTemplateId
+            ? {
+                pdf_layout: templates.find((t) => t.id === input.copyFromTemplateId)?.pdf_layout || 'page',
+                slip_config: templates.find((t) => t.id === input.copyFromTemplateId)?.slip_config || null,
+              }
+            : {}),
         })
         .select()
         .single();
@@ -572,7 +583,10 @@ export function useServiceOrderTemplates() {
             placeholder: f.placeholder || null,
             sort_order: f.sort_order,
             section: f.section || 'geral',
-            options: f.options || [],
+            options: Array.isArray(f.options) ? f.options : [],
+            pdf_vias: f.pdf_vias || [],
+            section_by_via: f.section_by_via || {},
+            table_config: f.table_config || null,
           }));
         }
       }
@@ -653,6 +667,9 @@ export function useServiceOrderTemplates() {
           options: field.options || [],
           sort_order: maxOrder + 10,
           section: field.section || 'personalizado',
+          pdf_vias: [],
+          section_by_via: {},
+          table_config: field.field_type === 'table' ? OPTICAL_PRESCRIPTION_TABLE : null,
         })
         .select()
         .single();
@@ -671,9 +688,103 @@ export function useServiceOrderTemplates() {
     }
   };
 
+  const updateTemplate = async (
+    templateId: string,
+    patch: { pdf_layout?: 'page' | 'three_slips'; slip_config?: ServiceOrderSlipConfig[]; name?: string; description?: string }
+  ) => {
+    try {
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { error } = await supabase.from('service_order_templates').update(patch).eq('id', templateId);
+      if (error) throw error;
+      await fetchTemplates();
+      return true;
+    } catch (err) {
+      console.error('Erro ao atualizar modelo:', err);
+      toast({
+        title: 'Erro',
+        description: err instanceof Error ? err.message : 'Não foi possível atualizar o modelo',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
+  const createOpticalTemplate = async () => {
+    if (!activeOrgId) {
+      toast({
+        title: 'Organização não selecionada',
+        description: 'Entre em uma empresa antes de criar o modelo.',
+        variant: 'destructive',
+      });
+      return null;
+    }
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { data: tpl, error } = await supabase
+        .from('service_order_templates')
+        .insert({
+          organization_id: activeOrgId,
+          name: 'Ótica',
+          description: 'Três vias na mesma folha: laboratório, ótica e comprovante do cliente.',
+          is_default: false,
+          is_active: true,
+          sort_order: templates.length * 10 + 10,
+          created_by: user?.id || null,
+          pdf_layout: 'three_slips',
+          slip_config: OPTICAL_SLIP_CONFIG,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+
+      const fields = OPTICAL_TEMPLATE_FIELDS.map((field) => ({
+        template_id: tpl.id,
+        organization_id: activeOrgId,
+        field_key: field.field_key,
+        label: field.label,
+        field_type: field.field_type,
+        is_standard: field.is_standard === true,
+        is_required: field.is_required === true,
+        is_visible: true,
+        include_in_pdf: true,
+        placeholder: null,
+        options: [],
+        sort_order: field.sort_order,
+        section: field.section,
+        pdf_vias: field.pdf_vias,
+        section_by_via: field.section_by_via || {},
+        table_config: field.table_config || null,
+      }));
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { error: fieldsError } = await supabase.from('service_order_template_fields').insert(fields);
+      if (fieldsError) throw fieldsError;
+      toast({ title: 'Modelo de ótica criado', description: 'Você pode renomear os campos e escolher o que entra em cada via.' });
+      await fetchTemplates();
+      return tpl as ServiceOrderTemplate;
+    } catch (err) {
+      console.error('Erro ao criar modelo de ótica:', err);
+      toast({
+        title: 'Erro',
+        description: err instanceof Error ? err.message : 'Não foi possível criar o modelo de ótica',
+        variant: 'destructive',
+      });
+      return null;
+    }
+  };
+
   const updateTemplateField = async (
     fieldId: string,
-    patch: { is_visible?: boolean; include_in_pdf?: boolean; field_type?: string }
+    patch: {
+      is_visible?: boolean;
+      include_in_pdf?: boolean;
+      field_type?: string;
+      label?: string;
+      pdf_vias?: number[];
+      section_by_via?: Record<string, string>;
+      table_config?: ServiceOrderTableConfig | null;
+      section?: string;
+    }
   ) => {
     try {
       // @ts-expect-error tabela ainda nao tipada no client gerado
@@ -785,6 +896,8 @@ export function useServiceOrderTemplates() {
     loading,
     refetch: fetchTemplates,
     createTemplate,
+    createOpticalTemplate,
+    updateTemplate,
     addCustomField,
     updateFieldVisibility,
     updateTemplateField,

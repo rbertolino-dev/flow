@@ -23,9 +23,14 @@ import { CheckSquare, ChevronDown, ChevronUp, FileText, Plus, Star, Trash2 } fro
 import { cn } from '@/lib/utils';
 import {
   ServiceOrderChecklistTemplateItem,
+  ServiceOrderSlipConfig,
+  ServiceOrderTableConfig,
   ServiceOrderTemplate,
   fieldsForTemplateEditor,
   fieldsShownOnPdf,
+  normalizePdfVias,
+  normalizeSlipConfig,
+  normalizeTableConfig,
 } from '@/types/serviceOrder';
 import { useServiceOrderTemplates } from '@/hooks/useServiceOrderTemplates';
 import { useServiceOrderChecklists } from '@/hooks/useServiceOrderChecklists';
@@ -38,7 +43,101 @@ const FIELD_DATA_TYPES = [
   { value: 'date', label: 'Data' },
   { value: 'datetime', label: 'Data e hora' },
   { value: 'boolean', label: 'Sim/Não' },
+  { value: 'table', label: 'Tabela' },
 ] as const;
+
+function TableShapeEditor({
+  config,
+  onSave,
+}: {
+  config: ServiceOrderTableConfig;
+  onSave: (next: ServiceOrderTableConfig) => void | Promise<void>;
+}) {
+  const saveColumns = (columns: ServiceOrderTableConfig['columns']) => {
+    if (!columns.length) return;
+    void onSave({ ...config, columns });
+  };
+  const saveRows = (rows: ServiceOrderTableConfig['rows']) => {
+    if (!rows.length) return;
+    void onSave({ ...config, rows });
+  };
+  return (
+    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
+      <p className="text-xs font-semibold text-slate-600">Colunas</p>
+      {config.columns.map((col, index) => (
+        <div key={col.key} className="flex gap-2">
+          <Input
+            key={`${col.key}-${col.label}`}
+            defaultValue={col.label}
+            className="h-9 bg-white"
+            onBlur={(e) => {
+              const label = e.target.value.trim();
+              if (!label || label === col.label) return;
+              saveColumns(config.columns.map((item, i) => (i === index ? { ...item, label } : item)));
+            }}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={config.columns.length <= 1}
+            onClick={() => saveColumns(config.columns.filter((_, i) => i !== index))}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        className="h-9"
+        onClick={() => saveColumns([...config.columns, { key: `col_${Date.now()}`, label: 'Nova coluna' }])}
+      >
+        Adicionar coluna
+      </Button>
+      <p className="text-xs font-semibold text-slate-600">Linhas</p>
+      {config.rows.map((row, index) => (
+        <div key={row.key} className="flex gap-2">
+          <Input
+            key={`${row.key}-${row.label}`}
+            defaultValue={row.label}
+            className="h-9 bg-white"
+            onBlur={(e) => {
+              const label = e.target.value.trim();
+              if (!label || label === row.label) return;
+              saveRows(config.rows.map((item, i) => (i === index ? { ...item, label } : item)));
+            }}
+          />
+          <Input
+            type="color"
+            defaultValue={row.color || '#334155'}
+            className="h-9 w-14 bg-white p-1"
+            onBlur={(e) => {
+              saveRows(config.rows.map((item, i) => (i === index ? { ...item, color: e.target.value } : item)));
+            }}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={config.rows.length <= 1}
+            onClick={() => saveRows(config.rows.filter((_, i) => i !== index))}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        className="h-9"
+        onClick={() => saveRows([...config.rows, { key: `row_${Date.now()}`, label: 'Nova linha', color: '#334155' }])}
+      >
+        Adicionar linha
+      </Button>
+    </div>
+  );
+}
+
+
 
 const LOCKED_FIELD_TYPES = new Set([
   'lead_id',
@@ -65,6 +164,8 @@ export function ServiceOrderTemplatesDialog({
 }: ServiceOrderTemplatesDialogProps) {
   const {
     createTemplate,
+    createOpticalTemplate,
+    updateTemplate,
     addCustomField,
     updateTemplateField,
     deleteTemplateField,
@@ -129,6 +230,17 @@ export function ServiceOrderTemplatesDialog({
     if (created) {
       setName('');
       setDescription('');
+      setSelectedId(created.id);
+      await refetch();
+      await onTemplatesChanged?.();
+    }
+  };
+
+  const handleCreateOptical = async () => {
+    setCreating(true);
+    const created = await createOpticalTemplate();
+    setCreating(false);
+    if (created) {
       setSelectedId(created.id);
       await refetch();
       await onTemplatesChanged?.();
@@ -315,6 +427,16 @@ export function ServiceOrderTemplatesDialog({
                   <Plus className="mr-1 h-4 w-4" />
                   Criar modelo
                 </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-full"
+                  onClick={handleCreateOptical}
+                  disabled={creating}
+                  data-testid="os-template-create-optical"
+                >
+                  Criar modelo de ótica
+                </Button>
               </div>
             </div>
 
@@ -325,7 +447,9 @@ export function ServiceOrderTemplatesDialog({
                     <div>
                       <h3 className="text-xl font-semibold text-slate-900">{selected.name}</h3>
                       <p className="mt-1 text-sm text-slate-500">
-                        {selected.description || 'Ligue o campo na OS e marque se ele entra no PDF.'}
+                        {selected.pdf_layout === 'three_slips'
+                          ? 'Marque em qual via cada campo aparece. O PDF de página inteira continua no interruptor No PDF.'
+                          : selected.description || 'Ligue o campo na OS e marque se ele entra no PDF.'}
                       </p>
                     </div>
                     {!selected.is_default && (
@@ -343,6 +467,83 @@ export function ServiceOrderTemplatesDialog({
                       </Button>
                     )}
                   </div>
+
+                  {selected.pdf_layout === 'three_slips' && (
+                    <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="font-semibold text-slate-900">Vias do PDF</p>
+                      <p className="text-sm text-slate-500">Cada via ocupa um terço da folha. Você pode renomear o nome, a frase e a cor.</p>
+                      {normalizeSlipConfig(selected.slip_config).map((slip, slipIndex) => (
+                        <div key={slip.key} className="grid gap-2 rounded-xl border border-slate-100 p-3 sm:grid-cols-2">
+                          <div className="space-y-1">
+                            <Label>Nome da via {slipIndex + 1}</Label>
+                            <Input
+                              key={`${slip.key}-label-${slip.label}`}
+                              defaultValue={slip.label}
+                              onBlur={(e) => {
+                                const label = e.target.value.trim();
+                                if (!label || label === slip.label) return;
+                                const next = normalizeSlipConfig(selected.slip_config).map((item, index) =>
+                                  index === slipIndex ? { ...item, label } : item
+                                );
+                                void updateTemplate(selected.id, { slip_config: next });
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label>Frase</Label>
+                            <Input
+                              key={`${slip.key}-sub-${slip.subtitle}`}
+                              defaultValue={slip.subtitle}
+                              onBlur={(e) => {
+                                const subtitle = e.target.value;
+                                if (subtitle === slip.subtitle) return;
+                                const next = normalizeSlipConfig(selected.slip_config).map((item, index) =>
+                                  index === slipIndex ? { ...item, subtitle } : item
+                                );
+                                void updateTemplate(selected.id, { slip_config: next });
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label>Cor</Label>
+                            <Input
+                              type="color"
+                              defaultValue={slip.color}
+                              className="h-11 w-20 p-1"
+                              onBlur={(e) => {
+                                const next = normalizeSlipConfig(selected.slip_config).map((item, index) =>
+                                  index === slipIndex ? { ...item, color: e.target.value } : item
+                                );
+                                void updateTemplate(selected.id, { slip_config: next });
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label>Rodapé</Label>
+                            <Select
+                              value={slip.footer}
+                              onValueChange={async (footer) => {
+                                const next = normalizeSlipConfig(selected.slip_config).map((item, index) =>
+                                  index === slipIndex ? { ...item, footer: footer as ServiceOrderSlipConfig['footer'] } : item
+                                );
+                                await updateTemplate(selected.id, { slip_config: next });
+                                await refreshTemplates();
+                              }}
+                            >
+                              <SelectTrigger className="h-11 bg-white">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Sem rodapé</SelectItem>
+                                <SelectItem value="signature">Assinatura do responsável</SelectItem>
+                                <SelectItem value="received">Recebido por e data</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
                     <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
@@ -380,9 +581,17 @@ export function ServiceOrderTemplatesDialog({
                               </button>
                             </div>
                             <div className="min-w-0">
-                              <p className={cn('truncate text-base font-medium', f.is_visible ? 'text-slate-900' : 'text-slate-400')}>
-                                {f.label}
-                              </p>
+                              <Input
+                                key={`${f.id}-${f.label}`}
+                                defaultValue={f.label}
+                                className={cn('h-9', !f.is_visible && 'text-slate-400')}
+                                onBlur={async (e) => {
+                                  const next = e.target.value.trim();
+                                  if (!next || next === f.label) return;
+                                  await updateTemplateField(f.id, { label: next });
+                                  await refreshTemplates();
+                                }}
+                              />
                               <p className="text-xs text-slate-400">{f.is_standard ? 'Campo padrão' : 'Campo personalizado'}</p>
                               {LOCKED_FIELD_TYPES.has(f.field_key) ? (
                                 <p className="text-xs text-slate-500">
@@ -394,7 +603,10 @@ export function ServiceOrderTemplatesDialog({
                                   <Select
                                     value={FIELD_DATA_TYPES.some((t) => t.value === f.field_type) ? f.field_type : 'text'}
                                     onValueChange={async (value) => {
-                                      await updateTemplateField(f.id, { field_type: value });
+                                      await updateTemplateField(f.id, {
+                                        field_type: value,
+                                        ...(value === 'table' ? { table_config: normalizeTableConfig(f.table_config) } : {}),
+                                      });
                                       await refreshTemplates();
                                     }}
                                   >
@@ -437,6 +649,32 @@ export function ServiceOrderTemplatesDialog({
                                 }}
                               />
                             </label>
+                            {selected.pdf_layout === 'three_slips' &&
+                              normalizeSlipConfig(selected.slip_config).map((slip) => {
+                                const via = Number(slip.key);
+                                const on = normalizePdfVias(f.pdf_vias).includes(via);
+                                return (
+                                  <label
+                                    key={slip.key}
+                                    className="flex h-11 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3"
+                                  >
+                                    <span className="max-w-[140px] truncate text-sm font-medium" style={{ color: slip.color }}>
+                                      {slip.label}
+                                    </span>
+                                    <Switch
+                                      checked={on}
+                                      onCheckedChange={async (checked) => {
+                                        const current = normalizePdfVias(f.pdf_vias);
+                                        const next = checked
+                                          ? Array.from(new Set([...current, via]))
+                                          : current.filter((n) => n !== via);
+                                        await updateTemplateField(f.id, { pdf_vias: next });
+                                        await refreshTemplates();
+                                      }}
+                                    />
+                                  </label>
+                                );
+                              })}
                             {f.field_key !== 'lead_id' && (
                               <button
                                 type="button"
@@ -453,6 +691,15 @@ export function ServiceOrderTemplatesDialog({
                               </button>
                             )}
                           </div>
+                          {f.field_type === 'table' && (
+                            <TableShapeEditor
+                              config={normalizeTableConfig(f.table_config)}
+                              onSave={async (table_config) => {
+                                await updateTemplateField(f.id, { table_config });
+                                await refreshTemplates();
+                              }}
+                            />
+                          )}
                         </div>
                       ))}
                     </div>
