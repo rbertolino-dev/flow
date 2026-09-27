@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useActiveOrganization } from './useActiveOrganization';
 import { useToast } from './use-toast';
+import { fetchOrganizationFeatureEnabled } from './useOrganizationFeatures';
 import {
   ServiceOrderStatus,
   ServiceOrderTemplate,
@@ -714,6 +715,15 @@ export function useServiceOrderTemplates() {
       toast({
         title: 'Organização não selecionada',
         description: 'Entre em uma empresa antes de criar o modelo.',
+        variant: 'destructive',
+      });
+      return null;
+    }
+    const opticalEnabled = await fetchOrganizationFeatureEnabled(activeOrgId, 'service_orders_optical');
+    if (!opticalEnabled) {
+      toast({
+        title: 'Modelo de ótica desligado',
+        description: 'O super admin precisa habilitar OS de ótica nesta empresa.',
         variant: 'destructive',
       });
       return null;

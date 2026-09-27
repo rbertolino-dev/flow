@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CheckSquare, ChevronDown, ChevronUp, FileText, Plus, Star, Trash2 } from 'lucide-react';
+import { CheckSquare, ChevronDown, ChevronUp, Eye, FileText, Plus, Star, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   ServiceOrderChecklistTemplateItem,
@@ -31,7 +31,9 @@ import {
   normalizePdfVias,
   normalizeSlipConfig,
   normalizeTableConfig,
+  OPTICAL_PRESCRIPTION_TABLE,
 } from '@/types/serviceOrder';
+import { useOrganizationFeatures } from '@/hooks/useOrganizationFeatures';
 import { useServiceOrderTemplates } from '@/hooks/useServiceOrderTemplates';
 import { useServiceOrderChecklists } from '@/hooks/useServiceOrderChecklists';
 import { osDialogContentClass } from './osResponsive';
@@ -45,6 +47,42 @@ const FIELD_DATA_TYPES = [
   { value: 'boolean', label: 'Sim/Não' },
   { value: 'table', label: 'Tabela' },
 ] as const;
+
+function TableFieldPreview({ config }: { config: ServiceOrderTableConfig }) {
+  return (
+    <div className="space-y-2 rounded-xl border border-dashed border-slate-300 bg-white p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Somente visualização</p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[420px] text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              <th className="px-2 py-2 text-left font-medium text-slate-600">Olho</th>
+              {config.columns.map((col) => (
+                <th key={col.key} className="px-2 py-2 text-left font-medium text-slate-600">
+                  {col.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {config.rows.map((row) => (
+              <tr key={row.key} className="border-t">
+                <td className="px-2 py-2 font-semibold" style={{ color: row.color || '#334155' }}>
+                  {row.label}
+                </td>
+                {config.columns.map((col) => (
+                  <td key={col.key} className="px-2 py-2 text-slate-400">
+                    —
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 function TableShapeEditor({
   config,
@@ -182,6 +220,10 @@ export function ServiceOrderTemplatesDialog({
     setTemplateLinks,
     refetch: refetchChecklists,
   } = useServiceOrderChecklists();
+  const { hasFeature, loading: featuresLoading } = useOrganizationFeatures();
+  const opticalEnabled = !featuresLoading && hasFeature('service_orders_optical');
+  const [showNewTablePreview, setShowNewTablePreview] = useState(false);
+  const [previewFieldId, setPreviewFieldId] = useState<string | null>(null);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -427,16 +469,18 @@ export function ServiceOrderTemplatesDialog({
                   <Plus className="mr-1 h-4 w-4" />
                   Criar modelo
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-11 w-full"
-                  onClick={handleCreateOptical}
-                  disabled={creating}
-                  data-testid="os-template-create-optical"
-                >
-                  Criar modelo de ótica
-                </Button>
+                {opticalEnabled && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 w-full"
+                    onClick={handleCreateOptical}
+                    disabled={creating}
+                    data-testid="os-template-create-optical"
+                  >
+                    Criar modelo de ótica
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -692,13 +736,27 @@ export function ServiceOrderTemplatesDialog({
                             )}
                           </div>
                           {f.field_type === 'table' && (
-                            <TableShapeEditor
-                              config={normalizeTableConfig(f.table_config)}
-                              onSave={async (table_config) => {
-                                await updateTemplateField(f.id, { table_config });
-                                await refreshTemplates();
-                              }}
-                            />
+                            <div className="space-y-3">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="h-9"
+                                onClick={() => setPreviewFieldId((current) => (current === f.id ? null : f.id))}
+                              >
+                                <Eye className="mr-1 h-4 w-4" />
+                                {previewFieldId === f.id ? 'Ocultar visualização' : 'Visualizar tabela'}
+                              </Button>
+                              {previewFieldId === f.id && (
+                                <TableFieldPreview config={normalizeTableConfig(f.table_config)} />
+                              )}
+                              <TableShapeEditor
+                                config={normalizeTableConfig(f.table_config)}
+                                onSave={async (table_config) => {
+                                  await updateTemplateField(f.id, { table_config });
+                                  await refreshTemplates();
+                                }}
+                              />
+                            </div>
                           )}
                         </div>
                       ))}
@@ -711,7 +769,13 @@ export function ServiceOrderTemplatesDialog({
                         onChange={(e) => setNewFieldLabel(e.target.value)}
                         data-testid="os-template-new-field"
                       />
-                      <Select value={newFieldType} onValueChange={setNewFieldType}>
+                      <Select
+                        value={newFieldType}
+                        onValueChange={(value) => {
+                          setNewFieldType(value);
+                          if (value !== 'table') setShowNewTablePreview(false);
+                        }}
+                      >
                         <SelectTrigger className="h-11 bg-white">
                           <SelectValue />
                         </SelectTrigger>
@@ -723,6 +787,17 @@ export function ServiceOrderTemplatesDialog({
                           ))}
                         </SelectContent>
                       </Select>
+                      {newFieldType === 'table' && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-11"
+                          onClick={() => setShowNewTablePreview((current) => !current)}
+                        >
+                          <Eye className="mr-1 h-4 w-4" />
+                          {showNewTablePreview ? 'Ocultar visualização' : 'Visualizar tabela'}
+                        </Button>
+                      )}
                       <Button
                         type="button"
                         className="h-11"
@@ -734,12 +809,18 @@ export function ServiceOrderTemplatesDialog({
                             field_type: newFieldType,
                           });
                           setNewFieldLabel('');
+                          setShowNewTablePreview(false);
                           await refreshTemplates();
                         }}
                       >
                         <Plus className="mr-1 h-4 w-4" />
                         Adicionar
                       </Button>
+                      {newFieldType === 'table' && showNewTablePreview && (
+                        <div className="sm:col-span-3">
+                          <TableFieldPreview config={OPTICAL_PRESCRIPTION_TABLE} />
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -837,11 +918,16 @@ export function ServiceOrderTemplatesDialog({
                     ) : (
                       <ol className="space-y-2">
                         {pdfFields.map((field, index) => (
-                          <li key={field.id} className="flex items-center gap-3 text-sm text-slate-800">
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
-                              {index + 1}
-                            </span>
-                            <span>{field.label}</span>
+                          <li key={field.id} className="space-y-2 text-sm text-slate-800">
+                            <div className="flex items-center gap-3">
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
+                                {index + 1}
+                              </span>
+                              <span>{field.label}</span>
+                            </div>
+                            {field.field_type === 'table' && (
+                              <TableFieldPreview config={normalizeTableConfig(field.table_config)} />
+                            )}
                           </li>
                         ))}
                       </ol>

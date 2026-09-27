@@ -28,6 +28,7 @@ export const AVAILABLE_FEATURES = [
   { value: 'budgets', label: 'Orçamentos', description: 'Criação e gestão de orçamentos' },
   { value: 'pos', label: 'PDV', description: 'Ponto de venda com estoque e histórico' },
   { value: 'service_orders', label: 'Ordem de Serviço', description: 'Ordens de serviço com modelos e produtos' },
+  { value: 'service_orders_optical', label: 'OS de ótica', description: 'Modelo de ótica com tabela e PDF em 3 vias. Vale só para esta empresa quando habilitado aqui.' },
   { value: 'finance', label: 'Financeiro', description: 'Contas a receber, contas a pagar e relatórios' },
   { value: 'employees', label: 'Colaboradores', description: 'Gerenciamento de colaboradores' },
   { value: 'landing_page', label: 'Landing Page', description: 'Página pública de vendas com produtos e WhatsApp' },
@@ -35,6 +36,26 @@ export const AVAILABLE_FEATURES = [
 ] as const;
 
 export type FeatureKey = typeof AVAILABLE_FEATURES[number]['value'];
+
+/** Não entra no trial nem em empresa nova. Só liga se o super admin habilitar na empresa ou no plano. */
+export const EXPLICIT_ORG_FEATURES = new Set<FeatureKey>(['service_orders_optical']);
+
+export function isFeatureReleasedForOrg(input: {
+  feature: string;
+  planFeatures: string[];
+  enabledFeatures: string[];
+  disabledFeatures: string[];
+  isInTrial: boolean;
+}): boolean {
+  if (input.disabledFeatures.includes(input.feature)) return false;
+  if (EXPLICIT_ORG_FEATURES.has(input.feature as FeatureKey)) {
+    return input.enabledFeatures.includes(input.feature) || input.planFeatures.includes(input.feature);
+  }
+  if (input.isInTrial) return true;
+  if (input.enabledFeatures.includes(input.feature)) return true;
+  return input.planFeatures.includes(input.feature);
+}
+
 
 interface OrganizationFeaturesData {
   planId: string | null;
@@ -183,42 +204,28 @@ export function useOrganizationFeatures(): UseOrganizationFeaturesResult {
       return false;
     }
 
-    // Durante trial, tudo liberado (exceto se explicitamente desabilitado)
-    if (data.isInTrial) {
-      return !data.disabledFeatures.includes(feature);
-    }
-
-    // Verificar se está explicitamente desabilitado (override)
-    if (data.disabledFeatures.includes(feature)) {
-      return false;
-    }
-
-    // Verificar se está explicitamente habilitado (override)
-    if (data.enabledFeatures.includes(feature)) {
-      return true;
-    }
-
-    // Herdar do plano
-    return data.planFeatures.includes(feature);
+    return isFeatureReleasedForOrg({
+      feature,
+      planFeatures: data.planFeatures,
+      enabledFeatures: data.enabledFeatures,
+      disabledFeatures: data.disabledFeatures,
+      isInTrial: data.isInTrial,
+    });
   }, [data]);
 
   // Retorna lista de todas as features disponíveis para a organização
   const getAllFeatures = useCallback((): string[] => {
     if (!data) return [];
 
-    // Durante trial, todas as features (exceto desabilitadas)
-    if (data.isInTrial) {
-      const allFeatures = AVAILABLE_FEATURES.map(f => f.value);
-      return allFeatures.filter(f => !data.disabledFeatures.includes(f));
-    }
-
-    // Combinar features do plano + overrides
-    const features = new Set([...data.planFeatures, ...data.enabledFeatures]);
-    
-    // Remover desabilitadas
-    data.disabledFeatures.forEach(f => features.delete(f));
-
-    return Array.from(features);
+    return AVAILABLE_FEATURES.map((item) => item.value).filter((feature) =>
+      isFeatureReleasedForOrg({
+        feature,
+        planFeatures: data.planFeatures,
+        enabledFeatures: data.enabledFeatures,
+        disabledFeatures: data.disabledFeatures,
+        isInTrial: data.isInTrial,
+      })
+    );
   }, [data]);
 
   return {
@@ -228,4 +235,44 @@ export function useOrganizationFeatures(): UseOrganizationFeaturesResult {
     getAllFeatures,
     refetch: fetchFeatures,
   };
+}
+
+function asFeatureList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string');
+  if (value && typeof value === 'object') {
+    return Object.values(value).filter((item): item is string => typeof item === 'string');
+  }
+  return [];
+}
+
+export async function fetchOrganizationFeatureEnabled(
+  organizationId: string,
+  feature: FeatureKey
+): Promise<boolean> {
+  const { data: limitsData, error } = await supabase
+    .from('organization_limits')
+    .select(`
+      trial_ends_at,
+      enabled_features,
+      disabled_features,
+      plans:plan_id (
+        features
+      )
+    `)
+    .eq('organization_id', organizationId)
+    .maybeSingle();
+
+  if (error && error.code !== 'PGRST116') throw error;
+  if (!limitsData) return false;
+
+  const planData = limitsData.plans as { features: unknown } | null;
+  const trialEndsAt = limitsData.trial_ends_at ? new Date(limitsData.trial_ends_at) : null;
+
+  return isFeatureReleasedForOrg({
+    feature,
+    planFeatures: asFeatureList(planData?.features),
+    enabledFeatures: asFeatureList(limitsData.enabled_features),
+    disabledFeatures: asFeatureList(limitsData.disabled_features),
+    isInTrial: trialEndsAt !== null && trialEndsAt > new Date(),
+  });
 }

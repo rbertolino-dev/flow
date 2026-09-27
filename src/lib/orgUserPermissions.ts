@@ -157,6 +157,7 @@ export function permissionsToPersist(selectedCanonical: string[], features: Feat
 export function newAppPermissionValues(): string[] {
   const values = new Set<string>();
   for (const feature of AVAILABLE_FEATURES) {
+    if (feature.value === "service_orders_optical") continue;
     const spec = specFor(feature.value);
     [spec.view, spec.edit, spec.delete].forEach((key) => {
       if (!EXISTING_APP_PERMISSIONS.has(key)) values.add(key);
@@ -174,7 +175,7 @@ export function resolveReleasedFeatureKeys(input: {
   const known = new Set<string>(AVAILABLE_FEATURES.map((feature) => feature.value));
   if (input.isInTrial) {
     return AVAILABLE_FEATURES.map((feature) => feature.value).filter(
-      (feature) => !input.disabledFeatures.includes(feature),
+      (feature) => feature !== "service_orders_optical" && !input.disabledFeatures.includes(feature),
     );
   }
 
@@ -182,7 +183,7 @@ export function resolveReleasedFeatureKeys(input: {
   input.disabledFeatures.forEach((feature) => features.delete(feature));
 
   return AVAILABLE_FEATURES.map((feature) => feature.value).filter(
-    (feature) => features.has(feature) && known.has(feature),
+    (feature) => feature !== "service_orders_optical" && features.has(feature) && known.has(feature),
   );
 }
 
