@@ -564,28 +564,31 @@ export function StockModule() {
         </nav>
 
         {tab === "cadastro" && (
-          <section className="space-y-4 rounded-lg bg-background p-4 shadow-sm">
+          <section className="space-y-4 overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm md:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="flex items-center gap-2 text-lg font-semibold">
-                <Package className="h-5 w-5" /> Produtos
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                  <Package className="h-5 w-5" />
+                </span>
+                Produtos
               </h2>
-              <Button className="rounded-full bg-blue-600 hover:bg-blue-700" onClick={openCreate}>
+              <Button className="rounded-full bg-blue-600 shadow-sm hover:bg-blue-700" onClick={openCreate}>
                 <Plus className="mr-2 h-4 w-4" /> Cadastrar produto
               </Button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 p-2">
               <Input
                 placeholder="Buscar por nome"
                 value={nameQuery}
                 onChange={(e) => setNameQuery(e.target.value)}
-                className="max-w-xs"
+                className="max-w-xs border-slate-200 bg-white"
               />
               <Input
                 placeholder="Buscar por código"
                 value={codeQuery}
                 onChange={(e) => setCodeQuery(e.target.value)}
-                className="max-w-xs"
+                className="max-w-xs border-slate-200 bg-white"
               />
               <Button variant={showFilters ? "default" : "secondary"} className="rounded-full" onClick={() => setShowFilters((v) => !v)}>
                 <Filter className="mr-2 h-4 w-4" /> Filtros
@@ -614,27 +617,29 @@ export function StockModule() {
               </div>
             )}
 
-            <p className="text-sm text-muted-foreground">Total de produtos: {filtered.length}</p>
+            <p className="text-sm text-slate-500">
+              Total de produtos: <span className="font-semibold text-slate-800">{filtered.length}</span>
+            </p>
 
             {loading ? (
               <div className="flex justify-center py-10 text-muted-foreground">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Carregando produtos...
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Produto</TableHead>
-                      <TableHead>Limite Falta</TableHead>
-                      <TableHead>Qnt atual</TableHead>
-                      <TableHead>Limite ideal</TableHead>
-                      <TableHead>Categoria/Marca</TableHead>
-                      <TableHead>Custo Unit</TableHead>
-                      <TableHead>Total $ (custo)</TableHead>
-                      <TableHead>Total $ (venda)</TableHead>
-                      <TableHead>Preços de venda</TableHead>
-                      <TableHead>Status</TableHead>
+                    <TableRow className="border-slate-200 bg-slate-50 hover:bg-slate-50">
+                      <TableHead className="text-slate-600">Produto</TableHead>
+                      <TableHead className="text-rose-700/80">Limite Falta</TableHead>
+                      <TableHead className="text-slate-600">Qnt atual</TableHead>
+                      <TableHead className="text-emerald-700/80">Limite ideal</TableHead>
+                      <TableHead className="text-slate-600">Categoria/Marca</TableHead>
+                      <TableHead className="text-slate-600">Custo Unit</TableHead>
+                      <TableHead className="text-slate-600">Total $ (custo)</TableHead>
+                      <TableHead className="text-blue-700/80">Total $ (venda)</TableHead>
+                      <TableHead className="text-emerald-700/80">Preços de venda</TableHead>
+                      <TableHead className="text-slate-600">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -642,25 +647,41 @@ export function StockModule() {
                       const { qty, min, ideal } = stockNumbers(product);
                       const cost = Number(product.cost ?? 0);
                       const price = Number(product.price ?? 0);
-                      const positiveQty = Math.max(qty, 0);
+                      const costTotal = cost * qty;
+                      const saleTotal = price * qty;
                       const status = getStockStatus(product);
                       return (
-                        <TableRow key={product.id} className="cursor-pointer" onClick={() => openEdit(product)}>
+                        <TableRow key={product.id} className="cursor-pointer border-slate-100 hover:bg-sky-50/70" onClick={() => openEdit(product)}>
                           <TableCell>
-                            <div className="font-medium">{product.name}</div>
-                            {product.sku && <div className="text-xs text-muted-foreground">{product.sku}</div>}
+                            <div className="flex items-start gap-2.5">
+                              <span className={cn(
+                                "mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full",
+                                status === "falta" && "bg-red-500",
+                                status === "baixa" && "bg-orange-400",
+                                status === "ideal" && "bg-emerald-500",
+                              )} />
+                              <div>
+                                <div className="font-medium text-slate-900">{product.name}</div>
+                                {product.sku && <div className="text-xs text-slate-400">{product.sku}</div>}
+                              </div>
+                            </div>
                           </TableCell>
-                          <TableCell>{min}</TableCell>
-                          <TableCell>{qty}</TableCell>
-                          <TableCell>{ideal || min}</TableCell>
+                          <TableCell className="text-rose-700">{min}</TableCell>
+                          <TableCell className={cn(
+                            "font-semibold",
+                            status === "falta" && "text-red-600",
+                            status === "baixa" && "text-orange-600",
+                            status === "ideal" && "text-emerald-700",
+                          )}>{qty}</TableCell>
+                          <TableCell className="text-emerald-800">{ideal || min}</TableCell>
                           <TableCell>
-                            <div>{product.category || "—"}</div>
-                            {product.brand && <div className="text-xs text-muted-foreground">{product.brand}</div>}
+                            <div className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{product.category || "—"}</div>
+                            {product.brand && <div className="mt-1 text-xs text-slate-400">{product.brand}</div>}
                           </TableCell>
-                          <TableCell>{formatBRL(cost)}</TableCell>
-                          <TableCell>{formatBRL(cost * positiveQty)}</TableCell>
-                          <TableCell>{formatBRL(price * positiveQty)}</TableCell>
-                          <TableCell>{formatBRL(price)}</TableCell>
+                          <TableCell className="text-slate-700">{formatBRL(cost)}</TableCell>
+                          <TableCell className={cn("font-medium", costTotal < 0 ? "text-rose-600" : "text-slate-800")}>{formatBRL(costTotal)}</TableCell>
+                          <TableCell className={cn("font-medium", saleTotal < 0 ? "text-rose-600" : "text-blue-700")}>{formatBRL(saleTotal)}</TableCell>
+                          <TableCell className="font-medium text-emerald-700">{formatBRL(price)}</TableCell>
                           <TableCell>
                             <StatusBadge status={status} />
                           </TableCell>
@@ -1068,9 +1089,9 @@ function KpiCard({ title, subtitle, value, className }: { title: string; subtitl
 }
 
 function StatusBadge({ status }: { status: StockStatus }) {
-  if (status === "falta") return <Badge className="bg-red-500 hover:bg-red-500">Em falta</Badge>;
-  if (status === "baixa") return <Badge className="bg-orange-500 hover:bg-orange-500">Em baixa</Badge>;
-  return <Badge className="bg-emerald-500 hover:bg-emerald-500">Ideal</Badge>;
+  if (status === "falta") return <Badge className="rounded-full bg-red-500 px-2.5 font-medium text-white shadow-none hover:bg-red-500">Em falta</Badge>;
+  if (status === "baixa") return <Badge className="rounded-full bg-orange-500 px-2.5 font-medium text-white shadow-none hover:bg-orange-500">Em baixa</Badge>;
+  return <Badge className="rounded-full bg-emerald-500 px-2.5 font-medium text-white shadow-none hover:bg-emerald-500">Ideal</Badge>;
 }
 
 function uniqueNames(values: string[]) {
