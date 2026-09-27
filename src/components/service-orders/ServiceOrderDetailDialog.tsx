@@ -328,17 +328,40 @@ export function ServiceOrderDetailDialog({
                 Nenhum produto/serviço vinculado.
               </p>
             ) : (
-              (order.items || []).map((item, idx) => (
-                <div key={idx} className="flex justify-between text-sm border rounded-md px-3 py-2">
-                  <span>
-                    {item.name} × {item.quantity}
-                  </span>
-                  <span className="font-medium">
-                    R${' '}
-                    {item.total_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-              ))
+              <>
+                {(order.items || [])
+                  .filter((item) => !(item.item_type === 'product' && item.use_cost && Number(item.unit_price) === 0))
+                  .map((item, idx) => (
+                    <div key={`bill-${idx}`} className="flex justify-between text-sm border rounded-md px-3 py-2">
+                      <span>
+                        {item.name} × {item.quantity}
+                      </span>
+                      <span className="font-medium">
+                        R${' '}
+                        {item.total_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  ))}
+                {(order.items || []).some(
+                  (item) => item.item_type === 'product' && item.use_cost && Number(item.unit_price) === 0
+                ) && <p className="text-sm font-semibold pt-2">Insumos gastos</p>}
+                {(order.items || [])
+                  .filter((item) => item.item_type === 'product' && item.use_cost && Number(item.unit_price) === 0)
+                  .map((item, idx) => (
+                    <div key={`supply-${idx}`} className="flex justify-between text-sm border rounded-md px-3 py-2">
+                      <span>
+                        {item.name} × {item.quantity} {item.unit || ''}
+                        <Badge className="ml-2 bg-violet-100 text-violet-700 hover:bg-violet-100">Insumo</Badge>
+                      </span>
+                      <span className="text-muted-foreground">
+                        Custo R${' '}
+                        {((item.unit_cost || 0) * item.quantity).toLocaleString('pt-BR', {
+                          minimumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+                  ))}
+              </>
             )}
             <p className="text-right font-semibold pt-2">
               Total: R${' '}

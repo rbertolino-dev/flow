@@ -15,6 +15,17 @@ interface ServiceOrderProductsStepProps {
   orderCode?: string;
 }
 
+function money(value: number) {
+  return value.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+}
+
+function isSupplyLine(item: ServiceOrderItem, products: Product[]) {
+  if (item.item_type !== 'product' || !item.item_id) return false;
+  const catalog = products.find((product) => product.id === item.item_id);
+  if (catalog) return Boolean(catalog.is_supply);
+  return Boolean(item.use_cost) && Number(item.unit_price) === 0;
+}
+
 export function ServiceOrderProductsStep({
   products,
   items,
@@ -22,27 +33,46 @@ export function ServiceOrderProductsStep({
   orderCode,
 }: ServiceOrderProductsStepProps) {
   const [search, setSearch] = useState('');
+  const [supplySearch, setSupplySearch] = useState('');
   const [priceMode, setPriceMode] = useState<'price' | 'cost'>('price');
+
+  const activeProducts = useMemo(
+    () => products.filter((product) => product.is_active),
+    [products]
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return products
-      .filter((p) => p.is_active)
+    return activeProducts
+      .filter((product) => !product.is_supply)
       .filter(
-        (p) =>
+        (product) =>
           !q ||
-          p.name.toLowerCase().includes(q) ||
-          p.sku?.toLowerCase().includes(q)
+          product.name.toLowerCase().includes(q) ||
+          product.sku?.toLowerCase().includes(q)
       )
       .slice(0, 10);
-  }, [products, search]);
+  }, [activeProducts, search]);
 
-  const total = items.reduce((s, i) => s + (i.total_price || 0), 0);
+  const filteredSupplies = useMemo(() => {
+    const q = supplySearch.trim().toLowerCase();
+    return activeProducts
+      .filter((product) => product.is_supply)
+      .filter(
+        (product) =>
+          !q ||
+          product.name.toLowerCase().includes(q) ||
+          product.sku?.toLowerCase().includes(q)
+      )
+      .slice(0, 10);
+  }, [activeProducts, supplySearch]);
+
+  const orderTotal = items.reduce((sum, item) => sum + (item.total_price || 0), 0);
 
   const addProduct = (product: Product) => {
     const unitPrice = priceMode === 'cost' ? product.cost || 0 : product.price;
     const existing = items.findIndex(
-      (i) => i.item_type === 'product' && i.item_id === product.id
+      (item) => item.item_type === 'product' && item.item_id === product.id
     );
 
     if (existing >= 0) {
@@ -51,7 +81,7 @@ export function ServiceOrderProductsStep({
       next[existing] = {
         ...next[existing],
         quantity: qty,
-        total_price: qty * next[existing].unit_price,
+        total_price: qty * next[existing].unit_price - (next[existing].discount_amount || 0),
       };
       onChange(next);
       return;
@@ -76,23 +106,68 @@ export function ServiceOrderProductsStep({
     setSearch('');
   };
 
+  const addSupply = (product: Product) => {
+    const existing = items.findIndex(
+      (item) => item.item_type === 'product' && item.item_id === product.id
+    );
+
+    if (existing >= 0) {
+      const next = [...items];
+      const qty = next[existing].quantity + 1;
+      const unitPrice = Number(next[existing].unit_price) || 0;
+      next[existing] = {
+        ...next[existing],
+        quantity: qty,
+        unit_cost: product.cost || next[existing].unit_cost || 0,
+        use_cost: true,
+        total_price: unitPrice === 0 ? 0 : qty * unitPrice - (next[existing].discount_amount || 0),
+      };
+      onChange(next);
+      return;
+    }
+
+    onChange([
+      ...items,
+      {
+        item_type: 'product',
+        item_id: product.id,
+        name: product.name,
+        sku: product.sku,
+        unit: product.unit || 'un',
+        quantity: 1,
+        unit_price: 0,
+        unit_cost: product.cost || 0,
+        use_cost: true,
+        discount_amount: 0,
+        total_price: 0,
+      },
+    ]);
+    setSupplySearch('');
+  };
+
   const updateQty = (index: number, quantity: number) => {
     const qty = Math.max(0.001, quantity);
     const next = [...items];
+    const current = next[index];
+    const unitPrice = Number(current.unit_price) || 0;
     next[index] = {
-      ...next[index],
+      ...current,
       quantity: qty,
-      total_price: qty * next[index].unit_price - (next[index].discount_amount || 0),
+      total_price:
+        isSupplyLine(current, products) && unitPrice === 0
+          ? 0
+          : qty * unitPrice - (current.discount_amount || 0),
     };
     onChange(next);
   };
 
   const removeItem = (index: number) => {
-    onChange(items.filter((_, i) => i !== index));
+    onChange(items.filter((_, itemIndex) => itemIndex !== index));
   };
 
-  const productItems = items.filter((i) => i.item_type === 'product');
-  const serviceItems = items.filter((i) => i.item_type === 'service');
+  const productItems = items.filter((item) => item.item_type === 'product' && !isSupplyLine(item, products));
+  const supplyItems = items.filter((item) => isSupplyLine(item, products));
+  const serviceItems = items.filter((item) => item.item_type === 'service');
 
   return (
     <div className="space-y-4">
@@ -109,6 +184,7 @@ export function ServiceOrderProductsStep({
             placeholder="Buscar produto"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            data-testid="os-product-search"
           />
           <p className="text-xs text-muted-foreground mt-1">
             Esta busca retorna até 10 produtos por pesquisa
@@ -141,32 +217,26 @@ export function ServiceOrderProductsStep({
           {filtered.length === 0 ? (
             <p className="p-3 text-sm text-muted-foreground">Nenhum produto encontrado</p>
           ) : (
-            filtered.map((p) => (
+            filtered.map((product) => (
               <button
-                key={p.id}
+                key={product.id}
                 type="button"
                 className="w-full flex items-center justify-between gap-2 p-3 text-left hover:bg-muted/50"
-                onClick={() => addProduct(p)}
+                onClick={() => addProduct(product)}
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <Package className="h-4 w-4 text-primary shrink-0" />
                   <div className="min-w-0">
-                    <p className="font-medium truncate">
-                      {p.name}
-                      {p.is_supply && <Badge className="ml-2 bg-violet-100 text-violet-700 hover:bg-violet-100">Insumo</Badge>}
-                    </p>
+                    <p className="font-medium truncate">{product.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {p.sku ? `SKU: ${p.sku} · ` : ""}
-                      Saldo: {Number(p.stock_quantity ?? 0)}
+                      {product.sku ? `SKU: ${product.sku} · ` : ''}
+                      Saldo: {Number(product.stock_quantity ?? 0)}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-sm">
-                    R${' '}
-                    {(priceMode === 'cost' ? p.cost || 0 : p.price).toLocaleString('pt-BR', {
-                      minimumFractionDigits: 2,
-                    })}
+                    R$ {money(priceMode === 'cost' ? product.cost || 0 : product.price)}
                   </span>
                   <Plus className="h-4 w-4" />
                 </div>
@@ -183,26 +253,14 @@ export function ServiceOrderProductsStep({
           <div className="w-full space-y-2">
             {productItems.map((item) => {
               const idx = items.indexOf(item);
-              const catalog = products.find((product) => product.id === item.item_id);
               return (
                 <div
                   key={`${item.item_id}-${idx}`}
                   className="flex items-center gap-2 bg-white/10 rounded-md p-2"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {item.name}
-                      {catalog?.is_supply && (
-                        <Badge className="ml-2 bg-violet-100 text-violet-800 hover:bg-violet-100">Insumo</Badge>
-                      )}
-                    </p>
-                    {catalog?.is_supply && (
-                      <p className="text-xs opacity-80">Saldo: {Number(catalog.stock_quantity ?? 0)}</p>
-                    )}
-                    <p className="text-xs opacity-80">
-                      R${' '}
-                      {item.unit_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </p>
+                    <p className="text-sm font-medium truncate">{item.name}</p>
+                    <p className="text-xs opacity-80">R$ {money(item.unit_price)}</p>
                   </div>
                   <Input
                     type="number"
@@ -228,20 +286,104 @@ export function ServiceOrderProductsStep({
         )}
       </div>
 
+      <div className="rounded-lg border p-3 space-y-3" data-testid="os-supplies">
+        <div>
+          <Label htmlFor="os-supply-search">Insumos gastos</Label>
+          <p className="text-xs text-muted-foreground">
+            Só entram produtos marcados como insumo. O saldo muda ao salvar a ordem.
+          </p>
+        </div>
+        <Input
+          id="os-supply-search"
+          data-testid="os-supply-search"
+          placeholder="Adicionar insumos"
+          value={supplySearch}
+          onChange={(e) => setSupplySearch(e.target.value)}
+        />
+        {supplySearch.trim() && (
+          <div className="border rounded-lg divide-y max-h-48 overflow-auto">
+            {filteredSupplies.length === 0 ? (
+              <p className="p-3 text-sm text-muted-foreground">Nenhum insumo encontrado</p>
+            ) : (
+              filteredSupplies.map((product) => (
+                <button
+                  key={product.id}
+                  type="button"
+                  className="w-full flex items-center justify-between gap-2 p-3 text-left hover:bg-muted/50"
+                  onClick={() => addSupply(product)}
+                  data-testid={`os-supply-option-${product.id}`}
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">
+                      {product.name}
+                      <Badge className="ml-2 bg-violet-100 text-violet-700 hover:bg-violet-100">Insumo</Badge>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {product.unit || 'un'} · Saldo: {Number(product.stock_quantity ?? 0)} · Custo: R${' '}
+                      {money(product.cost || 0)}
+                    </p>
+                  </div>
+                  <Plus className="h-4 w-4 shrink-0" />
+                </button>
+              ))
+            )}
+          </div>
+        )}
+        {supplyItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum insumo adicionado</p>
+        ) : (
+          <div className="space-y-2">
+            {supplyItems.map((item) => {
+              const idx = items.indexOf(item);
+              const catalog = products.find((product) => product.id === item.item_id);
+              const stock = Number(catalog?.stock_quantity ?? 0);
+              const overStock = item.quantity > stock;
+              return (
+                <div key={`${item.item_id}-${idx}`} className="flex items-center gap-2 rounded-md border p-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {item.name}
+                      <Badge className="ml-2 bg-violet-100 text-violet-700 hover:bg-violet-100">Insumo</Badge>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.unit || catalog?.unit || 'un'} · Saldo: {stock} · Custo: R${' '}
+                      {money(item.unit_cost || catalog?.cost || 0)}
+                    </p>
+                    {overStock && (
+                      <p className="text-xs text-amber-700">Quantidade maior que o saldo atual</p>
+                    )}
+                  </div>
+                  <Input
+                    type="number"
+                    min={0.001}
+                    step={1}
+                    className="w-20 h-8"
+                    value={item.quantity}
+                    onChange={(e) => updateQty(idx, parseFloat(e.target.value) || 1)}
+                    data-testid={`os-supply-qty-${item.item_id}`}
+                  />
+                  <Button type="button" size="icon" variant="ghost" onClick={() => removeItem(idx)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <div className="rounded-lg border bg-muted/40 p-3">
         <Label className="text-sm font-semibold">Serviços:</Label>
         {serviceItems.length === 0 ? (
           <p className="text-sm text-muted-foreground mt-1">Nenhum serviço adicionado</p>
         ) : (
           <div className="mt-2 space-y-1">
-            {serviceItems.map((item, i) => (
-              <div key={i} className="flex justify-between text-sm">
+            {serviceItems.map((item, index) => (
+              <div key={index} className="flex justify-between text-sm">
                 <span>
                   {item.name} × {item.quantity}
                 </span>
-                <Badge variant="secondary">
-                  R$ {item.total_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </Badge>
+                <Badge variant="secondary">R$ {money(item.total_price)}</Badge>
               </div>
             ))}
           </div>
@@ -249,9 +391,12 @@ export function ServiceOrderProductsStep({
       </div>
 
       <div className="flex items-center justify-between pt-2 border-t">
-        <p className="font-semibold">
-          TOTAL DA O.S.: R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-        </p>
+        <div>
+          <p className="font-semibold">TOTAL DA O.S.: R$ {money(orderTotal)}</p>
+          {supplyItems.length > 0 && (
+            <p className="text-xs text-muted-foreground">Insumos entram pelo custo e não somam neste total.</p>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -859,7 +859,7 @@ export function useServiceOrders(
             maintenance_plan_id: planId,
             maintenance_index: index + 1,
           },
-          { quiet: true, skipRefetch: true, skipStock: index > 0 }
+          { quiet: true, skipRefetch: true }
         );
         if (!created) break;
         createdCount += 1;
