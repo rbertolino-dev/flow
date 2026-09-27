@@ -8,6 +8,11 @@ import {
   ServiceOrderItem,
   ServiceOrderChecklistItem,
 } from '@/types/serviceOrder';
+import {
+  addMaintenanceInterval,
+  clampMaintenanceVisitCount,
+  resolveMaintenanceInterval,
+} from '@/lib/serviceOrderMaintenance';
 
 interface ServiceOrderFilters {
   search?: string;
@@ -17,7 +22,33 @@ interface ServiceOrderFilters {
   collaborator?: string;
   date_from?: string;
   date_to?: string;
+  maintenance_only?: boolean;
 }
+
+const ORDER_SELECT = `
+  *,
+  status:service_order_statuses(*),
+  template:service_order_templates(
+    id, name, is_default, pdf_layout, slip_config,
+    fields:service_order_template_fields(*)
+  ),
+  lead:leads(id, name, phone, email, company),
+  items:service_order_items(*),
+  checklist:service_order_checklist_items(*),
+  maintenance_plan:service_order_maintenance_plans(id, name, occurrence_total, status)
+`;
+
+const ORDER_SELECT_PLAIN = `
+  *,
+  status:service_order_statuses(*),
+  template:service_order_templates(
+    id, name, is_default, pdf_layout, slip_config,
+    fields:service_order_template_fields(*)
+  ),
+  lead:leads(id, name, phone, email, company),
+  items:service_order_items(*),
+  checklist:service_order_checklist_items(*)
+`;
 
 function calcTotals(items: ServiceOrderItem[]) {
   const subtotal = items.reduce((sum, i) => sum + (i.total_price || 0), 0);
@@ -104,19 +135,7 @@ export function useServiceOrders(
       // @ts-expect-error tabela ainda nao tipada no client gerado
       let query = supabase
         .from('service_orders')
-        .select(
-          `
-          *,
-          status:service_order_statuses(*),
-          template:service_order_templates(
-            id, name, is_default, pdf_layout, slip_config,
-            fields:service_order_template_fields(*)
-          ),
-          lead:leads(id, name, phone, email, company),
-          items:service_order_items(*),
-          checklist:service_order_checklist_items(*)
-        `
-        )
+        .select(ORDER_SELECT)
         .eq('organization_id', activeOrgId)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
@@ -139,8 +158,28 @@ export function useServiceOrders(
       if (filters?.date_to) {
         query = query.lte('starts_at', filters.date_to);
       }
+      if (filters?.maintenance_only) {
+        query = query.not('maintenance_plan_id', 'is', null);
+      }
 
-      const { data, error } = await query;
+      let { data, error } = await query;
+      if (error && /maintenance_plan/i.test(error.message || '')) {
+        let plain = supabase
+          .from('service_orders')
+          .select(ORDER_SELECT_PLAIN)
+          .eq('organization_id', activeOrgId)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false });
+        if (filters?.status_id) plain = plain.eq('status_id', filters.status_id);
+        if (filters?.code) plain = plain.ilike('code', `%${filters.code}%`);
+        if (filters?.responsible) plain = plain.ilike('responsible_name', `%${filters.responsible}%`);
+        if (filters?.collaborator) plain = plain.ilike('collaborator_name', `%${filters.collaborator}%`);
+        if (filters?.date_from) plain = plain.gte('starts_at', filters.date_from);
+        if (filters?.date_to) plain = plain.lte('starts_at', filters.date_to);
+        const retry = await plain;
+        data = retry.data;
+        error = retry.error;
+      }
       if (error) throw error;
 
       let list = (data || []) as ServiceOrder[];
@@ -194,7 +233,10 @@ export function useServiceOrders(
     fetchOrders();
   }, [fetchOrders, enabled]);
 
-  const createOrder = async (form: ServiceOrderFormData): Promise<ServiceOrder | null> => {
+  const createOrder = async (
+    form: ServiceOrderFormData,
+    options?: { quiet?: boolean; skipRefetch?: boolean; skipStock?: boolean }
+  ): Promise<ServiceOrder | null> => {
     if (!activeOrgId) return null;
 
     try {
@@ -239,6 +281,8 @@ export function useServiceOrders(
         warranty_terms: form.warranty_terms || null,
         custom_fields: form.custom_fields || {},
         label_tag: form.label_tag || null,
+        maintenance_plan_id: form.maintenance_plan_id || null,
+        maintenance_index: form.maintenance_index || null,
         add_to_agilize_calendar: form.add_to_agilize_calendar || false,
         add_to_google_calendar: form.add_to_google_calendar || false,
         reference_images: form.reference_images || [],
@@ -265,12 +309,14 @@ export function useServiceOrders(
 
       if (error) throw error;
 
-      try {
-        await syncServiceOrderStock(activeOrgId, order.id, String(order.code || ''), items);
-      } catch (stockError) {
-        // @ts-expect-error tabela ainda nao tipada no client gerado
-        await supabase.from('service_orders').delete().eq('id', order.id).eq('organization_id', activeOrgId);
-        throw stockError;
+      if (!options?.skipStock) {
+        try {
+          await syncServiceOrderStock(activeOrgId, order.id, String(order.code || ''), items);
+        } catch (stockError) {
+          // @ts-expect-error tabela ainda nao tipada no client gerado
+          await supabase.from('service_orders').delete().eq('id', order.id).eq('organization_id', activeOrgId);
+          throw stockError;
+        }
       }
 
       if (items.length > 0) {
@@ -319,8 +365,10 @@ export function useServiceOrders(
         if (clError) throw clError;
       }
 
-      toast({ title: 'Ordem criada', description: `OS ${order.code} criada com sucesso.` });
-      await fetchOrders();
+      if (!options?.quiet) {
+        toast({ title: 'Ordem criada', description: `OS ${order.code} criada com sucesso.` });
+      }
+      if (!options?.skipRefetch) await fetchOrders();
       return order as ServiceOrder;
     } catch (err) {
       console.error('Erro ao criar OS:', err);
@@ -726,12 +774,208 @@ export function useServiceOrders(
     });
   };
 
+  const createMaintenanceOrders = async (form: ServiceOrderFormData): Promise<ServiceOrder | null> => {
+    if (!activeOrgId) return null;
+    const spec = form.maintenance_plan;
+    if (!spec || !form.starts_at) {
+      toast({
+        title: 'Plano não criado',
+        description: 'Informe a data de início da primeira visita.',
+        variant: 'destructive',
+      });
+      return null;
+    }
+
+    const interval = resolveMaintenanceInterval(spec.interval, spec.customDays || 0);
+    if (!interval) {
+      toast({
+        title: 'Período inválido',
+        description: 'Informe quantos dias entre as visitas.',
+        variant: 'destructive',
+      });
+      return null;
+    }
+
+    const total = clampMaintenanceVisitCount(spec.visitCount);
+    const anchor = new Date(form.starts_at);
+    if (Number.isNaN(anchor.getTime())) {
+      toast({
+        title: 'Plano não criado',
+        description: 'A data de início da primeira visita é inválida.',
+        variant: 'destructive',
+      });
+      return null;
+    }
+    const endAnchor = form.ends_at ? new Date(form.ends_at) : null;
+    const duration =
+      endAnchor && !Number.isNaN(endAnchor.getTime()) ? endAnchor.getTime() - anchor.getTime() : 0;
+    const checklist = (form.checklist || []).map((item) => ({
+      ...item,
+      id: undefined,
+      is_done: false,
+      answer: undefined,
+    }));
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const planName = `Manutenção · ${form.client_name || form.service_name || 'cliente'}`;
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { data: plan, error: planError } = await supabase
+        .from('service_order_maintenance_plans')
+        .insert({
+          organization_id: activeOrgId,
+          name: planName,
+          lead_id: form.lead_id || null,
+          template_id: form.template_id || null,
+          interval_unit: interval.unit,
+          interval_count: interval.count,
+          occurrence_total: total,
+          starts_at: anchor.toISOString(),
+          status: 'active',
+          created_by: user?.id || null,
+        })
+        .select('id')
+        .single();
+      if (planError) throw planError;
+
+      const planId = plan.id as string;
+      let first: ServiceOrder | null = null;
+      let createdCount = 0;
+
+      for (let index = 0; index < total; index += 1) {
+        const start = addMaintenanceInterval(anchor, interval.unit, interval.count, index);
+        const created = await createOrder(
+          {
+            ...form,
+            maintenance_plan: undefined,
+            starts_at: start.toISOString(),
+            ends_at:
+              form.is_single_day === false && form.ends_at
+                ? new Date(start.getTime() + duration).toISOString()
+                : undefined,
+            checklist,
+            maintenance_plan_id: planId,
+            maintenance_index: index + 1,
+          },
+          { quiet: true, skipRefetch: true, skipStock: index > 0 }
+        );
+        if (!created) break;
+        createdCount += 1;
+        if (!first) first = created;
+      }
+
+      if (createdCount === 0) {
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        await supabase
+          .from('service_order_maintenance_plans')
+          .delete()
+          .eq('id', planId)
+          .eq('organization_id', activeOrgId);
+        return null;
+      }
+
+      await fetchOrders();
+      if (createdCount < total) {
+        toast({
+          title: 'Plano criado em parte',
+          description: `${createdCount} de ${total} visitas foram criadas.`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Plano de manutenção criado',
+          description: `${total} visitas criadas.`,
+        });
+      }
+      return first;
+    } catch (err) {
+      console.error('Erro ao criar plano de manutenção:', err);
+      toast({
+        title: 'Erro',
+        description: err instanceof Error ? err.message : 'Não foi possível criar o plano',
+        variant: 'destructive',
+      });
+      return null;
+    }
+  };
+
+  const cancelFutureMaintenanceVisits = async (order: ServiceOrder) => {
+    if (!activeOrgId || !order.maintenance_plan_id || !order.maintenance_index) return false;
+    try {
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { error: planError } = await supabase
+        .from('service_order_maintenance_plans')
+        .update({ status: 'ended' })
+        .eq('id', order.maintenance_plan_id)
+        .eq('organization_id', activeOrgId);
+      if (planError) throw planError;
+
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { data: future, error: listError } = await supabase
+        .from('service_orders')
+        .select('id')
+        .eq('organization_id', activeOrgId)
+        .eq('maintenance_plan_id', order.maintenance_plan_id)
+        .gt('maintenance_index', order.maintenance_index)
+        .is('deleted_at', null)
+        .or('is_closed.is.null,is_closed.eq.false');
+      if (listError) throw listError;
+
+      const ids = ((future || []) as Array<{ id: string }>).map((row) => row.id);
+      if (ids.length > 0) {
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        const { error: deleteError } = await supabase
+          .from('service_orders')
+          .update({ deleted_at: new Date().toISOString() })
+          .in('id', ids)
+          .eq('organization_id', activeOrgId);
+        if (deleteError) throw deleteError;
+      }
+
+      toast({
+        title: 'Próximas visitas canceladas',
+        description: ids.length
+          ? `${ids.length} visita(s) removida(s) da lista.`
+          : 'O plano foi encerrado.',
+      });
+      await fetchOrders();
+      return true;
+    } catch (err) {
+      console.error('Erro ao cancelar visitas do plano:', err);
+      toast({
+        title: 'Erro',
+        description: err instanceof Error ? err.message : 'Não foi possível cancelar as próximas visitas',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
+  const getOrder = async (id: string): Promise<ServiceOrder | null> => {
+    if (!activeOrgId) return null;
+    // @ts-expect-error tabela ainda nao tipada no client gerado
+    const { data, error } = await supabase
+      .from('service_orders')
+      .select(ORDER_SELECT)
+      .eq('id', id)
+      .eq('organization_id', activeOrgId)
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data as ServiceOrder;
+  };
+
   return {
     orders,
     loading,
     statusCounts,
     refetch: fetchOrders,
     createOrder,
+    createMaintenanceOrders,
+    cancelFutureMaintenanceVisits,
+    getOrder,
     updateOrder,
     deleteOrder,
     peekNextCode,

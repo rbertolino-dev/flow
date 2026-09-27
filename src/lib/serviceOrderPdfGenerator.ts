@@ -5,6 +5,7 @@ import { ServiceOrder, ServiceOrderTemplateField, fieldsShownOnPdf } from '@/typ
 import { organizationNameForDocuments } from '@/lib/organizationDisplayName';
 import { fitImageInBox, loadImageForBudgetPdf } from '@/lib/budgetPdfImage';
 import { generateThreeSlipPDF } from '@/lib/serviceOrderThreeSlipPdf';
+import { maintenancePdfLine } from '@/lib/serviceOrderMaintenance';
 
 export interface ServiceOrderPdfOptions {
   order: ServiceOrder;
@@ -207,6 +208,17 @@ export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): 
     { align: 'right' }
   );
   y = 36;
+
+  const planLine = maintenancePdfLine(order.maintenance_index, order.maintenance_plan?.occurrence_total);
+  if (planLine) {
+    doc.setTextColor(15, 118, 110);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(planLine, margin, y);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+    y += 7;
+  }
 
   if (order.status?.name) {
     ensureSpace(10);

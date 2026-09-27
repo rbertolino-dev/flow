@@ -179,6 +179,14 @@ export interface ServiceOrder {
   warranty_terms?: string | null;
   custom_fields: Record<string, unknown>;
   label_tag?: string | null;
+  maintenance_plan_id?: string | null;
+  maintenance_index?: number | null;
+  maintenance_plan?: {
+    id: string;
+    name?: string | null;
+    occurrence_total?: number | null;
+    status?: 'active' | 'ended' | string | null;
+  } | null;
   subtotal: number;
   discount: number;
   total: number;
@@ -258,6 +266,13 @@ export interface ServiceOrderFormData {
   warranty_terms?: string;
   custom_fields?: Record<string, unknown>;
   label_tag?: string;
+  maintenance_plan_id?: string;
+  maintenance_index?: number;
+  maintenance_plan?: {
+    interval: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly' | 'custom_days';
+    customDays?: number;
+    visitCount: number;
+  };
   add_to_agilize_calendar?: boolean;
   add_to_google_calendar?: boolean;
   reference_images?: string[];

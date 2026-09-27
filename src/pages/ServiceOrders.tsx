@@ -4,6 +4,8 @@ import { CRMLayout } from '@/components/crm/CRMLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -48,6 +50,7 @@ import { ServiceOrderStatusesDialog } from '@/components/service-orders/ServiceO
 import { ServiceOrderDetailDialog } from '@/components/service-orders/ServiceOrderDetailDialog';
 import { ServiceOrderCloseDialog } from '@/components/service-orders/ServiceOrderCloseDialog';
 import { ServiceOrderFormData, ServiceOrder, ServiceOrderCloseData } from '@/types/serviceOrder';
+import { maintenanceMarkLabel } from '@/lib/serviceOrderMaintenance';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
@@ -68,6 +71,20 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+function MaintenanceMark({ order }: { order: ServiceOrder }) {
+  const label = maintenanceMarkLabel(order.maintenance_index, order.maintenance_plan?.occurrence_total);
+  if (!label) return null;
+  return (
+    <Badge
+      variant="outline"
+      className="border-teal-200 bg-teal-50 font-medium text-teal-800"
+      data-testid="os-maintenance-badge"
+    >
+      {label}
+    </Badge>
+  );
+}
+
 function formatDateRange(startsAt?: string | null, endsAt?: string | null) {
   if (!startsAt && !endsAt) return '—';
   const s = startsAt ? format(new Date(startsAt), 'dd/MM/yy') : '—';
@@ -83,6 +100,7 @@ export default function ServiceOrders() {
   const [dateTo, setDateTo] = useState('');
   const [periodFilterOpen, setPeriodFilterOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [maintenanceOnly, setMaintenanceOnly] = useState(false);
   const [appliedFilters, setAppliedFilters] = useState<{
     code?: string;
     responsible?: string;
@@ -159,8 +177,9 @@ export default function ServiceOrders() {
       date_from: appliedFilters.date_from,
       date_to: appliedFilters.date_to,
       status_id: appliedFilters.status_id,
+      maintenance_only: maintenanceOnly || undefined,
     }),
-    [appliedFilters]
+    [appliedFilters, maintenanceOnly]
   );
 
   const {
@@ -168,6 +187,9 @@ export default function ServiceOrders() {
     loading,
     statusCounts,
     createOrder,
+    createMaintenanceOrders,
+    cancelFutureMaintenanceVisits,
+    getOrder,
     updateOrder,
     deleteOrder,
     peekNextCode,
@@ -307,6 +329,21 @@ export default function ServiceOrders() {
 
     const finalStatus = statuses.find((status) => status.is_final);
     const wantsClose = !!finalStatus && data.status_id === finalStatus.id;
+    if (data.maintenance_plan) {
+      if (wantsClose) {
+        toast({
+          title: 'Etapa inválida',
+          description: 'Visita encerrada não entra num plano novo. Escolha outra etapa.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+      const createdPlan = await createMaintenanceOrders(data);
+      if (!createdPlan) return false;
+      const code = await peekNextCode();
+      setNextCode(code);
+      return true;
+    }
     const openStatus =
       statuses.find((status) => status.is_default && !status.is_final) ||
       statuses.find((status) => !status.is_final);
@@ -582,10 +619,20 @@ export default function ServiceOrders() {
               />
             </div>
           </div>
-          <Button className="w-full sm:w-auto min-h-11" onClick={handleApplyFilters}>
-            <Filter className="h-4 w-4 mr-1" />
-            Filtros
-          </Button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Button className="w-full sm:w-auto min-h-11" onClick={handleApplyFilters}>
+              <Filter className="h-4 w-4 mr-1" />
+              Filtros
+            </Button>
+            <label className="flex items-center gap-2 text-sm">
+              <Switch
+                checked={maintenanceOnly}
+                onCheckedChange={setMaintenanceOnly}
+                data-testid="os-maintenance-filter"
+              />
+              Somente manutenção
+            </label>
+          </div>
         </div>
 
         {/* Table */}
@@ -617,7 +664,10 @@ export default function ServiceOrders() {
                       onClick={() => openOrderDetail(order)}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <span className="font-mono font-semibold text-base">{order.code}</span>
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono font-semibold text-base">{order.code}</span>
+                          <MaintenanceMark order={order} />
+                        </span>
                         <span className="text-sm font-medium whitespace-nowrap">
                           R${' '}
                           {(order.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -684,7 +734,12 @@ export default function ServiceOrders() {
                     onClick={() => openOrderDetail(order)}
                     data-testid={`os-row-desktop-${order.id}`}
                   >
-                    <TableCell className="font-mono font-semibold">{order.code}</TableCell>
+                    <TableCell className="font-mono font-semibold">
+                      <div className="flex flex-col items-start gap-1">
+                        {order.code}
+                        <MaintenanceMark order={order} />
+                      </div>
+                    </TableCell>
                     <TableCell>{order.responsible_name || '—'}</TableCell>
                     <TableCell>{formatDateRange(order.starts_at, order.ends_at)}</TableCell>
                     <TableCell>{order.service_name || '—'}</TableCell>
@@ -799,6 +854,18 @@ export default function ServiceOrders() {
         }}
         onCopy={handleCopyOrder}
         onExportPdf={(order, mode) => exportOrderPdf(order, { open: true, mode })}
+        onOpenVisit={async (id) => {
+          const local = orders.find((item) => item.id === id);
+          const next = local || (await getOrder(id));
+          if (next) setSelectedOrder(next);
+        }}
+        onCancelFutureVisits={async (order) => {
+          const ok = await cancelFutureMaintenanceVisits(order);
+          if (ok) {
+            const fresh = await getOrder(order.id);
+            if (fresh) setSelectedOrder(fresh);
+          }
+        }}
       />
 
       {selectedOrder && activeOrgId && (

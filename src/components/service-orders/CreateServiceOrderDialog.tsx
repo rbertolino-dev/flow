@@ -38,6 +38,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { Product } from '@/types/product';
 import { Lead } from '@/types/lead';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+import {
+  formatMaintenancePreview,
+  MAINTENANCE_PRESETS,
+  MaintenancePreset,
+  maintenanceVisitDates,
+  resolveMaintenanceInterval,
+} from '@/lib/serviceOrderMaintenance';
 
 interface CreateServiceOrderDialogProps {
   open: boolean;
@@ -118,6 +126,11 @@ export function CreateServiceOrderDialog({
   const [leadSearch, setLeadSearch] = useState('');
   const [statusId, setStatusId] = useState(defaultStatus?.id || '');
   const [labelTag, setLabelTag] = useState('');
+  const [maintenanceOn, setMaintenanceOn] = useState(false);
+  const [maintenanceInterval, setMaintenanceInterval] = useState<MaintenancePreset>('monthly');
+  const [maintenanceDays, setMaintenanceDays] = useState('30');
+  const [maintenanceCount, setMaintenanceCount] = useState('6');
+  const { toast } = useToast();
   const { checklists, linkedIdsForTemplate, itemsForTemplates, refetch: refetchChecklists } = useServiceOrderChecklists();
   const appliedChecklistKey = useRef<string | null>(null);
   const { activeOrgId } = useActiveOrganization();
@@ -210,6 +223,7 @@ export function CreateServiceOrderDialog({
       setChecklist(editingOrder.checklist || []);
       setLeadSearch(editingOrder.client_name || editingOrder.lead?.name || '');
       setLabelTag(editingOrder.label_tag || '');
+      setMaintenanceOn(false);
       setNewCheckItem('');
       return;
     }
@@ -226,6 +240,10 @@ export function CreateServiceOrderDialog({
     setChecklist([]);
     setLeadSearch('');
     setLabelTag('');
+    setMaintenanceOn(false);
+    setMaintenanceInterval('monthly');
+    setMaintenanceDays('30');
+    setMaintenanceCount('6');
     setNewCheckItem('');
   }, [open, editingOrder, defaultTemplate?.id, defaultStatus?.id]);
 
@@ -282,6 +300,15 @@ export function CreateServiceOrderDialog({
       )
       .slice(0, 20);
   }, [leads, leadSearch]);
+
+  const maintenancePreview = useMemo(() => {
+    if (!maintenanceOn || !form.starts_at) return '';
+    const interval = resolveMaintenanceInterval(maintenanceInterval, Number(maintenanceDays));
+    const start = new Date(form.starts_at);
+    const total = Math.min(24, Math.max(2, Math.floor(Number(maintenanceCount) || 6)));
+    if (!interval || Number.isNaN(start.getTime())) return '';
+    return formatMaintenancePreview(maintenanceVisitDates(start, total, interval.unit, interval.count));
+  }, [maintenanceOn, form.starts_at, maintenanceInterval, maintenanceDays, maintenanceCount]);
 
   const renderSchedule = (field: ServiceOrderTemplateField) => {
     const singleDay = form.is_single_day !== false;
@@ -688,6 +715,37 @@ export function CreateServiceOrderDialog({
       const d = new Date(v);
       return Number.isNaN(d.getTime()) ? v : d.toISOString();
     };
+    const planOn = maintenanceOn && !isEditing;
+    if (planOn) {
+      if (!form.starts_at) {
+        toast({
+          title: 'Informe a data',
+          description: 'O plano de manutenção precisa da data da primeira visita.',
+          variant: 'destructive',
+        });
+        setSaving(false);
+        return;
+      }
+      const chosen = statuses.find((status) => status.id === statusId);
+      if (chosen?.is_final) {
+        toast({
+          title: 'Etapa inválida',
+          description: 'Visita encerrada não entra num plano novo. Escolha outra etapa.',
+          variant: 'destructive',
+        });
+        setSaving(false);
+        return;
+      }
+      if (maintenanceInterval === 'custom_days' && Math.floor(Number(maintenanceDays)) < 1) {
+        toast({
+          title: 'Período inválido',
+          description: 'Informe quantos dias entre as visitas.',
+          variant: 'destructive',
+        });
+        setSaving(false);
+        return;
+      }
+    }
     const ok = await onSubmit({
       ...form,
       starts_at: toIso(form.starts_at),
@@ -697,6 +755,13 @@ export function CreateServiceOrderDialog({
       label_tag: labelTag || undefined,
       items,
       checklist,
+      maintenance_plan: planOn
+        ? {
+            interval: maintenanceInterval,
+            customDays: Math.floor(Number(maintenanceDays) || 0),
+            visitCount: Math.min(24, Math.max(2, Math.floor(Number(maintenanceCount) || 6))),
+          }
+        : undefined,
     });
     setSaving(false);
     if (ok) onOpenChange(false);
@@ -741,6 +806,75 @@ export function CreateServiceOrderDialog({
               {visibleFields.map((f) => renderField(f))}
             </div>
 
+            {!isEditing && (
+              <div className="space-y-3 rounded-xl border p-4" data-testid="os-maintenance-plan">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <Label htmlFor="os-maintenance-toggle">Plano de manutenção recorrente</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Cria várias visitas de uma vez, cada uma com sua data.
+                    </p>
+                  </div>
+                  <Switch
+                    id="os-maintenance-toggle"
+                    data-testid="os-maintenance-toggle"
+                    checked={maintenanceOn}
+                    onCheckedChange={setMaintenanceOn}
+                  />
+                </div>
+                {maintenanceOn && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label>Período</Label>
+                      <Select
+                        value={maintenanceInterval}
+                        onValueChange={(value) => setMaintenanceInterval(value as MaintenancePreset)}
+                      >
+                        <SelectTrigger data-testid="os-maintenance-period">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MAINTENANCE_PRESETS.map((preset) => (
+                            <SelectItem key={preset.value} value={preset.value}>
+                              {preset.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="os-maintenance-count">Quantidade de visitas</Label>
+                      <Input
+                        id="os-maintenance-count"
+                        data-testid="os-maintenance-count"
+                        type="number"
+                        min={2}
+                        max={24}
+                        value={maintenanceCount}
+                        onChange={(e) => setMaintenanceCount(e.target.value)}
+                      />
+                    </div>
+                    {maintenanceInterval === 'custom_days' && (
+                      <div className="space-y-1">
+                        <Label htmlFor="os-maintenance-days">A cada quantos dias</Label>
+                        <Input
+                          id="os-maintenance-days"
+                          data-testid="os-maintenance-days"
+                          type="number"
+                          min={1}
+                          value={maintenanceDays}
+                          onChange={(e) => setMaintenanceDays(e.target.value)}
+                        />
+                      </div>
+                    )}
+                    <p className="sm:col-span-2 text-sm text-muted-foreground" data-testid="os-maintenance-preview">
+                      {maintenancePreview || 'Informe a data da primeira visita para ver as datas.'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex justify-end pt-2">
               <Button onClick={() => setStep(2)}>Próximo</Button>
             </div>
@@ -770,6 +904,9 @@ export function CreateServiceOrderDialog({
               <p className="text-2xl font-bold font-mono">{nextCode}</p>
               {form.client_name && (
                 <p className="text-sm text-primary mt-1">{form.client_name}</p>
+              )}
+              {maintenanceOn && !isEditing && maintenancePreview && (
+                <p className="text-sm text-teal-700">{maintenancePreview}</p>
               )}
               {(form.starts_at || form.ends_at) && (
                 <p className="text-sm text-muted-foreground">

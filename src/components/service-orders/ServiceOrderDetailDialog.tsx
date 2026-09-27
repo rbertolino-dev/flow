@@ -25,6 +25,7 @@ import {
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ServiceOrder, ServiceOrderLog } from '@/types/serviceOrder';
+import { maintenanceMarkLabel } from '@/lib/serviceOrderMaintenance';
 import { supabase } from '@/integrations/supabase/client';
 import { osDialogContentClass } from './osResponsive';
 
@@ -37,7 +38,18 @@ interface ServiceOrderDetailDialogProps {
   onDelete: (order: ServiceOrder) => void;
   onCopy: (order: ServiceOrder) => void;
   onExportPdf: (order: ServiceOrder, mode: 'full' | 'no_values' | 'three_slips') => void;
+  onOpenVisit?: (orderId: string) => void;
+  onCancelFutureVisits?: (order: ServiceOrder) => Promise<void> | void;
   exporting?: boolean;
+}
+
+interface MaintenanceVisitRow {
+  id: string;
+  code: string;
+  starts_at?: string | null;
+  is_closed?: boolean | null;
+  maintenance_index?: number | null;
+  status?: { name?: string | null; color?: string | null } | null;
 }
 
 function formatRange(starts?: string | null, ends?: string | null) {
@@ -56,18 +68,42 @@ export function ServiceOrderDetailDialog({
   onDelete,
   onCopy,
   onExportPdf,
+  onOpenVisit,
+  onCancelFutureVisits,
   exporting,
 }: ServiceOrderDetailDialogProps) {
   const [logs, setLogs] = useState<ServiceOrderLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
+  const [visits, setVisits] = useState<MaintenanceVisitRow[]>([]);
+  const [cancelingVisits, setCancelingVisits] = useState(false);
 
   useEffect(() => {
     if (!open || !order) {
       setLogs([]);
       setShowLogs(false);
+      setVisits([]);
       return;
     }
+    if (!order.maintenance_plan_id) {
+      setVisits([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { data } = await supabase
+        .from('service_orders')
+        .select('id, code, starts_at, is_closed, maintenance_index, status:service_order_statuses(name, color)')
+        .eq('organization_id', order.organization_id)
+        .eq('maintenance_plan_id', order.maintenance_plan_id)
+        .is('deleted_at', null)
+        .order('maintenance_index', { ascending: true });
+      if (!cancelled) setVisits((data || []) as MaintenanceVisitRow[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [open, order]);
 
   const loadLogs = async () => {
@@ -108,7 +144,14 @@ export function ServiceOrderDetailDialog({
       >
         <DialogHeader className="px-5 pt-5 pb-2">
           <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight flex items-start justify-between gap-2 pr-8">
-            <span>ORDEM {order.code}</span>
+            <span className="flex flex-wrap items-center gap-2">
+              ORDEM {order.code}
+              {maintenanceMarkLabel(order.maintenance_index, order.maintenance_plan?.occurrence_total) && (
+                <Badge variant="outline" className="border-teal-200 bg-teal-50 font-medium text-teal-800">
+                  {maintenanceMarkLabel(order.maintenance_index, order.maintenance_plan?.occurrence_total)}
+                </Badge>
+              )}
+            </span>
             {order.label_tag && (
               <Badge variant="secondary" className="font-normal">
                 <Tag className="h-3 w-3 mr-1" />
@@ -190,6 +233,50 @@ export function ServiceOrderDetailDialog({
                     className="h-14 object-contain bg-white border rounded mt-1"
                   />
                 )}
+              </div>
+            )}
+
+            {order.maintenance_plan_id && (
+              <div className="rounded-lg border p-3 space-y-2" data-testid="os-maintenance-visits">
+                <p className="text-sm font-semibold">Plano de manutenção</p>
+                <div className="space-y-1">
+                  {visits.map((visit) => (
+                    <button
+                      key={visit.id}
+                      type="button"
+                      className={`flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm ${
+                        visit.id === order.id ? 'bg-teal-50' : 'hover:bg-muted'
+                      }`}
+                      onClick={() => onOpenVisit?.(visit.id)}
+                    >
+                      <span className="font-mono">{visit.code}</span>
+                      <span className="text-muted-foreground">
+                        {visit.starts_at ? format(new Date(visit.starts_at), 'dd/MM/yy') : '—'}
+                      </span>
+                      <span className="truncate">{visit.is_closed ? 'Encerrada' : visit.status?.name || 'Aberta'}</span>
+                    </button>
+                  ))}
+                </div>
+                {order.maintenance_plan?.status !== 'ended' &&
+                  visits.some(
+                    (visit) =>
+                      (visit.maintenance_index || 0) > (order.maintenance_index || 0) && !visit.is_closed
+                  ) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={cancelingVisits}
+                      data-testid="os-maintenance-cancel-future"
+                      onClick={() => {
+                        if (!onCancelFutureVisits) return;
+                        setCancelingVisits(true);
+                        void Promise.resolve(onCancelFutureVisits(order)).finally(() => setCancelingVisits(false));
+                      }}
+                    >
+                      {cancelingVisits ? 'Cancelando…' : 'Cancelar próximas visitas'}
+                    </Button>
+                  )}
               </div>
             )}
 
