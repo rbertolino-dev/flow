@@ -375,10 +375,9 @@ export function ServiceOrderProductsStep({
                   </div>
                   <Input
                     type="number"
-                    min={0.001}
+                    min={1}
                     step={1}
                     className="w-20 h-8"
-                    step={1}
                     value={wholeQuantity(item.quantity)}
                     onChange={(e) => updateQty(idx, wholeQuantity(e.target.value))}
                     data-testid={`os-supply-qty-${item.item_id}`}
