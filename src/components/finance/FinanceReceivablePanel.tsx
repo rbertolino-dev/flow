@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { downloadFinanceAttachment } from '@/lib/financeAttachments';
+import { downloadFinanceAttachment, formatAttachmentSize, isFinanceImageFile, prepareFinanceAttachment } from '@/lib/financeAttachments';
 import { PAYMENT_METHODS, getPaymentMethodLabel, type PaymentMethod } from '@/lib/paymentMethods';
 import {
   formatFinanceMoney,
@@ -376,6 +376,8 @@ function FinanceReceivableEditDialog({
   const [attach, setAttach] = useState(false);
   const [attachmentName, setAttachmentName] = useState('');
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [compressImage, setCompressImage] = useState(true);
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -395,6 +397,8 @@ function FinanceReceivableEditDialog({
     setAttach(Boolean(entry.attachment_name || entry.attachment_path));
     setAttachmentName(entry.attachment_name || '');
     setAttachmentFile(null);
+    setCompressImage(true);
+    setFormError('');
   }, [open, entry, categories]);
 
   const categoryName = categories.find((category) => category.id === categoryId)?.name
@@ -537,12 +541,27 @@ function FinanceReceivableEditDialog({
               )}
               <Input
                 type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
                 onChange={(event) => {
                   const file = event.target.files?.[0] || null;
                   setAttachmentFile(file);
+                  setCompressImage(true);
                   if (file) setAttachmentName(file.name);
                 }}
               />
+              <p className="text-xs text-slate-500">Imagens até 15 MB. Outros arquivos até 10 MB.</p>
+              {attachmentFile && isFinanceImageFile(attachmentFile) && (
+                <>
+                  <label className="flex items-center gap-3">
+                    <Switch checked={compressImage} onCheckedChange={setCompressImage} />
+                    Comprimir imagem
+                  </label>
+                  <p className="text-xs text-slate-500">
+                    {attachmentFile.name} · {formatAttachmentSize(attachmentFile.size)}
+                    {compressImage ? '. Será reduzida antes do envio.' : '. Sem compressão, o máximo é 8 MB.'}
+                  </p>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -553,28 +572,42 @@ function FinanceReceivableEditDialog({
             className="min-w-[180px] rounded-full bg-sky-500 hover:bg-sky-600"
             disabled={saving || !description.trim() || parseAmount(amount) <= 0 || !dueDate}
             onClick={() => {
-              void onSave(entry.id, {
-                description: description.trim(),
-                amount: parseAmount(amount),
-                due_date: dueDate,
-                competence_date: competenceDate || null,
-                account: account || null,
-                category: categoryId === 'legacy' ? entry.category : categoryName,
-                category_id: categoryId && categoryId !== 'legacy' ? categoryId : entry.category_id,
-                contact_name: contactName.trim() || null,
-                billing_name: contactKind === 'empresa' ? contactName.trim() || null : entry.billing_name,
-                payment_method: paymentMethod || null,
-                is_recurring: recurring,
-                attachment_name: attach ? attachmentName || null : null,
-                attachment_path: attach ? (attachmentFile ? undefined : entry.attachment_path || null) : null,
-                attachment_file: attach ? attachmentFile : null,
-                apply_to_future: editNext,
-              }).then(() => onOpenChange(false));
+              void (async () => {
+                setFormError('');
+                let fileToSend = attachmentFile;
+                if (attach && attachmentFile) {
+                  try {
+                    fileToSend = await prepareFinanceAttachment(attachmentFile, compressImage && isFinanceImageFile(attachmentFile));
+                  } catch (err) {
+                    setFormError(err instanceof Error ? err.message : 'Não foi possível preparar o anexo');
+                    return;
+                  }
+                }
+                await onSave(entry.id, {
+                  description: description.trim(),
+                  amount: parseAmount(amount),
+                  due_date: dueDate,
+                  competence_date: competenceDate || null,
+                  account: account || null,
+                  category: categoryId === 'legacy' ? entry.category : categoryName,
+                  category_id: categoryId && categoryId !== 'legacy' ? categoryId : entry.category_id,
+                  contact_name: contactName.trim() || null,
+                  billing_name: contactKind === 'empresa' ? contactName.trim() || null : entry.billing_name,
+                  payment_method: paymentMethod || null,
+                  is_recurring: recurring,
+                  attachment_name: attach ? (fileToSend?.name || attachmentName || null) : null,
+                  attachment_path: attach ? (fileToSend ? undefined : entry.attachment_path || null) : null,
+                  attachment_file: attach ? fileToSend : null,
+                  apply_to_future: editNext,
+                });
+                onOpenChange(false);
+              })();
             }}
           >
             Salvar
           </Button>
         </div>
+        {formError && <p className="text-center text-sm text-red-600">{formError}</p>}
       </DialogContent>
     </Dialog>
   );

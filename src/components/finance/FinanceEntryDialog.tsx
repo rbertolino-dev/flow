@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { PAYMENT_METHODS } from '@/lib/paymentMethods';
+import { formatAttachmentSize, isFinanceImageFile, prepareFinanceAttachment } from '@/lib/financeAttachments';
 import { formatFinanceMoney, todayIsoDate, type FinanceDirection, type FinancialAccount, type FinancialCategory } from '@/lib/finance';
 
 export interface FinanceEntryDraft {
@@ -91,6 +92,7 @@ export function FinanceEntryDialog({
   const [attach, setAttach] = useState(false);
   const [attachmentName, setAttachmentName] = useState('');
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [compressImage, setCompressImage] = useState(true);
   const [clientOpen, setClientOpen] = useState(false);
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -122,6 +124,7 @@ export function FinanceEntryDialog({
     setAttach(false);
     setAttachmentName('');
     setAttachmentFile(null);
+    setCompressImage(true);
     setError('');
   }, [open, today]);
 
@@ -212,6 +215,15 @@ export function FinanceEntryDialog({
       setError('Selecione o arquivo para anexar');
       return;
     }
+    let fileToSend = attachmentFile;
+    if (attach && attachmentFile) {
+      try {
+        fileToSend = await prepareFinanceAttachment(attachmentFile, compressImage && isFinanceImageFile(attachmentFile));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Não foi possível preparar o anexo');
+        return;
+      }
+    }
     setError('');
     const category = categoryOptions.find((item) => item.id === categoryId);
     await onSubmit({
@@ -229,8 +241,8 @@ export function FinanceEntryDialog({
       recurrence_count: recurring ? count : 1,
       recurrence_interval: recurring ? interval : 1,
       realized,
-      attachment_name: attach ? attachmentName : '',
-      attachment_file: attach ? attachmentFile : null,
+      attachment_name: attach ? (fileToSend?.name || attachmentName) : '',
+      attachment_file: attach ? fileToSend : null,
     });
   };
 
@@ -418,14 +430,34 @@ export function FinanceEntryDialog({
               Anexar nota fiscal ou ordem de serviço
             </label>
             {attach && (
-              <Input
-                type="file"
-                onChange={(event) => {
-                  const file = event.target.files?.[0] || null;
-                  setAttachmentFile(file);
-                  setAttachmentName(file?.name || '');
-                }}
-              />
+              <div className="space-y-2">
+                <Input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] || null;
+                    setAttachmentFile(file);
+                    setAttachmentName(file?.name || '');
+                    setCompressImage(true);
+                  }}
+                />
+                <p className="text-xs text-slate-500">Imagens até 15 MB. Outros arquivos até 10 MB.</p>
+                {attachmentFile && isFinanceImageFile(attachmentFile) && (
+                  <>
+                    <label className="flex items-center gap-3">
+                      <Switch checked={compressImage} onCheckedChange={setCompressImage} />
+                      Comprimir imagem
+                    </label>
+                    <p className="text-xs text-slate-500">
+                      {attachmentFile.name} · {formatAttachmentSize(attachmentFile.size)}
+                      {compressImage ? '. Será reduzida antes do envio.' : '. Sem compressão, o máximo é 8 MB.'}
+                    </p>
+                  </>
+                )}
+                {attachmentFile && !isFinanceImageFile(attachmentFile) && (
+                  <p className="text-xs text-slate-500">{attachmentFile.name} · {formatAttachmentSize(attachmentFile.size)}</p>
+                )}
+              </div>
             )}
           </div>
 
