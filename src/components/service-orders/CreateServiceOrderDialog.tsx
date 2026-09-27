@@ -534,14 +534,14 @@ export function CreateServiceOrderDialog({
             {field.label}
             {field.is_required && ' *'}
           </Label>
-          <div className="overflow-x-auto rounded-md border">
-            <table className="w-full min-w-[520px] text-sm">
+          <div className="w-full overflow-hidden rounded-lg border">
+            <table className="w-full table-fixed border-collapse text-sm">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-2 py-2 text-left font-medium text-slate-600">Olho</th>
+                  <th className="w-16 px-2 py-2 text-left font-medium text-slate-600">Olho</th>
                   {config.columns.map((col) => (
-                    <th key={col.key} className="px-2 py-2 text-left font-medium text-slate-600">
-                      {col.label}
+                    <th key={col.key} className="px-1.5 py-2 text-left font-medium text-slate-600">
+                      <span className="block whitespace-normal break-words leading-tight">{col.label}</span>
                     </th>
                   ))}
                 </tr>

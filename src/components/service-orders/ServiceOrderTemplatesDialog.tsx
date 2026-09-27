@@ -48,31 +48,31 @@ const FIELD_DATA_TYPES = [
   { value: 'table', label: 'Tabela' },
 ] as const;
 
-function TableFieldPreview({ config }: { config: ServiceOrderTableConfig }) {
+function TableFieldPreview({ config, compact = false }: { config: ServiceOrderTableConfig; compact?: boolean }) {
   return (
-    <div className="space-y-2 rounded-xl border border-dashed border-slate-300 bg-white p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Somente visualização</p>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[420px] text-sm">
-          <thead className="bg-slate-50">
+    <div className="w-full min-w-0 space-y-2 rounded-xl border border-dashed border-slate-300 bg-white p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Somente visualização</p>
+      <div className="w-full overflow-hidden rounded-lg border border-slate-200">
+        <table className={cn('w-full table-fixed border-collapse text-left', compact ? 'text-[11px]' : 'text-sm')}>
+          <thead className="bg-slate-50 text-slate-600">
             <tr>
-              <th className="px-2 py-2 text-left font-medium text-slate-600">Olho</th>
+              <th className={cn('px-2 py-2 font-medium', compact ? 'w-10' : 'w-16')}>Olho</th>
               {config.columns.map((col) => (
-                <th key={col.key} className="px-2 py-2 text-left font-medium text-slate-600">
-                  {col.label}
+                <th key={col.key} className="px-1.5 py-2 font-medium">
+                  <span className="block whitespace-normal break-words leading-tight">{col.label}</span>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {config.rows.map((row) => (
-              <tr key={row.key} className="border-t">
-                <td className="px-2 py-2 font-semibold" style={{ color: row.color || '#334155' }}>
+              <tr key={row.key} className="border-t border-slate-200">
+                <td className="px-2 py-2 align-middle font-semibold" style={{ color: row.color || '#334155' }}>
                   {row.label}
                 </td>
                 {config.columns.map((col) => (
-                  <td key={col.key} className="px-2 py-2 text-slate-400">
-                    —
+                  <td key={col.key} className="px-1.5 py-1.5 align-middle">
+                    <span className={cn('block rounded-md border border-dashed border-slate-200 bg-slate-50', compact ? 'h-6' : 'h-8')} />
                   </td>
                 ))}
               </tr>
@@ -100,8 +100,9 @@ function TableShapeEditor({
     void onSave({ ...config, rows });
   };
   return (
-    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
+    <div className="w-full min-w-0 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
       <p className="text-xs font-semibold text-slate-600">Colunas</p>
+      <div className="grid gap-2 sm:grid-cols-2">
       {config.columns.map((col, index) => (
         <div key={col.key} className="flex gap-2">
           <Input
@@ -124,6 +125,7 @@ function TableShapeEditor({
           </Button>
         </div>
       ))}
+      </div>
       <Button
         type="button"
         variant="outline"
@@ -133,6 +135,7 @@ function TableShapeEditor({
         Adicionar coluna
       </Button>
       <p className="text-xs font-semibold text-slate-600">Linhas</p>
+      <div className="grid gap-2 sm:grid-cols-2">
       {config.rows.map((row, index) => (
         <div key={row.key} className="flex gap-2">
           <Input
@@ -163,6 +166,7 @@ function TableShapeEditor({
           </Button>
         </div>
       ))}
+      </div>
       <Button
         type="button"
         variant="outline"
@@ -589,7 +593,7 @@ export function ServiceOrderTemplatesDialog({
                     </div>
                   )}
 
-                  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                  <div className="rounded-2xl border border-slate-200 bg-white">
                     <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                       <div>
                         <p className="font-semibold text-slate-900">Campos</p>
@@ -601,9 +605,10 @@ export function ServiceOrderTemplatesDialog({
                       {editorFields.map((f, index) => (
                         <div
                           key={f.id}
-                          className={cn('flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:px-5', !f.is_visible && 'bg-slate-50')}
+                          className={cn('flex flex-col gap-4 px-4 py-4 sm:px-5', !f.is_visible && 'bg-slate-50')}
                         >
-                          <div className="flex items-center gap-3 sm:w-[42%] sm:min-w-0">
+                          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                          <div className="flex min-w-0 flex-1 items-center gap-3">
                             <div className="flex flex-col">
                               <button
                                 type="button"
@@ -702,7 +707,7 @@ export function ServiceOrderTemplatesDialog({
                                     key={slip.key}
                                     className="flex h-11 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3"
                                   >
-                                    <span className="max-w-[140px] truncate text-sm font-medium" style={{ color: slip.color }}>
+                                    <span className="text-sm font-medium" style={{ color: slip.color }}>
                                       {slip.label}
                                     </span>
                                     <Switch
@@ -735,8 +740,9 @@ export function ServiceOrderTemplatesDialog({
                               </button>
                             )}
                           </div>
+                          </div>
                           {f.field_type === 'table' && (
-                            <div className="space-y-3">
+                            <div className="w-full min-w-0 space-y-3">
                               <Button
                                 type="button"
                                 variant="outline"
@@ -906,7 +912,7 @@ export function ServiceOrderTemplatesDialog({
                   </div>
                 </div>
 
-                <aside className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:sticky xl:top-0">
+                <aside className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:sticky xl:top-0">
                   <div className="bg-slate-900 px-5 py-5 text-white">
                     <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">Prévia do PDF</p>
                     <p className="mt-1 text-lg font-semibold">Ordem de Serviço</p>
@@ -926,7 +932,7 @@ export function ServiceOrderTemplatesDialog({
                               <span>{field.label}</span>
                             </div>
                             {field.field_type === 'table' && (
-                              <TableFieldPreview config={normalizeTableConfig(field.table_config)} />
+                              <TableFieldPreview compact config={normalizeTableConfig(field.table_config)} />
                             )}
                           </li>
                         ))}
