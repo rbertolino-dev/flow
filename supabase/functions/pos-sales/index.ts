@@ -63,6 +63,30 @@ async function getPostgresClient() {
   return client;
 }
 
+async function ensurePosIntegrity(client: Client) {
+  await client.queryArray`ALTER TABLE pos_sales ADD COLUMN IF NOT EXISTS client_request_id TEXT`;
+  await client.queryArray`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS source TEXT`;
+  await client.queryArray`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS budget_id UUID`;
+  await client.queryArray`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_pos_sales_org_request
+    ON pos_sales (organization_id, client_request_id)
+    WHERE client_request_id IS NOT NULL
+  `;
+  await client.queryArray`
+    CREATE INDEX IF NOT EXISTS idx_pos_stock_movements_sale_product
+    ON pos_stock_movements (sale_id, product_id)
+    WHERE sale_id IS NOT NULL
+  `;
+}
+
+class HttpError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
 async function resolveOrganization(
   supabase: ReturnType<typeof createClient>,
   userId: string,
@@ -75,14 +99,17 @@ async function resolveOrganization(
 
   if (error) throw new Error(error.message);
   if (!orgMembers?.length) {
-    throw new Error("Usuário não pertence a nenhuma organização");
+    throw new HttpError("Usuário não pertence a nenhuma organização", 403);
   }
 
   const userOrgIds = orgMembers.map((m: { organization_id: string }) => m.organization_id);
-  if (requestedOrgId && userOrgIds.includes(requestedOrgId)) {
-    return requestedOrgId;
+  if (requestedOrgId && !userOrgIds.includes(requestedOrgId)) {
+    throw new HttpError("Sem permissão para acessar esta organização", 403);
   }
-  return orgMembers[0].organization_id;
+  if (!requestedOrgId && userOrgIds.length > 1) {
+    throw new HttpError("Informe a organização ativa", 400);
+  }
+  return requestedOrgId && userOrgIds.includes(requestedOrgId) ? requestedOrgId : userOrgIds[0];
 }
 
 async function getUserName(
@@ -277,6 +304,11 @@ serve(async (req) => {
 
     const userName = await getUserName(supabase, user.id);
     pg = await getPostgresClient();
+    try {
+      await ensurePosIntegrity(pg);
+    } catch (schemaError) {
+      console.warn("[pos-sales] schema de integridade não ajustado:", schemaError);
+    }
 
     const url = new URL(req.url);
     const action = url.searchParams.get("action") || "list_sales";
@@ -682,6 +714,9 @@ serve(async (req) => {
     // ---- POST actions ----
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({}));
+      if (body.organization_id && body.organization_id !== organizationId) {
+        return json({ error: "Não é possível operar outra organização" }, 403);
+      }
       const postAction = body.action || action;
 
       if (postAction === "save_pos_settings") {
@@ -982,6 +1017,27 @@ serve(async (req) => {
 
         const soldAt = body.sold_at || new Date().toISOString();
         const paymentDate = body.payment_date || soldAt.slice(0, 10);
+        const requestId = body.client_request_id ? String(body.client_request_id) : null;
+        if (requestId) {
+          const existingSale = await pg.queryObject<Record<string, unknown>>`
+            SELECT id, sale_number, total, subtotal, discount_amount, surcharge_amount,
+                   commission_amount, cash_session_id, customer_name, customer_phone,
+                   sold_at, sold_by_name, notes, sale_description, apply_stock, generate_financial
+            FROM pos_sales
+            WHERE organization_id = ${organizationId} AND client_request_id = ${requestId}
+            LIMIT 1
+          `;
+          if (existingSale.rows[0]) {
+            return json({ data: serializeRows([existingSale.rows[0]])[0], idempotent: true });
+          }
+        }
+
+        const stockPolicy = await pg.queryObject<{ block_out_of_stock: boolean | null }>`
+          SELECT block_out_of_stock FROM pos_settings
+          WHERE organization_id = ${organizationId}
+          LIMIT 1
+        `;
+        const blockStock = Boolean(stockPolicy.rows[0]?.block_out_of_stock);
 
         const tx = pg;
         await tx.queryArray`BEGIN`;
@@ -1006,7 +1062,7 @@ serve(async (req) => {
               sold_by, sold_by_name, sold_at, supplier_name,
               apply_stock, generate_financial, payment_date, payment_notes,
               sale_description, financial_account, financial_category,
-              sale_origin
+              sale_origin, client_request_id
             ) VALUES (
               ${organizationId}, ${saleNumber}, ${cashSessionId},
               ${body.lead_id || null}, ${body.customer_name || null}, ${body.customer_phone || null},
@@ -1016,7 +1072,7 @@ serve(async (req) => {
               ${user.id}, ${userName}, ${soldAt}, ${body.supplier_name || null},
               ${applyStock}, ${generateFinancial}, ${paymentDate}, ${body.payment_notes || null},
               ${body.sale_description || null}, ${body.financial_account || null}, ${body.financial_category || null},
-              ${body.sale_origin || "pdv"}
+              ${body.sale_origin || "pdv"}, ${requestId}
             )
             RETURNING id, sale_number
           `;
@@ -1042,26 +1098,30 @@ serve(async (req) => {
                 FOR UPDATE
               `;
 
-              if (stockRow.rows.length) {
-                const before = Number(stockRow.rows[0].stock_quantity ?? 0);
-                const after = before - item.quantity;
-
-                await tx.queryArray`
-                  UPDATE products
-                  SET stock_quantity = ${after}, updated_at = now()
-                  WHERE id = ${item.item_id} AND organization_id = ${organizationId}
-                `;
-
-                await tx.queryArray`
-                  INSERT INTO pos_stock_movements (
-                    organization_id, product_id, sale_id, movement_type,
-                    quantity_delta, stock_before, stock_after, created_by
-                  ) VALUES (
-                    ${organizationId}, ${item.item_id}, ${saleId}, 'sale',
-                    ${-item.quantity}, ${before}, ${after}, ${user.id}
-                  )
-                `;
+              if (!stockRow.rows.length) {
+                throw new HttpError(`Produto não encontrado nesta empresa: ${item.name}`, 400);
               }
+              const before = Number(stockRow.rows[0].stock_quantity ?? 0);
+              const after = before - item.quantity;
+              if (blockStock && after < 0) {
+                throw new HttpError(`Estoque insuficiente para ${item.name}`, 400);
+              }
+
+              await tx.queryArray`
+                UPDATE products
+                SET stock_quantity = ${after}, updated_at = now()
+                WHERE id = ${item.item_id} AND organization_id = ${organizationId}
+              `;
+
+              await tx.queryArray`
+                INSERT INTO pos_stock_movements (
+                  organization_id, product_id, sale_id, movement_type, source,
+                  quantity_delta, stock_before, stock_after, created_by
+                ) VALUES (
+                  ${organizationId}, ${item.item_id}, ${saleId}, 'sale', 'sale',
+                  ${-item.quantity}, ${before}, ${after}, ${user.id}
+                )
+              `;
             }
           }
 
@@ -1140,6 +1200,19 @@ serve(async (req) => {
           }, 201);
         } catch (txErr) {
           await tx.queryArray`ROLLBACK`;
+          if (requestId && txErr instanceof Error && /idx_pos_sales_org_request|client_request_id/i.test(txErr.message)) {
+            const existingSale = await pg.queryObject<Record<string, unknown>>`
+              SELECT id, sale_number, total, subtotal, discount_amount, surcharge_amount,
+                     commission_amount, cash_session_id, customer_name, customer_phone,
+                     sold_at, sold_by_name, notes, sale_description, apply_stock, generate_financial
+              FROM pos_sales
+              WHERE organization_id = ${organizationId} AND client_request_id = ${requestId}
+              LIMIT 1
+            `;
+            if (existingSale.rows[0]) {
+              return json({ data: serializeRows([existingSale.rows[0]])[0], idempotent: true });
+            }
+          }
           throw txErr;
         }
       }
@@ -1242,44 +1315,42 @@ serve(async (req) => {
             return json({ error: "Venda já está cancelada" }, 400);
           }
 
-          const items = await pg.queryObject<{
-            item_type: string;
-            item_id: string | null;
-            quantity: number;
-          }>`
-            SELECT item_type, item_id, quantity
-            FROM pos_sale_items
-            WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
+          const nets = await pg.queryObject<{ product_id: string; net: number }>`
+            SELECT product_id, COALESCE(SUM(quantity_delta), 0)::float8 AS net
+            FROM pos_stock_movements
+            WHERE sale_id = ${saleId}
+              AND organization_id = ${organizationId}
+              AND movement_type IN ('sale', 'sale_cancel', 'adjustment', 'return')
+            GROUP BY product_id
           `;
 
-          for (const item of items.rows) {
-            if (item.item_type !== "product" || !item.item_id) continue;
-            const qty = Number(item.quantity);
-            if (qty <= 0) continue;
-
+          for (const row of nets.rows) {
+            const net = Number(row.net);
+            if (!net) continue;
+            const delta = -net;
             const stockRow = await pg.queryObject<{ stock_quantity: number | null }>`
               SELECT stock_quantity FROM products
-              WHERE id = ${item.item_id} AND organization_id = ${organizationId}
+              WHERE id = ${row.product_id} AND organization_id = ${organizationId}
               FOR UPDATE
             `;
             if (!stockRow.rows.length) continue;
 
             const before = Number(stockRow.rows[0].stock_quantity ?? 0);
-            const after = before + qty;
+            const after = before + delta;
 
             await pg.queryArray`
               UPDATE products
               SET stock_quantity = ${after}, updated_at = now()
-              WHERE id = ${item.item_id} AND organization_id = ${organizationId}
+              WHERE id = ${row.product_id} AND organization_id = ${organizationId}
             `;
 
             await pg.queryArray`
               INSERT INTO pos_stock_movements (
-                organization_id, product_id, sale_id, movement_type,
+                organization_id, product_id, sale_id, movement_type, source,
                 quantity_delta, stock_before, stock_after, created_by, notes
               ) VALUES (
-                ${organizationId}, ${item.item_id}, ${saleId}, 'sale_cancel',
-                ${qty}, ${before}, ${after}, ${user.id}, 'Cancelamento de venda'
+                ${organizationId}, ${row.product_id}, ${saleId}, 'sale_cancel', 'sale_cancel',
+                ${delta}, ${before}, ${after}, ${user.id}, 'Cancelamento de venda'
               )
             `;
           }
@@ -1390,13 +1461,13 @@ serve(async (req) => {
                     WHERE id = ${item.item_id} AND organization_id = ${organizationId}
                   `;
                   await pg.queryArray`
-                    INSERT INTO pos_stock_movements (
-                      organization_id, product_id, sale_id, movement_type,
-                      quantity_delta, stock_before, stock_after, created_by, notes
-                    ) VALUES (
-                      ${organizationId}, ${item.item_id}, ${saleId}, 'adjustment',
-                      ${oldQty}, ${before}, ${after}, ${user.id}, 'Troca: remoção de item'
-                    )
+                  INSERT INTO pos_stock_movements (
+                    organization_id, product_id, sale_id, movement_type, source,
+                    quantity_delta, stock_before, stock_after, created_by, notes
+                  ) VALUES (
+                    ${organizationId}, ${item.item_id}, ${saleId}, 'adjustment', 'adjustment',
+                    ${oldQty}, ${before}, ${after}, ${user.id}, 'Troca: remoção de item'
+                  )
                   `;
                 }
               }
@@ -1423,13 +1494,13 @@ serve(async (req) => {
                   WHERE id = ${item.item_id} AND organization_id = ${organizationId}
                 `;
                 await pg.queryArray`
-                  INSERT INTO pos_stock_movements (
-                    organization_id, product_id, sale_id, movement_type,
-                    quantity_delta, stock_before, stock_after, created_by, notes
-                  ) VALUES (
-                    ${organizationId}, ${item.item_id}, ${saleId}, 'adjustment',
-                    ${-delta}, ${before}, ${after}, ${user.id}, 'Troca: ajuste de quantidade'
-                  )
+                INSERT INTO pos_stock_movements (
+                  organization_id, product_id, sale_id, movement_type, source,
+                  quantity_delta, stock_before, stock_after, created_by, notes
+                ) VALUES (
+                  ${organizationId}, ${item.item_id}, ${saleId}, 'adjustment', 'adjustment',
+                  ${-delta}, ${before}, ${after}, ${user.id}, 'Troca: ajuste de quantidade'
+                )
                 `;
               }
             }
@@ -1685,10 +1756,10 @@ serve(async (req) => {
             `;
             await pg.queryArray`
               INSERT INTO pos_stock_movements (
-                organization_id, product_id, sale_id, movement_type,
+                organization_id, product_id, sale_id, movement_type, source,
                 quantity_delta, stock_before, stock_after, created_by
               ) VALUES (
-                ${organizationId}, ${productId}, ${saleId}, ${movementType},
+                ${organizationId}, ${productId}, ${saleId}, ${movementType}, ${movementType === "return" ? "return" : "adjustment"},
                 ${delta}, ${before}, ${after}, ${user.id}
               )
             `;
@@ -1778,8 +1849,9 @@ serve(async (req) => {
     return json({ error: "Método não suportado" }, 405);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
+    const status = error instanceof HttpError ? error.status : 500;
     console.error("[pos-sales]", message);
-    return json({ error: message }, 500);
+    return json({ error: message }, status);
   } finally {
     if (pg) {
       try {

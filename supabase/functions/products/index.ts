@@ -198,6 +198,85 @@ async function ensureStockSchema(client: any) {
     ADD CONSTRAINT pos_stock_movements_movement_type_check
     CHECK (movement_type IN ('sale', 'sale_cancel', 'adjustment', 'in', 'out', 'adjust', 'return'))
   `);
+  await client.queryArray(`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS source TEXT`);
+  await client.queryArray(`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS budget_id UUID`);
+  await client.queryArray(`ALTER TABLE pos_sales ADD COLUMN IF NOT EXISTS client_request_id TEXT`);
+  await client.queryArray(`
+    CREATE TABLE IF NOT EXISTS budget_stock_posts (
+      organization_id UUID NOT NULL,
+      budget_id UUID NOT NULL,
+      created_by UUID,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (organization_id, budget_id)
+    )
+  `);
+  await client.queryArray(`
+    CREATE TABLE IF NOT EXISTS product_change_log (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      organization_id UUID NOT NULL,
+      product_id UUID,
+      user_id UUID,
+      action TEXT NOT NULL,
+      before JSONB,
+      after JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await client.queryArray(`
+    CREATE INDEX IF NOT EXISTS idx_product_change_log_org
+    ON product_change_log (organization_id, created_at DESC)
+  `);
+  await client.queryArray(`
+    CREATE INDEX IF NOT EXISTS idx_pos_stock_movements_budget
+    ON pos_stock_movements (organization_id, budget_id)
+    WHERE budget_id IS NOT NULL
+  `);
+}
+
+const CATALOG_FIELDS = [
+  'name', 'description', 'sku', 'barcode', 'price', 'cost', 'category',
+  'brand', 'unit', 'min_stock', 'ideal_stock', 'is_active',
+];
+
+function catalogSnapshot(row: Record<string, unknown> | null) {
+  if (!row) return null;
+  const snapshot: Record<string, unknown> = {};
+  for (const field of CATALOG_FIELDS) snapshot[field] = row[field] ?? null;
+  return snapshot;
+}
+
+function inferMovementSource(kind: string, notes: string | null, explicit?: string | null) {
+  if (explicit) return explicit;
+  const text = (notes || '').toLowerCase();
+  if (text.includes('nf ') || text.startsWith('nf')) return 'xml';
+  if (text.includes('compra')) return 'purchase';
+  if (kind === 'adjust') return 'adjustment';
+  return 'manual';
+}
+
+async function writeProductAudit(
+  client: any,
+  params: {
+    organizationId: string;
+    productId: string | null;
+    userId: string;
+    action: string;
+    before: Record<string, unknown> | null;
+    after: Record<string, unknown> | null;
+  }
+) {
+  await client.queryArray(
+    `INSERT INTO product_change_log (organization_id, product_id, user_id, action, before, after)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)`,
+    [
+      params.organizationId,
+      params.productId,
+      params.userId,
+      params.action,
+      params.before ? JSON.stringify(catalogSnapshot(params.before)) : null,
+      params.after ? JSON.stringify(catalogSnapshot(params.after)) : null,
+    ]
+  );
 }
 
 async function applyStockChange(
@@ -209,9 +288,12 @@ async function applyStockChange(
     quantity: number;
     notes: string | null;
     userId: string;
+    source?: string | null;
+    budgetId?: string | null;
   }
 ) {
   const { organizationId, productId, kind, quantity, notes, userId } = params;
+  const source = inferMovementSource(kind, notes, params.source);
   await client.queryArray('BEGIN');
   try {
     const stockRow = await client.queryObject<{ stock_quantity: number | null; name: string }>(
@@ -245,10 +327,10 @@ async function applyStockChange(
     );
     await client.queryArray(
       `INSERT INTO pos_stock_movements (
-         organization_id, product_id, movement_type, quantity_delta,
+         organization_id, product_id, movement_type, source, budget_id, quantity_delta,
          stock_before, stock_after, notes, created_by
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [organizationId, productId, kind, delta, before, after, notes, userId]
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [organizationId, productId, kind, source, params.budgetId || null, delta, before, after, notes, userId]
     );
     await client.queryArray('COMMIT');
     return { data: { product_id: productId, product_name: stockRow.rows[0].name, stock_before: before, stock_after: after, quantity_delta: delta } };
@@ -320,11 +402,21 @@ serve(async (req) => {
 
     const userOrgIds = orgMembers.map((m: { organization_id: string }) => m.organization_id);
 
-    if (requestedOrgId && userOrgIds.includes(requestedOrgId)) {
-      organizationId = requestedOrgId;
-    } else {
-      organizationId = orgMembers[0].organization_id;
+    if (requestedOrgId && !userOrgIds.includes(requestedOrgId)) {
+      return new Response(
+        JSON.stringify({ error: 'Sem permissão para acessar esta organização' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+    if (!requestedOrgId && userOrgIds.length > 1) {
+      return new Response(
+        JSON.stringify({ error: 'Informe a organização ativa' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    organizationId = requestedOrgId && userOrgIds.includes(requestedOrgId)
+      ? requestedOrgId
+      : userOrgIds[0];
 
     // Validar permissões
     const permissions = await validatePermissions(supabase, user.id, organizationId);
@@ -370,6 +462,8 @@ serve(async (req) => {
     const isMovementsEndpoint = lastPart === 'movements';
     const isCategoriesEndpoint = lastPart === 'categories';
     const isBrandsEndpoint = lastPart === 'brands';
+    const isBudgetStockEndpoint = lastPart === 'budget-stock';
+    const isAuditEndpoint = lastPart === 'audit';
 
     try {
       await ensureStockSchema(client);
@@ -384,6 +478,151 @@ serve(async (req) => {
         status,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+
+    if (isAuditEndpoint && req.method === 'GET') {
+      try {
+        const productFilter = url.searchParams.get('product_id');
+        const params: unknown[] = [organizationId];
+        let query = `SELECT id, product_id, user_id, action, before, after, created_at
+          FROM product_change_log WHERE organization_id = $1`;
+        if (productFilter) {
+          params.push(productFilter);
+          query += ` AND product_id = $2`;
+        }
+        query += ` ORDER BY created_at DESC LIMIT 100`;
+        const listed = await client.queryObject(query, params);
+        return jsonResponse(200, { data: listed.rows });
+      } catch (auditError: any) {
+        return jsonResponse(500, { error: auditError?.message || 'Não foi possível ler a auditoria' });
+      } finally {
+        await client.end();
+      }
+    }
+
+    if (isBudgetStockEndpoint && req.method === 'POST') {
+      if (!permissions.canWrite) {
+        await client.end();
+        return jsonResponse(403, { error: 'Sem permissão para lançar estoque' });
+      }
+      try {
+        const body = await req.json();
+        const budgetId = String(body.budget_id || '');
+        const actionName = body.action === 'reverse' ? 'reverse' : body.action === 'status' ? 'status' : 'apply';
+        if (!budgetId) return jsonResponse(400, { error: 'budget_id obrigatório' });
+
+        if (actionName === 'status') {
+          const posted = await client.queryObject(
+            `SELECT budget_id FROM budget_stock_posts WHERE organization_id = $1 AND budget_id = $2`,
+            [organizationId, budgetId]
+          );
+          return jsonResponse(200, { posted: posted.rows.length > 0 });
+        }
+
+        const policy = await client.queryObject<{ block_out_of_stock: boolean | null }>(
+          `SELECT block_out_of_stock FROM pos_settings WHERE organization_id = $1 LIMIT 1`,
+          [organizationId]
+        );
+        const blockStock = Boolean(policy.rows[0]?.block_out_of_stock);
+
+        if (actionName === 'reverse') {
+          await client.queryArray('BEGIN');
+          const nets = await client.queryObject<{ product_id: string; net: number }>(
+            `SELECT product_id, COALESCE(SUM(quantity_delta), 0)::float8 AS net
+             FROM pos_stock_movements
+             WHERE organization_id = $1 AND budget_id = $2
+             GROUP BY product_id`,
+            [organizationId, budgetId]
+          );
+          for (const row of nets.rows) {
+            const net = Number(row.net);
+            if (!net) continue;
+            const delta = -net;
+            const stockRow = await client.queryObject<{ stock_quantity: number | null }>(
+              `SELECT stock_quantity FROM products WHERE id = $1 AND organization_id = $2 FOR UPDATE`,
+              [row.product_id, organizationId]
+            );
+            if (!stockRow.rows.length) continue;
+            const before = Number(stockRow.rows[0].stock_quantity ?? 0);
+            const after = before + delta;
+            const movementType = delta < 0 ? 'out' : 'in';
+            await client.queryArray(
+              `UPDATE products SET stock_quantity = $1, updated_at = now() WHERE id = $2 AND organization_id = $3`,
+              [after, row.product_id, organizationId]
+            );
+            await client.queryArray(
+              `INSERT INTO pos_stock_movements (
+                 organization_id, product_id, movement_type, source, budget_id,
+                 quantity_delta, stock_before, stock_after, notes, created_by
+               ) VALUES ($1, $2, $3, 'budget', $4, $5, $6, $7, 'Orçamento rejeitado', $8)`,
+              [organizationId, row.product_id, movementType, budgetId, delta, before, after, user.id]
+            );
+          }
+          await client.queryArray(
+            `DELETE FROM budget_stock_posts WHERE organization_id = $1 AND budget_id = $2`,
+            [organizationId, budgetId]
+          );
+          await client.queryArray('COMMIT');
+          return jsonResponse(200, { reversed: true });
+        }
+
+        const already = await client.queryObject(
+          `SELECT budget_id FROM budget_stock_posts WHERE organization_id = $1 AND budget_id = $2`,
+          [organizationId, budgetId]
+        );
+        if (already.rows.length) return jsonResponse(200, { posted: true, already: true });
+
+        const items = Array.isArray(body.items) ? body.items : [];
+        await client.queryArray('BEGIN');
+        const reserved = await client.queryObject(
+          `INSERT INTO budget_stock_posts (organization_id, budget_id, created_by)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (organization_id, budget_id) DO NOTHING
+           RETURNING budget_id`,
+          [organizationId, budgetId, user.id]
+        );
+        if (!reserved.rows.length) {
+          await client.queryArray('ROLLBACK');
+          return jsonResponse(200, { posted: true, already: true });
+        }
+        for (const item of items) {
+          if (item?.isManual || !item?.id) continue;
+          const quantity = Number(item.quantity);
+          if (!Number.isFinite(quantity) || quantity <= 0) continue;
+          const stockRow = await client.queryObject<{ stock_quantity: number | null; name: string }>(
+            `SELECT stock_quantity, name FROM products WHERE id = $1 AND organization_id = $2 FOR UPDATE`,
+            [item.id, organizationId]
+          );
+          if (!stockRow.rows.length) {
+            await client.queryArray('ROLLBACK');
+            return jsonResponse(400, { error: 'Produto do orçamento não encontrado nesta empresa' });
+          }
+          const before = Number(stockRow.rows[0].stock_quantity ?? 0);
+          const after = before - quantity;
+          if (blockStock && after < 0) {
+            await client.queryArray('ROLLBACK');
+            return jsonResponse(400, { error: `Estoque insuficiente para ${stockRow.rows[0].name}` });
+          }
+          await client.queryArray(
+            `UPDATE products SET stock_quantity = $1, updated_at = now() WHERE id = $2 AND organization_id = $3`,
+            [after, item.id, organizationId]
+          );
+          await client.queryArray(
+            `INSERT INTO pos_stock_movements (
+               organization_id, product_id, movement_type, source, budget_id,
+               quantity_delta, stock_before, stock_after, notes, created_by
+             ) VALUES ($1, $2, 'out', 'budget', $3, $4, $5, $6, 'Orçamento aprovado', $7)`,
+            [organizationId, item.id, budgetId, -quantity, before, after, user.id]
+          );
+        }
+        await client.queryArray('COMMIT');
+        return jsonResponse(200, { posted: true });
+      } catch (budgetError: any) {
+        try { await client.queryArray('ROLLBACK'); } catch (_rollbackError) { /* já revertido */ }
+        return jsonResponse(500, { error: budgetError?.message || 'Não foi possível lançar o estoque do orçamento' });
+      } finally {
+        await client.end();
+      }
+    }
 
     if (isMovementsEndpoint && req.method === 'GET') {
       try {
@@ -755,6 +994,14 @@ serve(async (req) => {
 
         const result = await client.queryObject<Product>(insertQuery, insertParams);
         const created = result.rows[0];
+        await writeProductAudit(client, {
+          organizationId,
+          productId: created.id,
+          userId: user.id,
+          action: 'create',
+          before: null,
+          after: created as unknown as Record<string, unknown>,
+        });
         const initialQty = Number(stock_quantity ?? 0);
         if (Number.isFinite(initialQty) && initialQty !== 0) {
           const change = await applyStockChange(client, {
@@ -902,6 +1149,9 @@ serve(async (req) => {
         `;
 
         let updatedRow: Product | null = null;
+        const beforeUpdate = updateFields.length > 2
+          ? await client.queryObject<Product>('SELECT * FROM products WHERE id = $1 AND organization_id = $2', [productId, organizationId])
+          : null;
         if (updateFields.length > 2) {
           const result = await client.queryObject<Product>(updateQuery, updateParams);
           updatedRow = result.rows[0];
@@ -932,6 +1182,18 @@ serve(async (req) => {
             `INSERT INTO product_brands (organization_id, name, created_by) VALUES ($1, $2, $3) ON CONFLICT (organization_id, name) DO NOTHING`,
             [organizationId, String(body.brand).trim(), user.id]
           );
+        }
+        if (beforeUpdate?.rows[0] && updatedRow) {
+          const wasActive = beforeUpdate.rows[0].is_active !== false;
+          const action = wasActive && updatedRow.is_active === false ? 'inactivate' : 'update';
+          await writeProductAudit(client, {
+            organizationId,
+            productId,
+            userId: user.id,
+            action,
+            before: beforeUpdate.rows[0] as unknown as Record<string, unknown>,
+            after: updatedRow as unknown as Record<string, unknown>,
+          });
         }
         return new Response(JSON.stringify({ data: updatedRow }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
@@ -969,6 +1231,35 @@ serve(async (req) => {
             JSON.stringify({ error: 'Produto não encontrado' }),
             { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
+        }
+
+        const history = await client.queryObject(
+          `SELECT 1 FROM pos_stock_movements WHERE product_id = $1 AND organization_id = $2
+           UNION ALL
+           SELECT 1 FROM pos_sale_items WHERE item_id = $1 AND organization_id = $2 AND item_type = 'product'
+           LIMIT 1`,
+          [productId, organizationId]
+        );
+        if (history.rows.length) {
+          return new Response(
+            JSON.stringify({ error: 'Este produto já tem histórico de estoque ou vendas. Inative-o em vez de excluir.' }),
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const beforeDelete = await client.queryObject<Product>(
+          'SELECT * FROM products WHERE id = $1 AND organization_id = $2',
+          [productId, organizationId]
+        );
+        if (beforeDelete.rows[0]) {
+          await writeProductAudit(client, {
+            organizationId,
+            productId,
+            userId: user.id,
+            action: 'delete',
+            before: beforeDelete.rows[0] as unknown as Record<string, unknown>,
+            after: null,
+          });
         }
 
         // Deletar produto

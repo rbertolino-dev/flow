@@ -224,6 +224,7 @@ export function useProducts(options?: { enabled?: boolean }) {
         headers: {
           "Authorization": `Bearer ${session.access_token}`,
           "Content-Type": "application/json",
+          "X-Organization-Id": activeOrgId,
         },
       });
 

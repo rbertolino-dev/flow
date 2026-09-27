@@ -196,7 +196,11 @@ export function usePosSales() {
       try {
         const result = await callPos("", {
           method: "POST",
-          body: { action: "finalize_sale", ...payload },
+          body: {
+            action: "finalize_sale",
+            ...payload,
+            client_request_id: payload.client_request_id || crypto.randomUUID(),
+          },
         });
         toast({
           title: "Venda finalizada",

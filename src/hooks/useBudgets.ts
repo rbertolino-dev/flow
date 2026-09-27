@@ -26,6 +26,25 @@ interface BudgetFilters {
   page_size?: number;
 }
 
+async function callBudgetStock(activeOrgId: string, body: Record<string, unknown>) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Não autenticado');
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/products/budget-stock`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+      'X-Organization-Id': activeOrgId,
+    },
+    body: JSON.stringify(body),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result.error || 'Não foi possível atualizar o estoque do orçamento');
+  }
+  return result as { posted?: boolean; already?: boolean; reversed?: boolean };
+}
+
 export function useBudgets(filters?: BudgetFilters) {
   const { activeOrgId } = useActiveOrganization();
   const { toast } = useToast();
@@ -518,7 +537,21 @@ export function useBudgets(filters?: BudgetFilters) {
     if (!activeOrgId) throw new Error('Organização não encontrada');
     if (!choice?.date) throw new Error('Informe a data do lançamento');
 
+    let stockApplied = false;
     try {
+      const { data: budgetRow, error: loadError } = await supabase
+        .from('budgets')
+        .select('products')
+        .eq('id', budgetId)
+        .eq('organization_id', activeOrgId)
+        .single();
+      if (loadError) throw loadError;
+      const stockItems = Array.isArray((budgetRow as { products?: BudgetProduct[] } | null)?.products)
+        ? (budgetRow as { products: BudgetProduct[] }).products
+        : [];
+      await callBudgetStock(activeOrgId, { action: 'apply', budget_id: budgetId, items: stockItems });
+      stockApplied = true;
+
       // @ts-ignore - Tabela budgets existe
       let { error } = await supabase
         .from('budgets')
@@ -568,6 +601,13 @@ export function useBudgets(filters?: BudgetFilters) {
         variant: financeError ? 'destructive' : 'default',
       });
     } catch (error: any) {
+      if (stockApplied) {
+        try {
+          await callBudgetStock(activeOrgId, { action: 'reverse', budget_id: budgetId });
+        } catch (reverseError) {
+          console.error('Erro ao devolver estoque do orçamento:', reverseError);
+        }
+      }
       console.error('Erro ao aprovar orçamento:', error);
       toast({
         title: 'Erro',
@@ -582,6 +622,8 @@ export function useBudgets(filters?: BudgetFilters) {
     if (!activeOrgId) throw new Error('Organização não encontrada');
 
     try {
+      await callBudgetStock(activeOrgId, { action: 'reverse', budget_id: budgetId });
+
       // @ts-ignore - Tabela budgets existe
       const { error } = await supabase
         .from('budgets')
@@ -636,6 +678,13 @@ export function useBudgets(filters?: BudgetFilters) {
     if (!activeOrgId) throw new Error('Organização não encontrada');
 
     try {
+      if (budgetData.products !== undefined) {
+        const stockStatus = await callBudgetStock(activeOrgId, { action: 'status', budget_id: budgetId });
+        if (stockStatus.posted) {
+          throw new Error('O estoque deste orçamento já foi lançado. Recuse o orçamento para devolver o saldo antes de alterar os produtos.');
+        }
+      }
+
       // Calcular novos totais se produtos/serviços foram alterados
       let updateData: any = {};
 
