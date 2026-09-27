@@ -103,6 +103,9 @@ export interface FinancialEntry {
   origin_label: string;
   payment_method?: string | null;
   is_recurring?: boolean | null;
+  recurrence_group_id?: string | null;
+  recurrence_index?: number | null;
+  recurrence_total?: number | null;
   attachment_name?: string | null;
   notes?: string | null;
   created_by?: string | null;
@@ -119,6 +122,36 @@ export const financeCurrency = new Intl.NumberFormat('pt-BR', {
 
 export function formatFinanceMoney(value: number): string {
   return financeCurrency.format(Number(value) || 0);
+}
+
+export function parseParcelDescription(description: string | null | undefined): { index: number; total: number; base: string } | null {
+  if (!description) return null;
+  const current = description.match(/^PARC\.\s*(\d+)\s*\/\s*(\d+)\s*:\s*(.*)$/i);
+  if (current) {
+    return { index: Number(current[1]), total: Number(current[2]), base: current[3].trim() };
+  }
+  const legacy = description.match(/^(.*)\s\((\d+)\/(\d+)\)$/);
+  if (!legacy) return null;
+  return { index: Number(legacy[2]), total: Number(legacy[3]), base: legacy[1].trim() };
+}
+
+export function formatParcelDescription(index: number, total: number, base: string): string {
+  return `PARC. ${index}/${total}: ${base.trim()}`;
+}
+
+export function remainingInstallments(entry: FinancialEntry, all: FinancialEntry[]): number {
+  if (!entry.is_recurring && !entry.recurrence_group_id) return 0;
+  if (entry.recurrence_group_id) {
+    return all.filter((item) =>
+      item.id !== entry.id
+      && item.recurrence_group_id === entry.recurrence_group_id
+      && item.status === 'open'
+      && Number(item.recurrence_index || 0) > Number(entry.recurrence_index || 0)
+    ).length;
+  }
+  const parsed = parseParcelDescription(entry.description);
+  if (!parsed) return 0;
+  return Math.max(0, parsed.total - parsed.index);
 }
 
 export function todayIsoDate(): string {

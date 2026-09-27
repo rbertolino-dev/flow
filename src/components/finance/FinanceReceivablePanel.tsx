@@ -21,6 +21,7 @@ import {
 import { PAYMENT_METHODS, getPaymentMethodLabel, type PaymentMethod } from '@/lib/paymentMethods';
 import {
   formatFinanceMoney,
+  remainingInstallments,
   type FinanceDirection,
   type FinancialAccount,
   type FinancialCategory,
@@ -63,6 +64,7 @@ export interface FinanceEntryPatch {
   is_recurring?: boolean;
   attachment_name?: string | null;
   notes?: string | null;
+  apply_to_future?: boolean;
 }
 
 interface SaleItem {
@@ -73,6 +75,7 @@ interface SaleItem {
 
 interface FinanceReceivablePanelProps {
   entry: FinancialEntry | null;
+  entries: FinancialEntry[];
   direction: FinanceDirection;
   accounts: FinancialAccount[];
   categories: FinancialCategory[];
@@ -81,10 +84,12 @@ interface FinanceReceivablePanelProps {
   onSave: (entryId: string, patch: FinanceEntryPatch) => Promise<void>;
   onReceive: (entry: FinancialEntry) => Promise<void>;
   onDelete: (entry: FinancialEntry) => Promise<void>;
+  onDeleteFuture: (entry: FinancialEntry) => Promise<void>;
 }
 
 export function FinanceReceivablePanel({
   entry,
+  entries,
   direction,
   accounts,
   categories,
@@ -93,6 +98,7 @@ export function FinanceReceivablePanel({
   onSave,
   onReceive,
   onDelete,
+  onDeleteFuture,
 }: FinanceReceivablePanelProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
@@ -143,6 +149,8 @@ export function FinanceReceivablePanel({
     (category) => category.direction === direction || category.direction === 'ambos'
   );
   const isIncome = direction === 'receber';
+  const recurring = Boolean(entry.is_recurring || entry.recurrence_group_id);
+  const remaining = remainingInstallments(entry, entries);
 
   return (
     <>
@@ -165,7 +173,7 @@ export function FinanceReceivablePanel({
           <h2 className="text-lg font-semibold text-slate-800">{entry.description || 'Lançamento'}</h2>
           <p className="text-sm text-slate-500">Contato: {entry.contact_name || 'Sem contato'} /</p>
 
-          <h3 className="mb-3 mt-4 text-sm font-semibold text-slate-700">
+          <h3 className="mb-3 mt-4 rounded bg-slate-100 px-2 py-1.5 text-sm font-semibold text-slate-600">
             {isIncome ? 'Informações da entrada' : 'Informações da saída'}
           </h3>
           <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
@@ -182,9 +190,17 @@ export function FinanceReceivablePanel({
               {entry.payment_method ? getPaymentMethodLabel(entry.payment_method as PaymentMethod) : '—'}
             </p>
           </div>
-          <div className="mt-3 text-sm">
-            <p className="text-slate-500">Possui recorrência?</p>
-            <p className="text-slate-800">{entry.is_recurring ? 'Sim' : 'Não'}</p>
+          <div className="mt-3 grid grid-cols-2 gap-x-4 text-sm">
+            <div>
+              <p className="text-slate-500">Possui recorrência?</p>
+              <p className="text-slate-800">{recurring ? 'Sim' : 'Não'}</p>
+            </div>
+            {recurring && (
+              <div>
+                <p className="text-slate-500">Parcelas restantes</p>
+                <p className="text-slate-800">{remaining}</p>
+              </div>
+            )}
           </div>
           <div className="mt-3">
             <p className="mb-1 text-sm text-slate-500">Observações</p>
@@ -232,14 +248,26 @@ export function FinanceReceivablePanel({
               {isIncome ? 'Marcar como recebido' : 'Marcar como pago'}
             </Button>
           )}
-          <Button
-            type="button"
-            className="h-10 w-full bg-red-500 text-white hover:bg-red-600"
-            disabled={saving}
-            onClick={() => void onDelete(entry)}
-          >
-            Excluir
-          </Button>
+          <div className={remaining > 0 ? 'grid grid-cols-2 gap-2' : undefined}>
+            <Button
+              type="button"
+              className="h-10 w-full bg-red-500 text-white hover:bg-red-600"
+              disabled={saving}
+              onClick={() => void onDelete(entry)}
+            >
+              Excluir
+            </Button>
+            {remaining > 0 && (
+              <Button
+                type="button"
+                className="h-10 w-full bg-blue-700 text-white hover:bg-blue-800"
+                disabled={saving}
+                onClick={() => void onDeleteFuture(entry)}
+              >
+                Excluir próx. parcelas
+              </Button>
+            )}
+          </div>
           <Button
             type="button"
             className="h-10 w-full rounded-full bg-slate-200 text-slate-700 hover:bg-slate-300"
@@ -270,6 +298,7 @@ export function FinanceReceivablePanel({
         accounts={accounts}
         categories={categoryOptions}
         saving={saving}
+        hasFuture={remaining > 0}
         onOpenChange={setEditOpen}
         onSave={onSave}
       />
@@ -294,6 +323,7 @@ function FinanceReceivableEditDialog({
   accounts,
   categories,
   saving,
+  hasFuture,
   onOpenChange,
   onSave,
 }: {
@@ -303,6 +333,7 @@ function FinanceReceivableEditDialog({
   accounts: FinancialAccount[];
   categories: FinancialCategory[];
   saving: boolean;
+  hasFuture: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (entryId: string, patch: FinanceEntryPatch) => Promise<void>;
 }) {
@@ -316,6 +347,7 @@ function FinanceReceivableEditDialog({
   const [contactName, setContactName] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [recurring, setRecurring] = useState(false);
+  const [editNext, setEditNext] = useState(false);
   const [attach, setAttach] = useState(false);
   const [attachmentName, setAttachmentName] = useState('');
 
@@ -333,6 +365,7 @@ function FinanceReceivableEditDialog({
     setContactName(entry.contact_name || '');
     setPaymentMethod(entry.payment_method || '');
     setRecurring(Boolean(entry.is_recurring));
+    setEditNext(false);
     setAttach(Boolean(entry.attachment_name));
     setAttachmentName(entry.attachment_name || '');
   }, [open, entry, categories]);
@@ -442,6 +475,12 @@ function FinanceReceivableEditDialog({
         </div>
 
         <div className="mt-4 space-y-3 text-sm text-slate-700">
+          {hasFuture && (
+            <label className="flex items-center gap-3">
+              <Switch checked={editNext} onCheckedChange={setEditNext} />
+              Editar próximas parcelas
+            </label>
+          )}
           <label className="flex items-center gap-3">
             <Switch checked={recurring} onCheckedChange={setRecurring} />
             Editar recorrência
@@ -477,6 +516,7 @@ function FinanceReceivableEditDialog({
                 payment_method: paymentMethod || null,
                 is_recurring: recurring,
                 attachment_name: attach ? attachmentName || null : null,
+                apply_to_future: editNext,
               }).then(() => onOpenChange(false));
             }}
           >

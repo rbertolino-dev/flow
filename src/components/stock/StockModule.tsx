@@ -56,6 +56,8 @@ import {
 import { formatBRL, getStockStatus, stockNumbers, StockStatus } from "@/lib/stockStatus";
 import { todayIsoDate } from "@/lib/finance";
 import { formatNfeDate, NfeInvoice } from "@/lib/nfeXml";
+import { exportShoppingExcel, exportShoppingPdf, ShoppingExportRow } from "@/lib/shoppingListExport";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
 type StockTab = "cadastro" | "lancamentos" | "categorias" | "marcas" | "compras";
@@ -169,6 +171,16 @@ export function StockModule() {
   const [brandsCatalog, setBrandsCatalog] = useState<CatalogRow[]>([]);
   const [catalogName, setCatalogName] = useState("");
   const [purchaseQty, setPurchaseQty] = useState<Record<string, string>>({});
+  const [purchasePostingIds, setPurchasePostingIds] = useState<Set<string>>(new Set());
+  const purchaseInFlight = useRef(new Set<string>());
+  const [selectedPurchases, setSelectedPurchases] = useState<Set<string>>(new Set());
+  const [shopView, setShopView] = useState<"geral" | "impressao">("geral");
+  const [shopCategory, setShopCategory] = useState("all");
+  const [shopBrand, setShopBrand] = useState("all");
+  const [shopStatus, setShopStatus] = useState<"all" | "falta" | "baixa">("all");
+  const [printCategory, setPrintCategory] = useState<string | null>(null);
+  const [printStatus, setPrintStatus] = useState<"all" | "falta" | "baixa">("all");
+  const [shopPage, setShopPage] = useState(0);
   const [expenseOffer, setExpenseOffer] = useState<StockExpenseOffer | null>(null);
   const [savingExpense, setSavingExpense] = useState(false);
   const [singleEntryOpen, setSingleEntryOpen] = useState(false);
@@ -236,6 +248,49 @@ export function StockModule() {
       })
       .filter((row) => row.status !== "ideal" && row.missing > 0);
   }, [products]);
+
+  const shoppingFiltered = useMemo(() => {
+    return shoppingList.filter((row) => {
+      if (shopCategory !== "all" && (row.product.category || "").trim() !== shopCategory) return false;
+      if (shopBrand !== "all" && (row.product.brand || "").trim() !== shopBrand) return false;
+      if (shopStatus !== "all" && row.status !== shopStatus) return false;
+      return true;
+    });
+  }, [shoppingList, shopCategory, shopBrand, shopStatus]);
+
+  const shopPageCount = Math.max(1, Math.ceil(shoppingFiltered.length / PAGE_SIZE));
+  const safeShopPage = Math.min(shopPage, shopPageCount - 1);
+  const visibleShopping = shoppingFiltered.slice(safeShopPage * PAGE_SIZE, (safeShopPage + 1) * PAGE_SIZE);
+
+  useEffect(() => {
+    setShopPage(0);
+  }, [shopCategory, shopBrand, shopStatus]);
+
+  const printRows = useMemo(() => {
+    return shoppingList.filter((row) => {
+      const category = (row.product.category || "").trim() || "Sem categoria";
+      if (printCategory && category !== printCategory) return false;
+      if (printStatus !== "all" && row.status !== printStatus) return false;
+      return true;
+    });
+  }, [shoppingList, printCategory, printStatus]);
+
+  const printGroups = useMemo(() => {
+    const groups = new Map<string, typeof printRows>();
+    for (const row of printRows) {
+      const category = (row.product.category || "").trim() || "Sem categoria";
+      const current = groups.get(category) || [];
+      current.push(row);
+      groups.set(category, current);
+    }
+    return Array.from(groups.entries());
+  }, [printRows]);
+
+  const printCategories = useMemo(() => {
+    const names = uniqueNames(shoppingList.map((row) => row.product.category || ""));
+    const hasEmpty = shoppingList.some((row) => !(row.product.category || "").trim());
+    return hasEmpty ? [...names, "Sem categoria"] : names;
+  }, [shoppingList]);
 
   const loadMovements = useCallback(async (page: number) => {
     if (!activeOrgId) return;
@@ -457,8 +512,9 @@ export function StockModule() {
   };
 
   const registerPurchase = async (productId: string, quantity: number) => {
-    if (!activeOrgId) return;
-    setPostingMovement(true);
+    if (!activeOrgId || purchaseInFlight.current.has(productId)) return;
+    purchaseInFlight.current.add(productId);
+    setPurchasePostingIds((current) => new Set(current).add(productId));
     try {
       const headers = await authHeaders();
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -469,15 +525,35 @@ export function StockModule() {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Não foi possível registrar a compra");
-      toast({ title: "Compra registrada", description: "A entrada foi lançada no estoque." });
+      toast({ title: "Compra registrada", description: "A entrada foi lançada só neste produto." });
       const enteredProduct = products.find((item) => item.id === productId);
+      setSelectedPurchases((current) => {
+        if (!current.has(productId)) return current;
+        const next = new Set(current);
+        next.delete(productId);
+        return next;
+      });
       await refetch();
       if (enteredProduct && quantity > 0) setExpenseOffer(buildStockExpenseOffer(enteredProduct, quantity));
     } catch (error: unknown) {
       toast({ title: "Erro na compra", description: error instanceof Error ? error.message : "Erro desconhecido", variant: "destructive" });
     } finally {
-      setPostingMovement(false);
+      purchaseInFlight.current.delete(productId);
+      setPurchasePostingIds((current) => {
+        const next = new Set(current);
+        next.delete(productId);
+        return next;
+      });
     }
+  };
+
+  const togglePurchaseSelection = (productId: string, checked: boolean) => {
+    setSelectedPurchases((current) => {
+      const next = new Set(current);
+      if (checked) next.add(productId);
+      else next.delete(productId);
+      return next;
+    });
   };
 
   const saveStockExpense = async () => {
@@ -846,71 +922,228 @@ export function StockModule() {
         )}
 
         {tab === "compras" && (
-          <section className="space-y-3 rounded-lg bg-background p-4 shadow-sm">
-            <h2 className="flex items-center gap-2 text-lg font-semibold">
-              <ShoppingCart className="h-5 w-5" /> Lista de compras
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Produtos abaixo do limite de falta ou do limite ideal, com a quantidade sugerida para repor.
+          <section className="space-y-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm md:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                  <ShoppingCart className="h-5 w-5" />
+                </span>
+                Lista de compras
+              </h2>
+              <div className="flex rounded-full bg-slate-100 p-1">
+                <button
+                  type="button"
+                  className={cn("rounded-full px-4 py-1.5 text-sm", shopView === "geral" ? "bg-white font-medium text-slate-900 shadow-sm" : "text-slate-500")}
+                  onClick={() => setShopView("geral")}
+                >
+                  Geral
+                </button>
+                <button
+                  type="button"
+                  className={cn("rounded-full px-4 py-1.5 text-sm", shopView === "impressao" ? "bg-white font-medium text-slate-900 shadow-sm" : "text-slate-500")}
+                  onClick={() => setShopView("impressao")}
+                >
+                  Impressão
+                </button>
+              </div>
+            </div>
+            <p className="text-sm text-slate-500">
+              {shoppingList.length} produtos na lista. Entram os que estão em falta ou em baixa.
             </p>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Produto</TableHead>
-                  <TableHead>Qnt atual</TableHead>
-                  <TableHead>Meta</TableHead>
-                  <TableHead>Comprar</TableHead>
-                  <TableHead>Custo estimado</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {shoppingList.map(({ product, missing, status }) => {
-                  const { qty, min, ideal } = stockNumbers(product);
-                  return (
-                    <TableRow key={product.id}>
-                      <TableCell>{product.name}</TableCell>
-                      <TableCell>{qty}</TableCell>
-                      <TableCell>{Math.max(ideal, min)}</TableCell>
-                      <TableCell>{missing}</TableCell>
-                      <TableCell>{formatBRL(missing * Number(product.cost ?? 0))}</TableCell>
-                      <TableCell><StatusBadge status={status} /></TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            className="h-8 w-20"
-                            type="number"
-                            min="0"
-                            step="0.001"
-                            value={purchaseQty[product.id] ?? String(missing)}
-                            onChange={(e) => setPurchaseQty((prev) => ({ ...prev, [product.id]: e.target.value }))}
-                          />
-                          <Button
-                            size="sm"
-                            disabled={postingMovement}
-                            onClick={() => {
-                              const qty = Number(purchaseQty[product.id] ?? missing);
-                              if (!Number.isFinite(qty) || qty <= 0) return;
-                              void registerPurchase(product.id, qty);
-                            }}
-                          >
-                            Registrar compra
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-                {!shoppingList.length && (
-                  <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                      Nenhum produto precisa de reposição.
-                    </TableCell>
-                  </TableRow>
+
+            {shopView === "geral" ? (
+              <>
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <FilterSelect label="Categoria" value={shopCategory} onChange={setShopCategory} options={categories} />
+                    <FilterSelect label="Marca" value={shopBrand} onChange={setShopBrand} options={brands} />
+                    <div className="space-y-1">
+                      <Label>Status</Label>
+                      <Select value={shopStatus} onValueChange={(value) => setShopStatus(value as "all" | "falta" | "baixa")}>
+                        <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos</SelectItem>
+                          <SelectItem value="falta">Em falta</SelectItem>
+                          <SelectItem value="baixa">Em baixa</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700"
+                    onClick={() => exportShoppingExcel("lista-de-compras.xlsx", shoppingFiltered.map((row) => toShoppingExport(row, purchaseQty)))}
+                  >
+                    Exportar Excel
+                  </Button>
+                </div>
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50 hover:bg-slate-50">
+                        <TableHead className="w-10" />
+                        <TableHead>Produto</TableHead>
+                        <TableHead>Qnt atual</TableHead>
+                        <TableHead>Qnt a comprar</TableHead>
+                        <TableHead>Custo unitário</TableHead>
+                        <TableHead>Marca</TableHead>
+                        <TableHead />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {visibleShopping.map(({ product, missing, status }) => {
+                        const { qty } = stockNumbers(product);
+                        const unit = product.unit?.trim() || "Un";
+                        const posting = purchasePostingIds.has(product.id);
+                        return (
+                          <TableRow key={product.id}>
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedPurchases.has(product.id)}
+                                onCheckedChange={(checked) => togglePurchaseSelection(product.id, checked === true)}
+                                aria-label={`Marcar ${product.name}`}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-medium text-slate-900">{product.name}</div>
+                              <StatusBadge status={status} />
+                            </TableCell>
+                            <TableCell className={qty < 0 ? "text-rose-600" : undefined}>{qty} {unit}</TableCell>
+                            <TableCell>
+                              <Input
+                                id={`compra-qtd-${product.id}`}
+                                key={`compra-qtd-${product.id}`}
+                                className="h-8 w-24"
+                                type="number"
+                                min="0"
+                                step="0.001"
+                                value={purchaseQty[product.id] ?? String(missing)}
+                                onChange={(event) => setPurchaseQty((prev) => ({ ...prev, [product.id]: event.target.value }))}
+                              />
+                            </TableCell>
+                            <TableCell>{formatBRL(Number(product.cost ?? 0))}</TableCell>
+                            <TableCell>{product.brand || "—"}</TableCell>
+                            <TableCell>
+                              <Button
+                                size="sm"
+                                className="bg-blue-500 hover:bg-blue-600"
+                                disabled={posting}
+                                onClick={() => {
+                                  const amount = Number(purchaseQty[product.id] ?? missing);
+                                  if (!Number.isFinite(amount) || amount <= 0) return;
+                                  void registerPurchase(product.id, amount);
+                                }}
+                              >
+                                {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Registrar compra"}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {!shoppingFiltered.length && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                            Nenhum produto precisa de reposição com esses filtros.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                <ListPager page={safeShopPage} total={shoppingFiltered.length} loading={false} onPage={setShopPage} />
+              </>
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-slate-700">Categorias</p>
+                  <div className="flex flex-wrap gap-2">
+                    {printCategories.map((name) => (
+                      <button
+                        key={name}
+                        type="button"
+                        className={cn(
+                          "rounded-md px-3 py-1.5 text-xs font-semibold uppercase",
+                          printCategory === name ? "bg-slate-900 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200",
+                        )}
+                        onClick={() => setPrintCategory((current) => (current === name ? null : name))}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-sm font-medium text-slate-700">Status</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(["falta", "baixa"] as const).map((status) => (
+                      <button
+                        key={status}
+                        type="button"
+                        className={cn(
+                          "rounded-md px-3 py-1.5 text-xs font-semibold uppercase",
+                          printStatus === status ? "bg-slate-900 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200",
+                        )}
+                        onClick={() => setPrintStatus((current) => (current === status ? "all" : status))}
+                      >
+                        {status === "falta" ? "Em falta" : "Em baixa"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                    onClick={() => exportShoppingExcel("lista-de-compras.xlsx", printRows.map((row) => toShoppingExport(row, purchaseQty)))}
+                  >
+                    Exportar Excel
+                  </Button>
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700"
+                    onClick={() => exportShoppingPdf(
+                      "lista-de-compras.pdf",
+                      printCategory ? `${printCategory} — lista de compras` : "Lista de compras",
+                      printRows.map((row) => toShoppingExport(row, purchaseQty)),
+                    )}
+                  >
+                    Exportar PDF
+                  </Button>
+                </div>
+                {printGroups.map(([category, rows]) => (
+                  <div key={category} className="overflow-hidden rounded-xl border border-slate-200">
+                    <div className="bg-blue-600 px-4 py-2 font-semibold text-white">
+                      {category} {rows.length}
+                    </div>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Produto</TableHead>
+                          <TableHead>Qnt atual</TableHead>
+                          <TableHead>Qnt a comprar</TableHead>
+                          <TableHead>Custo unitário</TableHead>
+                          <TableHead>Marca</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {rows.map(({ product, missing }) => {
+                          const { qty } = stockNumbers(product);
+                          const unit = product.unit?.trim() || "Un";
+                          const buy = purchaseQty[product.id] ?? String(missing);
+                          return (
+                            <TableRow key={product.id}>
+                              <TableCell>{product.name}</TableCell>
+                              <TableCell>{qty} {unit}</TableCell>
+                              <TableCell>{buy}</TableCell>
+                              <TableCell>{formatBRL(Number(product.cost ?? 0))}</TableCell>
+                              <TableCell>{product.brand || "—"}</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ))}
+                {!printGroups.length && (
+                  <p className="py-8 text-center text-sm text-muted-foreground">Nenhum produto nesse recorte.</p>
                 )}
-              </TableBody>
-            </Table>
+              </div>
+            )}
           </section>
         )}
       </div>
@@ -1086,6 +1319,25 @@ function KpiCard({ title, subtitle, value, className }: { title: string; subtitl
       <p className="mt-2 text-2xl font-semibold">{value}</p>
     </div>
   );
+}
+
+function toShoppingExport(
+  row: { product: Product; missing: number; status: StockStatus },
+  quantities: Record<string, string>,
+): ShoppingExportRow {
+  const { qty } = stockNumbers(row.product);
+  const unit = row.product.unit?.trim() || "Un";
+  const raw = quantities[row.product.id];
+  const parsed = raw == null || raw === "" ? row.missing : Number(raw);
+  return {
+    name: row.product.name,
+    qtyLabel: `${qty} ${unit}`,
+    buy: Number.isFinite(parsed) ? parsed : row.missing,
+    cost: Number(row.product.cost ?? 0),
+    brand: row.product.brand || "",
+    category: (row.product.category || "").trim() || "Sem categoria",
+    status: row.status === "falta" ? "Em falta" : "Em baixa",
+  };
 }
 
 function StatusBadge({ status }: { status: StockStatus }) {

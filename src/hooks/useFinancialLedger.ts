@@ -4,6 +4,8 @@ import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { useToast } from '@/hooks/use-toast';
 import { addMonthsIso } from '@/lib/posFinanceSchedule';
 import {
+  formatParcelDescription,
+  parseParcelDescription,
   paymentTimestamp,
   todayIsoDate,
   type FinanceDirection,
@@ -151,11 +153,12 @@ export function useFinancialLedger() {
     const count = recurring ? Math.min(60, Math.max(1, Math.floor(input.recurrence_count || 1))) : 1;
     const interval = Math.max(1, Math.floor(input.recurrence_interval || 1));
     const { data: userData } = await supabase.auth.getUser();
+    const groupId = count > 1 ? crypto.randomUUID() : null;
     for (let index = 0; index < count; index += 1) {
       const realized = Boolean(input.realized) && index === 0;
       const dueDate = addMonthsIso(input.due_date, index * interval);
       const competenceDate = addMonthsIso(input.competence_date || input.due_date, index * interval);
-      const { error } = await db().rpc('upsert_financial_entry', {
+      const created = await db().rpc('upsert_financial_entry', {
         p_organization_id: activeOrgId,
         p_direction: input.direction,
         p_amount: input.amount,
@@ -165,7 +168,7 @@ export function useFinancialLedger() {
         p_status: realized ? 'paid' : 'open',
         p_settlement_status: 'confirmado',
         p_lead_id: input.lead_id,
-        p_description: count > 1 ? `${input.description} (${index + 1}/${count})` : input.description,
+        p_description: count > 1 ? formatParcelDescription(index + 1, count, input.description) : input.description,
         p_contact_name: input.contact_name,
         p_billing_name: input.contact_name || 'Sem contato',
         p_category: input.category || null,
@@ -179,7 +182,20 @@ export function useFinancialLedger() {
         p_attachment_name: input.attachment_name || null,
         p_is_recurring: recurring,
       });
-      if (error) throw new Error(error.message);
+      if (created.error) throw new Error(created.error.message);
+      const createdId = typeof created.data === 'string' ? created.data : null;
+      if (groupId && createdId) {
+        const stamped = await db()
+          .from('financial_entries')
+          .update({
+            recurrence_group_id: groupId,
+            recurrence_index: index + 1,
+            recurrence_total: count,
+          })
+          .eq('id', createdId)
+          .eq('organization_id', activeOrgId);
+        if (stamped.error) throw new Error(stamped.error.message);
+      }
     }
     await reload();
   };
@@ -200,15 +216,89 @@ export function useFinancialLedger() {
       is_recurring?: boolean;
       attachment_name?: string | null;
       notes?: string | null;
+      apply_to_future?: boolean;
     }
   ) => {
     if (!activeOrgId) throw new Error('Organização não encontrada');
+    const applyToFuture = Boolean(patch.apply_to_future);
+    const fields = { ...patch };
+    delete fields.apply_to_future;
     const updated = await db()
       .from('financial_entries')
-      .update(patch)
+      .update(fields)
       .eq('id', entryId)
       .eq('organization_id', activeOrgId);
     if (updated.error) throw new Error(updated.error.message);
+
+    if (applyToFuture) {
+      const current = entries.find((item) => item.id === entryId);
+      const groupId = current?.recurrence_group_id;
+      if (groupId) {
+        const loaded = await db()
+          .from('financial_entries')
+          .select('id, description, recurrence_index, recurrence_total')
+          .eq('organization_id', activeOrgId)
+          .eq('recurrence_group_id', groupId)
+          .neq('status', 'cancelled');
+        if (loaded.error) throw new Error(loaded.error.message);
+        const siblings = (loaded.data || []) as Array<{
+          id: string;
+          description: string | null;
+          recurrence_index: number | null;
+          recurrence_total: number | null;
+        }>;
+        const currentIndex = Number(current?.recurrence_index || 0);
+        const base = parseParcelDescription(fields.description || '')?.base || fields.description || '';
+        for (const sibling of siblings) {
+          if (sibling.id === entryId || Number(sibling.recurrence_index || 0) <= currentIndex) continue;
+          const futurePatch: Record<string, unknown> = {};
+          if (fields.amount != null) futurePatch.amount = fields.amount;
+          if (fields.account !== undefined) futurePatch.account = fields.account;
+          if (fields.category !== undefined) futurePatch.category = fields.category;
+          if (fields.category_id !== undefined) futurePatch.category_id = fields.category_id;
+          if (fields.contact_name !== undefined) futurePatch.contact_name = fields.contact_name;
+          if (fields.billing_name !== undefined) futurePatch.billing_name = fields.billing_name;
+          if (fields.payment_method !== undefined) futurePatch.payment_method = fields.payment_method;
+          if (fields.attachment_name !== undefined) futurePatch.attachment_name = fields.attachment_name;
+          if (fields.is_recurring !== undefined) futurePatch.is_recurring = fields.is_recurring;
+          if (fields.description && sibling.recurrence_index && sibling.recurrence_total) {
+            futurePatch.description = formatParcelDescription(sibling.recurrence_index, sibling.recurrence_total, base);
+          }
+          if (Object.keys(futurePatch).length === 0) continue;
+          const futureUpdated = await db()
+            .from('financial_entries')
+            .update(futurePatch)
+            .eq('id', sibling.id)
+            .eq('organization_id', activeOrgId);
+          if (futureUpdated.error) throw new Error(futureUpdated.error.message);
+        }
+      }
+    }
+    await reload();
+  };
+
+  const cancelFutureInstallments = async (entry: FinancialEntry) => {
+    if (!activeOrgId) throw new Error('Organização não encontrada');
+    if (!entry.recurrence_group_id) throw new Error('Esta recorrência não tem parcelas vinculadas');
+    const loaded = await db()
+      .from('financial_entries')
+      .select('id, recurrence_index, status')
+      .eq('organization_id', activeOrgId)
+      .eq('recurrence_group_id', entry.recurrence_group_id)
+      .neq('status', 'cancelled');
+    if (loaded.error) throw new Error(loaded.error.message);
+    const rows = (loaded.data || []) as Array<{ id: string; recurrence_index: number | null; status: string }>;
+    const currentIndex = Number(entry.recurrence_index || 0);
+    const future = rows.filter((row) => row.status === 'open' && Number(row.recurrence_index || 0) > currentIndex);
+    for (const row of future) {
+      const { error } = await db().rpc('set_financial_entry_status', {
+        p_organization_id: activeOrgId,
+        p_entry_id: row.id,
+        p_status: 'cancelled',
+        p_paid_at: null,
+      });
+      if (error) throw new Error(error.message);
+    }
     await reload();
   };
 
@@ -337,6 +427,7 @@ export function useFinancialLedger() {
     createManual,
     updateEntry,
     setStatus,
+    cancelFutureInstallments,
     saveCategory,
     deleteCategory,
     saveAccount,

@@ -137,7 +137,7 @@ const CARD_STYLES = {
 
 export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
   const { toast } = useToast();
-  const { entries, accounts, categories, loading, createManual, updateEntry, setStatus, saveCategory } = useFinancialLedger();
+  const { entries, accounts, categories, loading, createManual, updateEntry, setStatus, cancelFutureInstallments, saveCategory } = useFinancialLedger();
   const initialRange = monthRange();
   const [from, setFrom] = useState(initialRange.from);
   const [to, setTo] = useState(initialRange.to);
@@ -561,9 +561,10 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
             : 'Lançamento criado');
         }}
       />
-      <FinanceReceivablePanel
-        entry={selectedEntry}
-        direction={direction}
+        <FinanceReceivablePanel
+          entry={selectedEntry}
+          entries={directionEntries}
+          direction={direction}
         accounts={accounts}
         categories={categories}
         saving={saving}
@@ -577,11 +578,14 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
             direction === 'receber' ? 'Lançamento recebido' : 'Lançamento pago'
           );
         }}
-        onDelete={async (entry) => {
-          const ok = await runAction(() => setStatus(entry.id, 'cancelled'), 'Lançamento excluído');
-          if (ok) setSelectedId(null);
-        }}
-      />
+          onDelete={async (entry) => {
+            const ok = await runAction(() => setStatus(entry.id, 'cancelled'), 'Lançamento excluído');
+            if (ok) setSelectedId(null);
+          }}
+          onDeleteFuture={async (entry) => {
+            await runAction(() => cancelFutureInstallments(entry), 'Próximas parcelas excluídas');
+          }}
+        />
       <Dialog open={!!payEntry} onOpenChange={(open) => { if (!open) setPayEntry(null); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Data de pagamento</DialogTitle></DialogHeader>
