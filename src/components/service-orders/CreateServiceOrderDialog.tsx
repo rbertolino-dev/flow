@@ -56,6 +56,8 @@ interface CreateServiceOrderDialogProps {
   leads: Lead[];
   nextCode: string;
   editingOrder?: ServiceOrder | null;
+  /** Pré-preenche uma OS nova (ex.: venda do PDV) sem pular a escolha do modelo. */
+  initialDraft?: Partial<ServiceOrderFormData> | null;
   onSubmit: (data: ServiceOrderFormData) => Promise<boolean>;
 }
 
@@ -109,10 +111,15 @@ export function CreateServiceOrderDialog({
   leads,
   nextCode,
   editingOrder,
+  initialDraft,
   onSubmit,
 }: CreateServiceOrderDialogProps) {
   const defaultTemplate = templates.find((t) => t.is_default) || templates[0];
-  const defaultStatus = statuses.find((s) => s.is_default) || statuses[0];
+  const defaultStatus =
+    statuses.find((s) => s.is_default && !s.is_final) ||
+    statuses.find((s) => !s.is_final) ||
+    statuses.find((s) => s.is_default) ||
+    statuses[0];
   const isEditing = !!editingOrder;
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -229,23 +236,33 @@ export function CreateServiceOrderDialog({
     }
 
     setStep(1);
-    setTemplateId(defaultTemplate?.id || '');
-    setStatusId(defaultStatus?.id || '');
+    setTemplateId(initialDraft?.template_id || defaultTemplate?.id || '');
+    setStatusId(initialDraft?.status_id || defaultStatus?.id || '');
     setForm({
       is_single_day: true,
       has_commission: false,
       custom_fields: {},
+      ...initialDraft,
+      starts_at: initialDraft?.starts_at
+        ? format(new Date(initialDraft.starts_at), "yyyy-MM-dd'T'HH:mm")
+        : undefined,
+      ends_at: initialDraft?.ends_at
+        ? format(new Date(initialDraft.ends_at), "yyyy-MM-dd'T'HH:mm")
+        : undefined,
+      items: undefined,
+      checklist: undefined,
+      maintenance_plan: undefined,
     });
-    setItems([]);
-    setChecklist([]);
-    setLeadSearch('');
-    setLabelTag('');
+    setItems(initialDraft?.items || []);
+    setChecklist(initialDraft?.checklist || []);
+    setLeadSearch(initialDraft?.client_name || '');
+    setLabelTag(initialDraft?.label_tag || '');
     setMaintenanceOn(false);
     setMaintenanceInterval('monthly');
     setMaintenanceDays('30');
     setMaintenanceCount('6');
     setNewCheckItem('');
-  }, [open, editingOrder, defaultTemplate?.id, defaultStatus?.id]);
+  }, [open, editingOrder, initialDraft, defaultTemplate?.id, defaultStatus?.id]);
 
   const checklistStamp = checklists.map((c) => `${c.id}:${c.items.length}`).join('|');
 

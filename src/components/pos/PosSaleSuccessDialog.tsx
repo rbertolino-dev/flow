@@ -254,6 +254,49 @@ function PosServiceOrderEditor({
   );
 }
 
+function PosServiceOrderFromSale({
+  open,
+  onOpenChange,
+  draft,
+  nextCode,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  draft: Partial<ServiceOrderFormData>;
+  nextCode: string;
+  onCreated: (order: ServiceOrder) => Promise<void>;
+}) {
+  const { statuses } = useServiceOrderStatuses();
+  const { templates } = useServiceOrderTemplates();
+  const { products } = useProducts();
+  const { leads } = useLeads();
+  const { createOrder } = useServiceOrders(undefined, { enabled: false });
+
+  return (
+    <CreateServiceOrderDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      templates={templates}
+      statuses={statuses}
+      products={products}
+      leads={leads || []}
+      nextCode={nextCode}
+      initialDraft={draft}
+      onSubmit={async (data: ServiceOrderFormData) => {
+        const order = await createOrder({
+          ...data,
+          template_id: data.template_id || draft.template_id,
+          status_id: data.status_id || draft.status_id,
+        });
+        if (!order) return false;
+        await onCreated(order);
+        return true;
+      }}
+    />
+  );
+}
+
 export function PosSaleSuccessDialog({
   open,
   onOpenChange,
@@ -267,8 +310,11 @@ export function PosSaleSuccessDialog({
 }: Props) {
   const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
-  const { createOrder } = useServiceOrders(undefined, { enabled: false });
+  const { peekNextCode } = useServiceOrders(undefined, { enabled: false });
   const [creatingOs, setCreatingOs] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [nextCode, setNextCode] = useState("-----");
+  const [createDraft, setCreateDraft] = useState<Partial<ServiceOrderFormData> | null>(null);
   const [createdOs, setCreatedOs] = useState<{ id: string; code: string } | null>(null);
   const [detailOrder, setDetailOrder] = useState<ServiceOrder | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -277,6 +323,9 @@ export function PosSaleSuccessDialog({
     setCreatedOs(null);
     setDetailOrder(null);
     setDetailOpen(false);
+    setCreateOpen(false);
+    setCreateDraft(null);
+    setCreatingOs(false);
   }, [sale?.id]);
 
   if (!sale) return null;
@@ -316,54 +365,30 @@ export function PosSaleSuccessDialog({
     if (!services.length) return;
     setCreatingOs(true);
     try {
-      let statusId: string | undefined;
-      let templateId: string | undefined;
-      if (activeOrgId) {
-        // @ts-expect-error tabela ainda nao tipada no client gerado
-        const statusResult = await supabase
-          .from("service_order_statuses")
-          .select("id, is_default, sort_order")
-          .eq("organization_id", activeOrgId)
-          .order("sort_order", { ascending: true });
-        // @ts-expect-error tabela ainda nao tipada no client gerado
-        const templateResult = await supabase
-          .from("service_order_templates")
-          .select("id, is_default")
-          .eq("organization_id", activeOrgId)
-          .eq("is_active", true);
-        const statuses = (statusResult.data || []) as Array<{ id: string; is_default?: boolean }>;
-        const templates = (templateResult.data || []) as Array<{ id: string; is_default?: boolean }>;
-        statusId = (statuses.find((item) => item.is_default) || statuses[0])?.id;
-        templateId = (templates.find((item) => item.is_default) || templates[0])?.id;
-      }
-
-      const mappedItems = services.map((item) => ({
-        item_type: "service" as const,
-        item_id: item.item_id,
-        name: item.name,
-        sku: item.sku || null,
-        unit: item.unit || "un",
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        discount_amount: item.discount_amount,
-        total_price: lineTotal(item),
-      }));
-
-      const order = await createOrder({
-        template_id: templateId,
-        status_id: statusId,
+      const code = await peekNextCode();
+      setNextCode(code || "-----");
+      setCreateDraft({
         lead_id: leadId || undefined,
         client_name: sale.customer_name || undefined,
         client_phone: sale.customer_phone || undefined,
         service_id: services[0]?.item_id,
         service_name: services.map((item) => item.name).join(", "),
         is_single_day: true,
+        starts_at: new Date().toISOString(),
         client_report: `Serviço vendido no PDV, venda #${sale.sale_number}.`,
-        items: mappedItems,
+        items: services.map((item) => ({
+          item_type: "service" as const,
+          item_id: item.item_id,
+          name: item.name,
+          sku: item.sku || null,
+          unit: item.unit || "un",
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          discount_amount: item.discount_amount,
+          total_price: lineTotal(item),
+        })),
       });
-      if (!order) return;
-      setCreatedOs({ id: order.id, code: order.code });
-      await showOrder(order.id, { ...order, items: mappedItems });
+      setCreateOpen(true);
     } catch (error: unknown) {
       toast({
         title: "Erro",
@@ -469,6 +494,24 @@ export function PosSaleSuccessDialog({
           </div>
         </DialogContent>
       </Dialog>
+
+      {createDraft ? (
+        <PosServiceOrderFromSale
+          open={createOpen}
+          onOpenChange={(next) => {
+            setCreateOpen(next);
+            if (!next && !createdOs) setCreateDraft(null);
+          }}
+          draft={createDraft}
+          nextCode={nextCode}
+          onCreated={async (order) => {
+            setCreatedOs({ id: order.id, code: order.code });
+            setCreateOpen(false);
+            setCreateDraft(null);
+            await showOrder(order.id, order);
+          }}
+        />
+      ) : null}
 
       {detailOrder ? (
         <PosOpenedServiceOrder

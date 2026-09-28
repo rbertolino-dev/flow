@@ -669,7 +669,12 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await expect(confirm).toBeVisible({ timeout: 15_000 });
     await human.humanClick(confirm.getByRole("button", { name: /^confirmar$/i }));
 
+    const financeAfterProduct = page.getByRole("dialog").filter({ hasText: /lançamentos financeiros criados/i });
     const success = page.getByRole("dialog").filter({ hasText: /venda finalizada/i });
+    await expect(financeAfterProduct.or(success)).toBeVisible({ timeout: 30_000 });
+    if (await financeAfterProduct.isVisible().catch(() => false)) {
+      await human.humanClick(financeAfterProduct.getByRole("button", { name: /^ok$/i }));
+    }
     await expect(success).toBeVisible({ timeout: 30_000 });
     await expect(success.getByRole("heading", { name: /itens/i })).toBeVisible();
     await expect(success.getByRole("heading", { name: /pagamento/i })).toBeVisible();
@@ -698,7 +703,12 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await expect(confirmService).toBeVisible({ timeout: 15_000 });
     await human.humanClick(confirmService.getByRole("button", { name: /^confirmar$/i }));
 
+    const financeAfterService = page.getByRole("dialog").filter({ hasText: /lançamentos financeiros criados/i });
     const successService = page.getByRole("dialog").filter({ hasText: /venda finalizada/i });
+    await expect(financeAfterService.or(successService)).toBeVisible({ timeout: 30_000 });
+    if (await financeAfterService.isVisible().catch(() => false)) {
+      await human.humanClick(financeAfterService.getByRole("button", { name: /^ok$/i }));
+    }
     await expect(successService).toBeVisible({ timeout: 30_000 });
     await expect(successService.getByText(serviceName).first()).toBeVisible();
     const osButton = successService.getByRole("button", { name: /^ordem de serviço$/i });
@@ -706,10 +716,30 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await human.hesitate(400, 700);
     await human.humanClick(osButton);
 
+    const createOs = page.getByRole("dialog").filter({ hasText: /nova ordem de serviço|modelo de criação/i });
+    await expect(createOs).toBeVisible({ timeout: 25_000 });
+    await expect(page).toHaveURL(/\/pdv$/);
+    await expect(createOs.getByTestId("os-model-select")).toBeVisible();
+    await expect(page.getByTestId("os-detail-dialog")).toHaveCount(0);
+    await expect(page.getByTestId("os-detail-close-btn")).toHaveCount(0);
+
+    const nextStep = createOs.getByRole("button", { name: /^próximo$/i });
+    await nextStep.scrollIntoViewIfNeeded();
+    await human.hesitate(200, 400);
+    await human.humanClick(nextStep);
+    await expect(page.getByText(/produtos da o\.s\./i)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(new RegExp(serviceName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i")).first()).toBeVisible();
+    const nextProducts = page.getByRole("dialog").getByRole("button", { name: /^próximo$/i });
+    await nextProducts.scrollIntoViewIfNeeded();
+    await human.humanClick(nextProducts);
+    await expect(page.getByText(/finalizar o\.s\./i)).toBeVisible({ timeout: 10_000 });
+    await human.hesitate(300, 600);
+    await human.humanClick(page.getByRole("dialog").getByRole("button", { name: /^finalizar$/i }));
+
     const osDialog = page.getByTestId("os-detail-dialog");
     await expect(osDialog).toBeVisible({ timeout: 25_000 });
-    await expect(page).toHaveURL(/\/pdv$/);
     await expect(osDialog.getByRole("heading", { name: /^ORDEM \d+/ })).toBeVisible();
+    await expect(osDialog.getByTestId("os-detail-close-btn")).toBeVisible();
     await human.humanClick(osDialog.getByRole("tab", { name: /^vendas$/i }));
     await expect(osDialog.getByText(new RegExp(serviceName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"))).toBeVisible();
     await expect(osDialog.getByText(/nenhum produto\/serviço vinculado/i)).toHaveCount(0);
