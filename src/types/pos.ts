@@ -86,6 +86,7 @@ export interface PosSale {
   status: string;
   subtotal: number;
   discount_amount: number;
+  surcharge_amount?: number;
   total: number;
   notes?: string | null;
   add_commission: boolean;

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2, FileSignature, Receipt, Globe, PenLine, Store, ClipboardList, Warehouse, Wallet } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2, FileSignature, Receipt, Globe, PenLine, Store, ClipboardList, Warehouse, Wallet, FileBarChart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,6 +42,7 @@ export type CRMView =
   | "estoque"
   | "service-orders"
   | "finance"
+  | "reports"
   | "employees"
   | "messages-center"
   | "landing-page"
@@ -115,6 +116,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     'estoque': null, // usa o cadastro de produtos já existente
     'service-orders': 'service_orders', // controlado por feature
     'finance': 'finance',
+    'reports': 'reports', // controlado por feature
     'employees': 'employees', // controlado por feature
     'landing-page': 'landing_page', // controlado por feature
     'wordpress-content': 'wordpress_content',
@@ -144,6 +146,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "estoque" as const, label: "Estoque", icon: Warehouse },
     { id: "service-orders" as const, label: "Ordem de Serviço", icon: ClipboardList },
     { id: "finance" as const, label: "Financeiro", icon: Wallet },
+    { id: "reports" as const, label: "Relatórios", icon: FileBarChart },
     { id: "employees" as const, label: "Colaboradores", icon: Users },
     { id: "landing-page" as const, label: "Landing Page", icon: Globe },
     { id: "wordpress-content" as const, label: "Conteúdo WordPress", icon: PenLine },
@@ -327,6 +330,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                 navigate('/service-orders');
               } else if (item.id === 'finance') {
                 navigate('/financeiro');
+              } else if (item.id === 'reports') {
+                navigate('/relatorios');
               } else if (item.id === 'employees') {
                 navigate('/employees');
               } else if (item.id === 'landing-page') {
@@ -504,6 +509,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                           navigate('/service-orders');
                         } else if (item.id === 'finance') {
                           navigate('/financeiro');
+                        } else if (item.id === 'reports') {
+                          navigate('/relatorios');
                         } else if (item.id === 'employees') {
                           navigate('/employees');
                         } else if (item.id === 'landing-page') {
