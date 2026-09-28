@@ -24,6 +24,12 @@ interface ChatwootLink {
   chatwoot_base_url: string;
   enabled: boolean | null;
   organization_name: string;
+  token_ready: boolean;
+}
+
+function userTokenReady(value: unknown) {
+  const token = String(value || "").trim();
+  return token.length >= 20 && token !== "aba-chatwoot";
 }
 
 function foldName(value: string) {
@@ -65,6 +71,7 @@ export function ChatwootAccountLinksPanel() {
   const [organizationId, setOrganizationId] = useState("");
   const [accountId, setAccountId] = useState("");
   const [accountName, setAccountName] = useState("");
+  const [accessToken, setAccessToken] = useState("");
   const [enabled, setEnabled] = useState(true);
 
   const load = useCallback(async () => {
@@ -82,10 +89,15 @@ export function ChatwootAccountLinksPanel() {
       const names = new Map(orgRows.map((org) => [org.id, org.name]));
       setOrganizations(orgRows);
       setLinks(
-        ((configs || []) as unknown as Omit<ChatwootLink, "organization_name">[]).map((row) => ({
-          ...row,
+        ((configs || []) as unknown as Array<Omit<ChatwootLink, "organization_name" | "token_ready"> & { chatwoot_api_access_token?: string | null }>).map((row) => ({
+          id: row.id,
+          organization_id: row.organization_id,
+          chatwoot_account_id: row.chatwoot_account_id,
           chatwoot_account_name: row.chatwoot_account_name || null,
+          chatwoot_base_url: row.chatwoot_base_url,
+          enabled: row.enabled,
           organization_name: names.get(row.organization_id) || "Organização removida",
+          token_ready: userTokenReady(row.chatwoot_api_access_token),
         })),
       );
     } catch (error) {
@@ -119,6 +131,7 @@ export function ChatwootAccountLinksPanel() {
     if (current) {
       setAccountId(String(current.chatwoot_account_id));
       setAccountName(current.chatwoot_account_name || "");
+      setAccessToken("");
       setEnabled(current.enabled !== false);
     }
   }
@@ -127,6 +140,7 @@ export function ChatwootAccountLinksPanel() {
     setOrganizationId(link.organization_id);
     setAccountId(String(link.chatwoot_account_id));
     setAccountName(link.chatwoot_account_name || "");
+    setAccessToken("");
     setEnabled(link.enabled !== false);
     setOrgFilter(link.organization_name);
   }
@@ -135,6 +149,7 @@ export function ChatwootAccountLinksPanel() {
     setOrganizationId("");
     setAccountId("");
     setAccountName("");
+    setAccessToken("");
     setEnabled(true);
     setOrgFilter("");
   }
@@ -170,18 +185,44 @@ export function ChatwootAccountLinksPanel() {
       return;
     }
 
+    const current = links.find((link) => link.organization_id === organizationId);
+    const token = accessToken.trim();
+    if (!current && !token) {
+      toast({
+        title: "Cole o Access Token do usuário",
+        description: "No Chatwoot, abra Perfil e depois Access Token. O token do bot não serve.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSaving(true);
     try {
-      const current = links.find((link) => link.organization_id === organizationId);
+      let checkedToken = "";
+      if (token) {
+        const key = new URL(DASHBOARD_APP_URL).searchParams.get("k") || "";
+        const response = await fetch(`https://agilizeflow.com.br/cw-agilize/api/validate-token?k=${encodeURIComponent(key)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ account_id: account, token }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(typeof data.error === "string" ? data.error : "O Chatwoot recusou este token");
+        }
+        checkedToken = token;
+      }
       if (current) {
+        const changes: Record<string, unknown> = {
+          chatwoot_base_url: CHATWOOT_BASE_URL,
+          chatwoot_account_id: account,
+          chatwoot_account_name: chatwootAccountName,
+          enabled,
+        };
+        if (checkedToken) changes.chatwoot_api_access_token = checkedToken;
         const { error } = await supabase
           .from("chatwoot_configs")
-          .update({
-            chatwoot_base_url: CHATWOOT_BASE_URL,
-            chatwoot_account_id: account,
-            chatwoot_account_name: chatwootAccountName,
-            enabled,
-          } as never)
+          .update(changes as never)
           .eq("id", current.id);
         if (error) throw error;
       } else {
@@ -190,7 +231,7 @@ export function ChatwootAccountLinksPanel() {
           chatwoot_base_url: CHATWOOT_BASE_URL,
           chatwoot_account_id: account,
           chatwoot_account_name: chatwootAccountName,
-          chatwoot_api_access_token: "aba-chatwoot",
+          chatwoot_api_access_token: checkedToken,
           enabled,
         } as never);
         if (error) throw error;
@@ -336,6 +377,25 @@ export function ChatwootAccountLinksPanel() {
               </p>
             )}
 
+            <div className="space-y-2">
+              <Label htmlFor="access-token" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Token do usuário</Label>
+              <Input
+                id="access-token"
+                type="password"
+                value={accessToken}
+                onChange={(event) => setAccessToken(event.target.value)}
+                placeholder={editing ? "Deixe vazio para manter o token atual" : "Access Token do perfil"}
+                autoComplete="new-password"
+                className="shadow-none"
+              />
+              <p className="text-xs text-muted-foreground">
+                No Chatwoot: foto do usuário, Perfil, Access Token. O token do bot não abre a lista de etiquetas.
+                {editing && links.find((link) => link.organization_id === organizationId)?.token_ready
+                  ? " Esta ligação já tem um token de usuário salvo."
+                  : ""}
+              </p>
+            </div>
+
             <div className="flex items-center justify-between border-t pt-4">
               <Label htmlFor="enabled" className="text-sm font-normal">Ligação ativa</Label>
               <Switch id="enabled" checked={enabled} onCheckedChange={setEnabled} />
@@ -371,6 +431,7 @@ export function ChatwootAccountLinksPanel() {
                     <p className="truncate text-xs text-muted-foreground">
                       {link.chatwoot_account_name || "Sem nome"} · nº {link.chatwoot_account_id}
                       {link.enabled === false ? " · inativa" : ""}
+                      {link.token_ready ? " · token de usuário salvo" : " · falta o token de usuário"}
                     </p>
                   </div>
                   <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => fillForm(link)}>
