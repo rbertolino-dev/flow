@@ -32,11 +32,13 @@ import {
   downloadCsv,
   formatMarginsDateTime,
   formatMarginsMoney,
+  formatSaleOriginLabel,
   formatUnitCost,
   type MarginsAggregateRow,
   type MarginsGeneralRow,
 } from "@/lib/marginsReport";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 type TabKey = "geral" | "servicos" | "produtos";
 
@@ -59,6 +61,7 @@ function GeneralTable({ rows }: { rows: MarginsGeneralRow[] }) {
         <TableHeader>
           <TableRow className="bg-slate-100 hover:bg-slate-100">
             <TableHead className="whitespace-nowrap font-semibold text-slate-700">Código</TableHead>
+            <TableHead className="whitespace-nowrap font-semibold text-slate-700">Origem</TableHead>
             <TableHead className="whitespace-nowrap font-semibold text-slate-700">Data e hora</TableHead>
             <TableHead className="min-w-[220px] font-semibold text-slate-700">Produtos/Serviços</TableHead>
             <TableHead className="font-semibold text-slate-700">Cliente</TableHead>
@@ -72,6 +75,18 @@ function GeneralTable({ rows }: { rows: MarginsGeneralRow[] }) {
           {rows.map((row) => (
             <TableRow key={row.saleId} className="align-top">
               <TableCell className="tabular-nums text-slate-700">{row.code}</TableCell>
+              <TableCell>
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    "font-normal",
+                    row.origin === "orcamento" && "bg-sky-100 text-sky-800",
+                    row.origin === "importacao" && "bg-amber-100 text-amber-800",
+                  )}
+                >
+                  {formatSaleOriginLabel(row.origin)}
+                </Badge>
+              </TableCell>
               <TableCell className="whitespace-nowrap text-slate-600">
                 {formatMarginsDateTime(row.soldAt)}
               </TableCell>
@@ -218,9 +233,10 @@ export default function ReportsMargins() {
     if (tab === "geral") {
       downloadCsv(
         `margens-geral-${stamp}.csv`,
-        ["Código", "Data e hora", "Produtos/Serviços", "Cliente", "Valor Total", "Custo total", "Acréscimo", "Lucro"],
+        ["Código", "Origem", "Data e hora", "Produtos/Serviços", "Cliente", "Valor Total", "Custo total", "Acréscimo", "Lucro"],
         report.generalRows.map((row) => [
           String(row.code),
+          formatSaleOriginLabel(row.origin),
           formatMarginsDateTime(row.soldAt),
           row.items.map((item) => `${item.name} (${item.quantity})`).join(" | "),
           row.customerName,
@@ -294,12 +310,31 @@ export default function ReportsMargins() {
               <TitleIcon className="h-5 w-5 shrink-0" aria-hidden />
               <h1 className="text-lg font-semibold">{title}</h1>
             </div>
-            {(tab === "geral" || tab === "produtos") && (
-              <Button onClick={handleExport} className="bg-slate-900 hover:bg-slate-800">
-                <Download className="mr-2 h-4 w-4" />
-                Exportar
-              </Button>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <Select
+                value={report.originFilter}
+                onValueChange={(value) =>
+                  report.setOriginFilter(value as "all" | "pdv" | "orcamento" | "importacao")
+                }
+              >
+                <SelectTrigger className="w-[180px] rounded-full bg-white">
+                  <Filter className="mr-2 h-4 w-4 text-slate-400" />
+                  <SelectValue placeholder="Origem" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas origens</SelectItem>
+                  <SelectItem value="pdv">PDV</SelectItem>
+                  <SelectItem value="orcamento">Orçamento</SelectItem>
+                  <SelectItem value="importacao">Importação</SelectItem>
+                </SelectContent>
+              </Select>
+              {(tab === "geral" || tab === "produtos" || tab === "servicos") && (
+                <Button onClick={handleExport} className="bg-slate-900 hover:bg-slate-800">
+                  <Download className="mr-2 h-4 w-4" />
+                  Exportar
+                </Button>
+              )}
+            </div>
           </div>
 
           <TabsContent value="geral" className="mt-0 space-y-4">

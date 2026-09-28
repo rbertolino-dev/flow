@@ -22,6 +22,7 @@ export interface MarginsGeneralRow {
   saleId: string;
   code: number;
   soldAt: string;
+  origin: string;
   items: MarginsSaleLineItem[];
   customerName: string;
   totalValue: number;
@@ -92,6 +93,7 @@ export function buildMarginsGeneralRows(
         saleId: sale.id,
         code: Number(sale.sale_number || 0),
         soldAt: saleMoment(sale),
+        origin: String(sale.sale_origin || "pdv"),
         items: items.map((item) => ({
           name: item.name,
           quantity: Number(item.quantity || 0),
@@ -227,6 +229,13 @@ export function formatMarginsDateTime(iso: string): string {
 export function formatUnitCost(value: number | null): string {
   if (value == null) return "·";
   return formatMarginsMoney(value);
+}
+
+export function formatSaleOriginLabel(origin: string | null | undefined): string {
+  const value = String(origin || "pdv").toLowerCase();
+  if (value === "orcamento") return "Orçamento";
+  if (value === "importacao") return "Importação";
+  return "PDV";
 }
 
 export function downloadCsv(filename: string, headers: string[], rows: string[][]): void {

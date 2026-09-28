@@ -9,6 +9,7 @@ import { broadcastRefreshEvent } from '@/utils/forceRefreshAfterMutation';
 import { generateBudgetPDF } from '@/lib/budgetPdfGenerator';
 import { SupabaseStorageService } from '@/services/contractStorage';
 import { format, addDays } from 'date-fns';
+import { buildBudgetPosSalePayload, createPosSaleFromBudget } from '@/lib/budgetPosSale';
 
 export const BUDGETS_PAGE_SIZE = 20;
 
@@ -670,16 +671,18 @@ export function useBudgets(filters?: BudgetFilters) {
     try {
       const { data: budgetRow, error: loadError } = await supabase
         .from('budgets')
-        .select('products, total, lead_id, client_data, budget_number')
+        .select('products, services, additions, total, lead_id, client_data, budget_number')
         .eq('id', budgetId)
         .eq('organization_id', activeOrgId)
         .single();
       if (loadError) throw loadError;
       const loaded = budgetRow as {
         products?: BudgetProduct[];
+        services?: BudgetService[];
+        additions?: number | null;
         total?: number;
         lead_id?: string | null;
-        client_data?: { name?: string; company?: string } | null;
+        client_data?: { name?: string; company?: string; phone?: string } | null;
         budget_number?: string | null;
       } | null;
       const stockItems = Array.isArray(loaded?.products) ? loaded.products : [];
@@ -712,6 +715,30 @@ export function useBudgets(filters?: BudgetFilters) {
         console.error('Erro ao lançar orçamento no financeiro:', financeError);
       }
 
+      let posSaleError: string | null = null;
+      try {
+        const posPayload = buildBudgetPosSalePayload({
+          budgetId,
+          budgetNumber: loaded?.budget_number,
+          total: loaded?.total,
+          additions: loaded?.additions,
+          leadId: loaded?.lead_id,
+          clientName: loaded?.client_data?.name || loaded?.client_data?.company || null,
+          clientPhone: loaded?.client_data?.phone || null,
+          products: loaded?.products,
+          services: loaded?.services,
+          choice,
+        });
+        if (posPayload) {
+          await createPosSaleFromBudget(activeOrgId, posPayload);
+        } else {
+          console.warn('Orçamento aprovado sem itens para espelhar em pos_sales:', budgetId);
+        }
+      } catch (saleErr) {
+        console.error('Erro ao criar venda PDV do orçamento:', saleErr);
+        posSaleError = saleErr instanceof Error ? saleErr.message : 'Falha ao registrar venda nas margens';
+      }
+
       // Atualizar na lista local
       setBudgets((prev) =>
         prev.map((b) => (b.id === budgetId ? { ...b, approved: true, rejected: false } : b))
@@ -719,14 +746,20 @@ export function useBudgets(filters?: BudgetFilters) {
 
       broadcastRefreshEvent('update', 'budget');
 
+      const hasIssue = Boolean(financeError || posSaleError);
       toast({
-        title: financeError ? 'Orçamento aprovado sem lançamento' : 'Orçamento aprovado',
-        description: financeError
-          ? `Aprovado, mas o financeiro não recebeu o lançamento: ${financeError.message}`
-          : choice.generateFinancial
-            ? 'Lançamento financeiro criado com os dados informados'
-            : 'Aprovado sem lançamento no financeiro',
-        variant: financeError ? 'destructive' : 'default',
+        title: hasIssue ? 'Orçamento aprovado com avisos' : 'Orçamento aprovado',
+        description: [
+          financeError
+            ? `Financeiro: ${financeError.message}`
+            : choice.generateFinancial
+              ? 'Lançamento financeiro criado'
+              : 'Sem lançamento no financeiro',
+          posSaleError
+            ? `Margens/PDV: ${posSaleError}`
+            : 'Venda registrada para margens (origem orçamento)',
+        ].join(' · '),
+        variant: hasIssue ? 'destructive' : 'default',
       });
     } catch (error: any) {
       if (stockApplied) {

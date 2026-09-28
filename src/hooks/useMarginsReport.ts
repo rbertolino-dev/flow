@@ -37,6 +37,7 @@ export function useMarginsReport() {
   const initial = monthRange();
   const [dateFrom, setDateFrom] = useState(initial.from);
   const [dateTo, setDateTo] = useState(initial.to);
+  const [originFilter, setOriginFilter] = useState<"all" | "pdv" | "orcamento" | "importacao">("all");
   const [sales, setSales] = useState<PosSale[]>([]);
   const [loadingSales, setLoadingSales] = useState(true);
 
@@ -96,6 +97,7 @@ export function useMarginsReport() {
           limit: PAGE_SIZE,
           offset: page * PAGE_SIZE,
           include_items: true,
+          origin: originFilter === "all" ? undefined : originFilter,
         });
         all.push(...result.data);
         if (result.data.length < PAGE_SIZE) break;
@@ -112,7 +114,7 @@ export function useMarginsReport() {
     } finally {
       setLoadingSales(false);
     }
-  }, [activeOrgId, dateFrom, dateTo, listSalesDetailed, toast]);
+  }, [activeOrgId, dateFrom, dateTo, originFilter, listSalesDetailed, toast]);
 
   useEffect(() => {
     void loadSales();
@@ -194,6 +196,8 @@ export function useMarginsReport() {
     setDateFrom,
     dateTo,
     setDateTo,
+    originFilter,
+    setOriginFilter,
     loading,
     generalRows,
     serviceRows,

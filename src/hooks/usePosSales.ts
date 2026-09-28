@@ -191,7 +191,10 @@ export function usePosSales() {
   );
 
   const finalizeSale = useCallback(
-    async (payload: FinalizeSalePayload): Promise<FinalizeSaleResult> => {
+    async (
+      payload: FinalizeSalePayload,
+      options?: { silent?: boolean }
+    ): Promise<FinalizeSaleResult> => {
       setLoading(true);
       try {
         const result = await callPos("", {
@@ -199,21 +202,26 @@ export function usePosSales() {
           body: {
             action: "finalize_sale",
             ...payload,
+            sale_origin: payload.sale_origin || "pdv",
             client_request_id: payload.client_request_id || crypto.randomUUID(),
           },
         });
-        toast({
-          title: "Venda finalizada",
-          description: `Venda #${result.data.sale_number} — R$ ${Number(result.data.total).toFixed(2)}`,
-        });
+        if (!options?.silent) {
+          toast({
+            title: "Venda finalizada",
+            description: `Venda #${result.data.sale_number} — R$ ${Number(result.data.total).toFixed(2)}`,
+          });
+        }
         return result.data as FinalizeSaleResult;
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Erro ao finalizar venda";
-        toast({
-          title: "Erro ao finalizar",
-          description: message,
-          variant: "destructive",
-        });
+        if (!options?.silent) {
+          toast({
+            title: "Erro ao finalizar",
+            description: message,
+            variant: "destructive",
+          });
+        }
         throw error;
       } finally {
         setLoading(false);

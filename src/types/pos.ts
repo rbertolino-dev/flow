@@ -75,6 +75,8 @@ export interface PosSaleItem {
   total_price: number;
 }
 
+export type PosSaleOrigin = "pdv" | "orcamento" | "importacao";
+
 export interface PosSale {
   id: string;
   organization_id: string;
@@ -95,6 +97,7 @@ export interface PosSale {
   sold_by_name?: string | null;
   sold_at?: string | null;
   supplier_name?: string | null;
+  sale_origin?: PosSaleOrigin | string | null;
   created_at: string;
   items?: PosSaleItem[];
   payments?: PosSalePayment[];
@@ -371,6 +374,8 @@ export interface FinalizeSalePayload {
   default_commission_type?: "percent" | "fixed";
   default_commission_value?: number;
   client_request_id?: string | null;
+  /** Origem da venda (default no backend: pdv) */
+  sale_origin?: PosSaleOrigin;
 }
 
 export interface FinalizeSaleResult {
