@@ -85,6 +85,8 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
   useEffect(() => {
     fetchPlans();
     fetchCurrentPlan();
+    // fetchPlans/fetchCurrentPlan são estáveis o suficiente para esta tela de detalhe
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organization.id]);
 
   const fetchPlans = async () => {
@@ -97,7 +99,7 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
 
       if (error) throw error;
       setPlans(data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao carregar planos:', error);
     }
   };
@@ -112,7 +114,7 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
 
       if (error && error.code !== 'PGRST116') throw error;
       setCurrentPlanId(data?.plan_id || null);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao carregar plano atual:', error);
     }
   };
@@ -139,11 +141,11 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
         description: "Plano atualizado com sucesso",
       });
       onUpdate();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao atualizar plano:', error);
       toast({
         title: "Erro ao atualizar plano",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
@@ -181,11 +183,11 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
 
       setMemberToRemove(null);
       onUpdate();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao remover membro:", error);
       toast({
         title: "Erro ao remover membro",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
@@ -362,7 +364,7 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
                               className="text-primary hover:text-primary hover:bg-primary/10 w-full sm:w-auto"
                             >
                               <Key className="h-4 w-4 sm:mr-2" />
-                              <span className="hidden sm:inline">Resetar Senha</span>
+                              <span className="hidden sm:inline">Definir senha</span>
                               <span className="sm:hidden">Senha</span>
                             </Button>
                             <Button
