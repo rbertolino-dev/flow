@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useActiveOrganization } from './useActiveOrganization';
-import { Budget, BudgetFormData, BudgetProduct, BudgetService } from '@/types/budget';
+import { Budget, BudgetFinanceChoice, BudgetFormData, BudgetProduct, BudgetService } from '@/types/budget';
+import { formatParcelDescription } from '@/lib/finance';
 import { useToast } from './use-toast';
 import { broadcastRefreshEvent } from '@/utils/forceRefreshAfterMutation';
 // Usar módulo antigo que estava funcionando
@@ -43,6 +44,133 @@ async function callBudgetStock(activeOrgId: string, body: Record<string, unknown
     throw new Error(result.error || 'Não foi possível atualizar o estoque do orçamento');
   }
   return result as { posted?: boolean; already?: boolean; reversed?: boolean };
+}
+
+type FinanceRpc = {
+  rpc: (
+    fn: string,
+    args: Record<string, unknown>
+  ) => Promise<{ data: string | null; error: { message: string } | null }>;
+  from: (table: string) => {
+    update: (values: Record<string, unknown>) => {
+      eq: (column: string, value: string) => {
+        eq: (column: string, value: string) => Promise<{ error: { message: string } | null }>;
+      };
+    };
+  };
+};
+
+async function cancelFinanceSource(client: FinanceRpc, organizationId: string, sourceType: string, sourceId: string) {
+  await client.rpc('cancel_financial_by_source', {
+    p_organization_id: organizationId,
+    p_source_type: sourceType,
+    p_source_id: sourceId,
+  });
+}
+
+async function syncBudgetFinancialEntry(
+  organizationId: string,
+  budgetId: string,
+  choice: BudgetFinanceChoice,
+  budget: {
+    total?: number;
+    lead_id?: string | null;
+    client_data?: { name?: string; company?: string } | null;
+    budget_number?: string | null;
+  } | null
+): Promise<{ message: string } | null> {
+  const client = supabase as unknown as FinanceRpc;
+  await Promise.all([
+    cancelFinanceSource(client, organizationId, 'orcamento', budgetId),
+    cancelFinanceSource(client, organizationId, 'comissao', `orcamento:${budgetId}`),
+    ...Array.from({ length: 24 }, (_, index) =>
+      cancelFinanceSource(client, organizationId, 'orcamento', `${budgetId}:${index}`)
+    ),
+  ]);
+
+  if (!choice.generateFinancial && !choice.addCommission) return null;
+
+  const { data: userData } = await supabase.auth.getUser();
+  const contact = budget?.client_data?.name || budget?.client_data?.company || 'Cliente';
+  const description = choice.saleDescription || `Orçamento ${budget?.budget_number || ''}`.trim();
+  const notes = [choice.receiptDescription, choice.paymentNotes].filter(Boolean).join('\n') || null;
+  const total = Number(budget?.total) || 0;
+  const lines = choice.financeLines.length
+    ? choice.financeLines
+    : [{ amount: total, due_date: choice.dueDate, method: choice.paymentMethod }];
+  const groupId = lines.length > 1 ? crypto.randomUUID() : null;
+
+  if (choice.generateFinancial) {
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
+      if (line.amount <= 0.009) continue;
+      const created = await client.rpc('upsert_financial_entry', {
+        p_organization_id: organizationId,
+        p_direction: 'receber',
+        p_amount: line.amount,
+        p_due_date: line.due_date || choice.dueDate,
+        p_source_type: 'orcamento',
+        p_source_id: lines.length > 1 ? `${budgetId}:${index}` : budgetId,
+        p_status: 'open',
+        p_settlement_status: 'confirmado',
+        p_lead_id: budget?.lead_id || null,
+        p_budget_id: budgetId,
+        p_description: lines.length > 1
+          ? formatParcelDescription(index + 1, lines.length, description)
+          : description,
+        p_contact_name: contact,
+        p_billing_name: contact,
+        p_category: choice.category || 'Vendas',
+        p_account: choice.account,
+        p_origin_label: choice.isRecurring || lines.length > 1 ? 'Recorrente' : 'Orçamento',
+        p_paid_at: null,
+        p_created_by: userData.user?.id || null,
+        p_competence_date: choice.saleDate || choice.dueDate,
+        p_payment_method: line.method || choice.paymentMethod || null,
+        p_is_recurring: choice.isRecurring,
+      });
+      if (created.error) return created.error;
+      const createdId = typeof created.data === 'string' ? created.data : null;
+      if (!createdId) continue;
+      const patched = await client
+        .from('financial_entries')
+        .update({
+          notes,
+          ...(groupId
+            ? { recurrence_group_id: groupId, recurrence_index: index + 1, recurrence_total: lines.length }
+            : {}),
+        })
+        .eq('id', createdId)
+        .eq('organization_id', organizationId);
+      if (patched.error) return patched.error;
+    }
+  }
+
+  if (choice.addCommission && choice.commissionAmount > 0.009) {
+    const commission = await client.rpc('upsert_financial_entry', {
+      p_organization_id: organizationId,
+      p_direction: 'pagar',
+      p_amount: choice.commissionAmount,
+      p_due_date: choice.dueDate || choice.saleDate,
+      p_source_type: 'comissao',
+      p_source_id: `orcamento:${budgetId}`,
+      p_status: 'open',
+      p_settlement_status: 'confirmado',
+      p_lead_id: budget?.lead_id || null,
+      p_budget_id: budgetId,
+      p_description: `Comissão orçamento ${budget?.budget_number || ''}`.trim(),
+      p_contact_name: choice.commissionUserName || 'Vendedor',
+      p_billing_name: choice.commissionUserName || 'Vendedor',
+      p_category: 'Comissão',
+      p_account: choice.account || null,
+      p_origin_label: 'Comissão',
+      p_created_by: userData.user?.id || null,
+      p_competence_date: choice.saleDate || choice.dueDate,
+    });
+    if (commission.error) return commission.error;
+  }
+
+  return null;
 }
 
 export function useBudgets(filters?: BudgetFilters) {
@@ -533,24 +661,32 @@ export function useBudgets(filters?: BudgetFilters) {
     }
   };
 
-  const approveBudget = async (budgetId: string, choice: { received: boolean; date: string; account: string }) => {
+  const approveBudget = async (budgetId: string, choice: BudgetFinanceChoice) => {
     if (!activeOrgId) throw new Error('Organização não encontrada');
-    if (!choice?.date) throw new Error('Informe a data do lançamento');
+    if (choice.generateFinancial && !choice.dueDate) throw new Error('Informe o vencimento do lançamento');
+    if (choice.generateFinancial && !choice.account) throw new Error('Selecione a conta financeira');
 
     let stockApplied = false;
     try {
       const { data: budgetRow, error: loadError } = await supabase
         .from('budgets')
-        .select('products')
+        .select('products, total, lead_id, client_data, budget_number')
         .eq('id', budgetId)
         .eq('organization_id', activeOrgId)
         .single();
       if (loadError) throw loadError;
-      const stockItems = Array.isArray((budgetRow as { products?: BudgetProduct[] } | null)?.products)
-        ? (budgetRow as { products: BudgetProduct[] }).products
-        : [];
-      await callBudgetStock(activeOrgId, { action: 'apply', budget_id: budgetId, items: stockItems });
-      stockApplied = true;
+      const loaded = budgetRow as {
+        products?: BudgetProduct[];
+        total?: number;
+        lead_id?: string | null;
+        client_data?: { name?: string; company?: string } | null;
+        budget_number?: string | null;
+      } | null;
+      const stockItems = Array.isArray(loaded?.products) ? loaded.products : [];
+      if (choice.applyStock) {
+        await callBudgetStock(activeOrgId, { action: 'apply', budget_id: budgetId, items: stockItems });
+        stockApplied = true;
+      }
 
       // @ts-ignore - Tabela budgets existe
       let { error } = await supabase
@@ -571,15 +707,7 @@ export function useBudgets(filters?: BudgetFilters) {
 
       if (error) throw error;
 
-      const { error: financeError } = await (supabase as unknown as {
-        rpc: (fn: string, args: Record<string, string | boolean>) => Promise<{ error: { message: string } | null }>;
-      }).rpc('sync_budget_receivable', {
-        p_organization_id: activeOrgId,
-        p_budget_id: budgetId,
-        p_received: choice.received,
-        p_receive_date: choice.date,
-        p_account: choice.account,
-      });
+      const financeError = await syncBudgetFinancialEntry(activeOrgId, budgetId, choice, loaded);
       if (financeError) {
         console.error('Erro ao lançar orçamento no financeiro:', financeError);
       }
@@ -595,9 +723,9 @@ export function useBudgets(filters?: BudgetFilters) {
         title: financeError ? 'Orçamento aprovado sem lançamento' : 'Orçamento aprovado',
         description: financeError
           ? `Aprovado, mas o financeiro não recebeu o lançamento: ${financeError.message}`
-          : choice.received
-            ? 'Lançado como recebido no financeiro'
-            : 'Lançado em contas a receber',
+          : choice.generateFinancial
+            ? 'Lançamento financeiro criado com os dados informados'
+            : 'Aprovado sem lançamento no financeiro',
         variant: financeError ? 'destructive' : 'default',
       });
     } catch (error: any) {

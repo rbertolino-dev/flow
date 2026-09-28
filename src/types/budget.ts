@@ -86,6 +86,31 @@ export interface Budget {
   };
 }
 
+export interface BudgetFinanceLine {
+  amount: number;
+  due_date: string;
+  method: string;
+}
+
+export interface BudgetFinanceChoice {
+  saleDate: string;
+  saleTime: string;
+  receiptDescription: string;
+  saleDescription: string;
+  applyStock: boolean;
+  generateFinancial: boolean;
+  dueDate: string;
+  account: string;
+  category: string;
+  paymentNotes: string;
+  paymentMethod: string;
+  financeLines: BudgetFinanceLine[];
+  isRecurring: boolean;
+  addCommission: boolean;
+  commissionUserName: string | null;
+  commissionAmount: number;
+}
+
 export interface BudgetPdfOptions {
   budget: Budget;
   backgroundImageUrl?: string;
