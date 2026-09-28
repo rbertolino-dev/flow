@@ -28,9 +28,13 @@ function moneyAmount(value: unknown): number {
   return Math.round(asNumber(value) * 100) / 100;
 }
 
-function wholeQuantity(value: unknown): number {
-  const rounded = Math.round(asNumber(value));
-  return rounded > 0 ? rounded : 1;
+function round2(value: unknown): number {
+  return Math.round(asNumber(value) * 100) / 100;
+}
+
+function quantityAmount(value: unknown): number {
+  const rounded = round2(value);
+  return rounded > 0 ? rounded : 0.01;
 }
 
 function money(value: unknown) {
@@ -134,7 +138,7 @@ export function ServiceOrderProductsStep({
 
     if (existing >= 0) {
       const next = [...items];
-      const qty = wholeQuantity(asNumber(next[existing].quantity) + 1);
+      const qty = quantityAmount(asNumber(next[existing].quantity) + 1);
       const unitPrice = moneyAmount(next[existing].unit_price);
       next[existing] = {
         ...next[existing],
@@ -170,7 +174,7 @@ export function ServiceOrderProductsStep({
     const next = [...items];
     const current = next[index];
     const supply = isSupplyLine(current, products);
-    const qty = supply ? wholeQuantity(quantity) : Math.max(0.001, asNumber(quantity) || 1);
+    const qty = supply ? quantityAmount(quantity) : Math.max(0.001, asNumber(quantity) || 1);
     const unitPrice = moneyAmount(current.unit_price);
     next[index] = {
       ...current,
@@ -339,7 +343,7 @@ export function ServiceOrderProductsStep({
                       <Badge className="ml-2 bg-violet-100 text-violet-700 hover:bg-violet-100">Insumo</Badge>
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {product.unit || 'un'} · Saldo: {Math.round(asNumber(product.stock_quantity))} · Custo: R${' '}
+                      {product.unit || 'un'} · Saldo: {round2(product.stock_quantity).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} · Custo: R${' '}
                       {money(product.cost)}
                     </p>
                   </div>
@@ -356,7 +360,7 @@ export function ServiceOrderProductsStep({
             {supplyItems.map((item) => {
               const idx = items.indexOf(item);
               const catalog = products.find((product) => product.id === item.item_id);
-              const stock = Math.round(asNumber(catalog?.stock_quantity));
+              const stock = round2(catalog?.stock_quantity);
               const overStock = item.quantity > stock;
               return (
                 <div key={`${item.item_id}-${idx}`} className="flex items-center gap-2 rounded-md border p-2">
@@ -366,7 +370,7 @@ export function ServiceOrderProductsStep({
                       <Badge className="ml-2 bg-violet-100 text-violet-700 hover:bg-violet-100">Insumo</Badge>
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {item.unit || catalog?.unit || 'un'} · Saldo: {stock} · Custo: R${' '}
+                      {item.unit || catalog?.unit || 'un'} · Saldo: {stock.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} · Custo: R${' '}
                       {money(item.unit_cost || catalog?.cost)}
                     </p>
                     {overStock && (
@@ -375,11 +379,11 @@ export function ServiceOrderProductsStep({
                   </div>
                   <Input
                     type="number"
-                    min={1}
-                    step={1}
+                    min={0.01}
+                    step={0.01}
                     className="w-20 h-8"
-                    value={wholeQuantity(item.quantity)}
-                    onChange={(e) => updateQty(idx, wholeQuantity(e.target.value))}
+                    value={quantityAmount(item.quantity)}
+                    onChange={(e) => updateQty(idx, quantityAmount(e.target.value))}
                     data-testid={`os-supply-qty-${item.item_id}`}
                   />
                   <Button type="button" size="icon" variant="ghost" onClick={() => removeItem(idx)}>

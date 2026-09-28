@@ -651,7 +651,7 @@ serve(async (req) => {
         const desired = new Map<string, number>();
         for (const item of items) {
           const productId = String(item?.product_id || '');
-          const quantity = Math.round(Number(item?.quantity));
+          const quantity = Math.round(Number(item?.quantity) * 100) / 100;
           if (!productId || !Number.isFinite(quantity) || quantity <= 0) {
             return jsonResponse(400, { error: 'Informe o produto e uma quantidade válida' });
           }
@@ -689,10 +689,10 @@ serve(async (req) => {
           }
           const target = desired.has(productId) ? -Number(desired.get(productId)) : 0;
           const current = netByProduct.get(productId) || 0;
-          const diff = Math.round(target - current);
+          const diff = Math.round((target - current) * 100) / 100;
           if (!diff) continue;
-          const before = Math.round(Number(product.stock_quantity ?? 0));
-          const after = before + diff;
+          const before = Math.round(Number(product.stock_quantity ?? 0) * 100) / 100;
+          const after = Math.round((before + diff) * 100) / 100;
           if (blockStock && after < 0) {
             await client.queryArray('ROLLBACK');
             return jsonResponse(400, { error: `Estoque insuficiente para ${product.name}` });
