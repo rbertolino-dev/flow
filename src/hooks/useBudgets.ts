@@ -11,7 +11,7 @@ import { SupabaseStorageService } from '@/services/contractStorage';
 import { format, addDays } from 'date-fns';
 import { buildBudgetPosSalePayload, createPosSaleFromBudget } from '@/lib/budgetPosSale';
 
-export const BUDGETS_PAGE_SIZE = 20;
+export const BUDGETS_PAGE_SIZE = 15;
 
 interface BudgetFilters {
   lead_id?: string;
