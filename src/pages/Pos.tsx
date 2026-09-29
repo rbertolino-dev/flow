@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useProducts } from "@/hooks/useProducts";
-import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
+import { useWholesalePriceEnabled } from "@/hooks/useWholesalePriceEnabled";
 import { resolveProductUnitPrice, type ProductPriceTier } from "@/lib/productPricing";
 import { useServices } from "@/hooks/useServices";
 import { usePosSales } from "@/hooks/usePosSales";
@@ -103,8 +103,7 @@ export default function Pos() {
   const { toast } = useToast();
   const { activeOrgId, activeOrganization } = useActiveOrganization();
   const { products, loading: productsLoading, refetch: refetchProducts } = useProducts();
-  const { hasFeature } = useOrganizationFeatures();
-  const wholesaleEnabled = hasFeature("product_wholesale_price");
+  const wholesaleEnabled = useWholesalePriceEnabled();
   const [priceTier, setPriceTier] = useState<ProductPriceTier>("retail");
   const { services = [], loading: servicesLoading, refetch: refetchServices } =
     useServices();
@@ -1018,20 +1017,67 @@ export default function Pos() {
               className="flex min-h-0 flex-1 flex-col"
             >
               <div className="border-b px-4 pt-3">
-                <TabsList className="h-auto rounded-full bg-slate-100 p-1">
-                  <TabsTrigger
-                    value="products"
-                    className="rounded-full px-4 py-2 data-[state=active]:bg-blue-700 data-[state=active]:text-white"
-                  >
-                    Produtos
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="services"
-                    className="rounded-full px-4 py-2 data-[state=active]:bg-blue-700 data-[state=active]:text-white"
-                  >
-                    Serviços
-                  </TabsTrigger>
-                </TabsList>
+                {wholesaleEnabled ? (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className={cn(
+                        "rounded-full px-4 py-2 text-sm font-medium transition",
+                        catalogTab === "products" && priceTier === "retail"
+                          ? "bg-blue-700 text-white shadow-sm"
+                          : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+                      )}
+                      onClick={() => {
+                        setCatalogTab("products");
+                        setPriceTier("retail");
+                      }}
+                    >
+                      Produtos Varejo
+                    </button>
+                    <button
+                      type="button"
+                      className={cn(
+                        "rounded-full px-4 py-2 text-sm font-medium transition",
+                        catalogTab === "products" && priceTier === "wholesale"
+                          ? "bg-blue-700 text-white shadow-sm"
+                          : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+                      )}
+                      onClick={() => {
+                        setCatalogTab("products");
+                        setPriceTier("wholesale");
+                      }}
+                    >
+                      Produtos Atacado
+                    </button>
+                    <button
+                      type="button"
+                      className={cn(
+                        "rounded-full px-4 py-2 text-sm font-medium transition",
+                        catalogTab === "services"
+                          ? "bg-blue-700 text-white shadow-sm"
+                          : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+                      )}
+                      onClick={() => setCatalogTab("services")}
+                    >
+                      Serviços
+                    </button>
+                  </div>
+                ) : (
+                  <TabsList className="h-auto rounded-full bg-slate-100 p-1">
+                    <TabsTrigger
+                      value="products"
+                      className="rounded-full px-4 py-2 data-[state=active]:bg-blue-700 data-[state=active]:text-white"
+                    >
+                      Produtos
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="services"
+                      className="rounded-full px-4 py-2 data-[state=active]:bg-blue-700 data-[state=active]:text-white"
+                    >
+                      Serviços
+                    </TabsTrigger>
+                  </TabsList>
+                )}
                 <div className="mt-3 flex flex-wrap items-center gap-2 pb-3">
                   <div className="relative min-w-[200px] flex-1">
                     <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1050,28 +1096,6 @@ export default function Pos() {
                   >
                     Busca Exata
                   </Button>
-                  {wholesaleEnabled && catalogTab === "products" && (
-                    <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={priceTier === "retail" ? "default" : "ghost"}
-                        className="h-8"
-                        onClick={() => setPriceTier("retail")}
-                      >
-                        Varejo
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={priceTier === "wholesale" ? "default" : "ghost"}
-                        className="h-8"
-                        onClick={() => setPriceTier("wholesale")}
-                      >
-                        Atacado
-                      </Button>
-                    </div>
-                  )}
                   <Button
                     type="button"
                     variant="outline"

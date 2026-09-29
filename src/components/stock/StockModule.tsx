@@ -55,7 +55,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatBRL, getStockStatus, stockNumbers, StockStatus } from "@/lib/stockStatus";
-import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
+import { useWholesalePriceEnabled } from "@/hooks/useWholesalePriceEnabled";
 import { todayIsoDate } from "@/lib/finance";
 import { formatNfeDate, NfeInvoice } from "@/lib/nfeXml";
 import { exportShoppingExcel, exportShoppingPdf, ShoppingExportRow } from "@/lib/shoppingListExport";
@@ -141,8 +141,7 @@ function ListPager({
 
 export function StockModule() {
   const { products, loading, refetch } = useProducts();
-  const { hasFeature } = useOrganizationFeatures();
-  const wholesaleEnabled = hasFeature("product_wholesale_price");
+  const wholesaleEnabled = useWholesalePriceEnabled();
   const { listSalesDetailed, cancelSale } = usePosSales();
   const { activeOrgId } = useActiveOrganization();
   const { toast } = useToast();

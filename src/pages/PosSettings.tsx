@@ -675,6 +675,16 @@ export default function PosSettings() {
             </SettingRow>
 
             <SettingRow
+              title="Preço de atacado"
+              description="Libera o campo de preço atacado no cadastro do produto e as abas Produtos Varejo / Produtos Atacado no PDV."
+            >
+              <Switch
+                checked={form.enable_wholesale_price}
+                onCheckedChange={(value) => set("enable_wholesale_price", value)}
+              />
+            </SettingRow>
+
+            <SettingRow
               title="Comissão de Venda Obrigatória"
               description="O PDV exige escolher o colaborador da comissão antes de finalizar."
             >

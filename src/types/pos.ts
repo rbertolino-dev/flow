@@ -192,6 +192,8 @@ export interface PosSettings {
   default_lead_id: string | null;
   default_lead_name: string | null;
   simple_sale: boolean;
+  /** Libera preço de atacado no cadastro e abas Varejo/Atacado no PDV. */
+  enable_wholesale_price: boolean;
   commission_required: boolean;
   show_payment_method: boolean;
   commission_type: PosCommissionType;
@@ -210,6 +212,7 @@ export const DEFAULT_POS_SETTINGS: PosSettings = {
   default_lead_id: null,
   default_lead_name: null,
   simple_sale: false,
+  enable_wholesale_price: false,
   commission_required: false,
   show_payment_method: true,
   commission_type: "percent",
@@ -313,6 +316,7 @@ export function normalizePosSettings(raw?: Partial<PosSettings> | null): PosSett
     default_lead_id: raw?.default_lead_id || null,
     default_lead_name: raw?.default_lead_name || null,
     simple_sale: Boolean(raw?.simple_sale),
+    enable_wholesale_price: Boolean(raw?.enable_wholesale_price),
     commission_required: Boolean(raw?.commission_required),
     show_payment_method: raw?.show_payment_method !== false,
     commission_type: commissionType,

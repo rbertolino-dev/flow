@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CreateProductDialog } from '@/components/shared/CreateProductDialog';
 import { useProducts } from '@/hooks/useProducts';
-import { useOrganizationFeatures } from '@/hooks/useOrganizationFeatures';
+import { useWholesalePriceEnabled } from '@/hooks/useWholesalePriceEnabled';
 import { resolveProductUnitPrice, type ProductPriceTier } from '@/lib/productPricing';
 
 interface ProductSelectorProps {
@@ -27,8 +27,7 @@ export function ProductSelector({ products, selectedProducts, onProductsChange }
   const [priceTier, setPriceTier] = useState<ProductPriceTier>('retail');
   const [createProductDialogOpen, setCreateProductDialogOpen] = useState(false);
   const { refetch: refetchProducts } = useProducts();
-  const { hasFeature } = useOrganizationFeatures();
-  const wholesaleEnabled = hasFeature('product_wholesale_price');
+  const wholesaleEnabled = useWholesalePriceEnabled();
 
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) && p.is_active

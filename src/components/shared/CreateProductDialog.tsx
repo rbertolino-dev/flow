@@ -28,7 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getStockStatus } from "@/lib/stockStatus";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
-import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
+import { useWholesalePriceEnabled } from "@/hooks/useWholesalePriceEnabled";
 import { ImagePlus, Loader2, X } from "lucide-react";
 
 const BUCKET_ID = "whatsapp-workflow-media";
@@ -78,8 +78,7 @@ export function CreateProductDialog({
   initialDraft = null,
 }: CreateProductDialogProps) {
   const { activeOrgId } = useActiveOrganization();
-  const { hasFeature } = useOrganizationFeatures();
-  const wholesaleEnabled = hasFeature("product_wholesale_price");
+  const wholesaleEnabled = useWholesalePriceEnabled();
   const { createProduct, updateProduct, products } = useProducts();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);

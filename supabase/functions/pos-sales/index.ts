@@ -68,6 +68,10 @@ async function ensurePosIntegrity(client: Client) {
   await client.queryArray`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS source TEXT`;
   await client.queryArray`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS budget_id UUID`;
   await client.queryArray`
+    ALTER TABLE pos_settings
+    ADD COLUMN IF NOT EXISTS enable_wholesale_price BOOLEAN NOT NULL DEFAULT false
+  `;
+  await client.queryArray`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_pos_sales_org_request
     ON pos_sales (organization_id, client_request_id)
     WHERE client_request_id IS NOT NULL
@@ -808,9 +812,10 @@ serve(async (req) => {
         const saved = await pg.queryObject`
           INSERT INTO pos_settings (
             organization_id, sale_notes, financial_account, financial_category,
-            default_lead_id, default_lead_name, simple_sale, commission_required,
-            show_payment_method, commission_type, commission_value, stock_code_field,
-            block_out_of_stock, payment_discounts, payment_surcharges, promotions, updated_at
+            default_lead_id, default_lead_name, simple_sale, enable_wholesale_price,
+            commission_required, show_payment_method, commission_type, commission_value,
+            stock_code_field, block_out_of_stock, payment_discounts, payment_surcharges,
+            promotions, updated_at
           ) VALUES (
             ${organizationId},
             ${body.sale_notes || ""},
@@ -819,6 +824,7 @@ serve(async (req) => {
             ${body.default_lead_id || null},
             ${body.default_lead_name || null},
             ${Boolean(body.simple_sale)},
+            ${Boolean(body.enable_wholesale_price)},
             ${Boolean(body.commission_required)},
             ${body.show_payment_method !== false},
             ${commissionType},
@@ -837,6 +843,7 @@ serve(async (req) => {
             default_lead_id = EXCLUDED.default_lead_id,
             default_lead_name = EXCLUDED.default_lead_name,
             simple_sale = EXCLUDED.simple_sale,
+            enable_wholesale_price = EXCLUDED.enable_wholesale_price,
             commission_required = EXCLUDED.commission_required,
             show_payment_method = EXCLUDED.show_payment_method,
             commission_type = EXCLUDED.commission_type,

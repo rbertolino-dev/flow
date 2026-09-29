@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BudgetProduct, BudgetService } from '@/types/budget-module';
 import { Package, Plus, Trash2, Wrench, X, Search, ChevronDown, ChevronUp } from 'lucide-react';
-import { useOrganizationFeatures } from '@/hooks/useOrganizationFeatures';
+import { useWholesalePriceEnabled } from '@/hooks/useWholesalePriceEnabled';
 import { resolveProductUnitPrice, type ProductPriceTier } from '@/lib/productPricing';
 
 export type AvailableBudgetProduct = {
@@ -52,8 +52,7 @@ export function BudgetItemsEditor({
   const [showManualService, setShowManualService] = useState(false);
   const [lastAddedLabel, setLastAddedLabel] = useState('');
   const [priceTier, setPriceTier] = useState<ProductPriceTier>('retail');
-  const { hasFeature } = useOrganizationFeatures();
-  const wholesaleEnabled = hasFeature('product_wholesale_price');
+  const wholesaleEnabled = useWholesalePriceEnabled();
   const productSearchRef = useRef<HTMLDivElement>(null);
   const serviceSearchRef = useRef<HTMLDivElement>(null);
   const productSearchInputRef = useRef<HTMLInputElement>(null);
