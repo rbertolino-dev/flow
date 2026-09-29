@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { useProducts } from "@/hooks/useProducts";
 import { useWholesalePriceEnabled } from "@/hooks/useWholesalePriceEnabled";
-import { resolveProductUnitPrice, type ProductPriceTier } from "@/lib/productPricing";
+import { resolveProductUnitPrice, productHasWholesalePrice, type ProductPriceTier } from "@/lib/productPricing";
 import { useServices } from "@/hooks/useServices";
 import { usePosSales } from "@/hooks/usePosSales";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
@@ -300,6 +300,7 @@ export default function Pos() {
   const filteredProducts = useMemo(() => {
     const active = products.filter((p) => {
       if (!p.is_active) return false;
+      if (wholesaleEnabled && priceTier === "wholesale" && !productHasWholesalePrice(p)) return false;
       if (catalogCategory && (p.category || "").trim() !== catalogCategory) return false;
       if (!posSettings.block_out_of_stock) return true;
       return Number(p.stock_quantity ?? 0) > 0;
@@ -323,7 +324,17 @@ export default function Pos() {
       }
       return hay.includes(q);
     });
-  }, [products, search, exactSearch, barcodeMode, scannedIds, posSettings.block_out_of_stock, catalogCategory]);
+  }, [
+    products,
+    search,
+    exactSearch,
+    barcodeMode,
+    scannedIds,
+    posSettings.block_out_of_stock,
+    catalogCategory,
+    wholesaleEnabled,
+    priceTier,
+  ]);
 
   const filteredServices = useMemo(() => {
     const active = services.filter((s) => s.is_active);
@@ -1168,7 +1179,9 @@ export default function Pos() {
                   <p className="p-6 text-sm text-muted-foreground">
                     {barcodeMode
                       ? "Modo código de barras ativo. Bipe um produto para ele aparecer aqui."
-                      : "Nenhum produto encontrado."}
+                      : wholesaleEnabled && priceTier === "wholesale"
+                        ? "Nenhum produto com preço de atacado cadastrado (maior que zero)."
+                        : "Nenhum produto encontrado."}
                   </p>
                 ) : (
                   <ul data-pos-catalog="products">
