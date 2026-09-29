@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CreateProductDialog } from '@/components/shared/CreateProductDialog';
 import { useProducts } from '@/hooks/useProducts';
+import { useOrganizationFeatures } from '@/hooks/useOrganizationFeatures';
+import { resolveProductUnitPrice, type ProductPriceTier } from '@/lib/productPricing';
 
 interface ProductSelectorProps {
   products: Product[];
@@ -22,8 +24,11 @@ export function ProductSelector({ products, selectedProducts, onProductsChange }
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [quantity, setQuantity] = useState<number>(1);
   const [customPrice, setCustomPrice] = useState<string>('');
+  const [priceTier, setPriceTier] = useState<ProductPriceTier>('retail');
   const [createProductDialogOpen, setCreateProductDialogOpen] = useState(false);
   const { refetch: refetchProducts } = useProducts();
+  const { hasFeature } = useOrganizationFeatures();
+  const wholesaleEnabled = hasFeature('product_wholesale_price');
 
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) && p.is_active
@@ -35,7 +40,10 @@ export function ProductSelector({ products, selectedProducts, onProductsChange }
     const product = products.find((p) => p.id === selectedProductId);
     if (!product) return;
 
-    const price = customPrice ? parseFloat(customPrice) : product.price;
+    const tier = wholesaleEnabled ? priceTier : 'retail';
+    const price = customPrice
+      ? parseFloat(customPrice)
+      : resolveProductUnitPrice(product, tier);
     const qty = quantity || 1;
     const subtotal = price * qty;
 
@@ -118,7 +126,11 @@ export function ProductSelector({ products, selectedProducts, onProductsChange }
               <SelectContent>
                 {filteredProducts.map((product) => (
                   <SelectItem key={product.id} value={product.id} className="text-base py-3">
-                    {product.name} - {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)}
+                    {product.name} — varejo{' '}
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)}
+                    {wholesaleEnabled && product.wholesale_price != null
+                      ? ` · atacado ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(product.wholesale_price))}`
+                      : ''}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -126,6 +138,18 @@ export function ProductSelector({ products, selectedProducts, onProductsChange }
 
             {selectedProductId && (
               <div className="grid grid-cols-3 gap-3 p-4 bg-muted/30 rounded-lg border-2 border-dashed">
+                {wholesaleEnabled && (
+                  <div className="space-y-2 col-span-3 sm:col-span-1">
+                    <Label className="text-sm font-semibold">Tipo de preço</Label>
+                    <Select value={priceTier} onValueChange={(v) => setPriceTier(v as ProductPriceTier)}>
+                      <SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="retail">Varejo</SelectItem>
+                        <SelectItem value="wholesale">Atacado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold">Quantidade</Label>
                   <Input

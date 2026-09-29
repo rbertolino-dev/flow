@@ -12,6 +12,8 @@ export interface PosCartItem {
   unit_price: number;
   discount_amount: number;
   stock_quantity?: number | null;
+  /** Quando a org tem preço de atacado: varejo | atacado. */
+  price_tier?: "retail" | "wholesale";
 }
 
 export interface PosPaymentLine {

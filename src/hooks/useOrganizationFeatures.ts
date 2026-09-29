@@ -29,6 +29,7 @@ export const AVAILABLE_FEATURES = [
   { value: 'pos', label: 'PDV', description: 'Ponto de venda com estoque e histórico' },
   { value: 'service_orders', label: 'Ordem de Serviço', description: 'Ordens de serviço com modelos e produtos' },
   { value: 'service_orders_optical', label: 'OS de ótica', description: 'Modelo de ótica com tabela e PDF em 3 vias. Vale só para esta empresa quando habilitado aqui.' },
+  { value: 'product_wholesale_price', label: 'Preço de atacado', description: 'Cadastro de preço varejo e atacado no estoque, com escolha na venda (PDV e orçamento). Só liga se habilitar na empresa ou no plano.' },
   { value: 'finance', label: 'Financeiro', description: 'Contas a receber, contas a pagar e relatórios' },
   { value: 'employees', label: 'Colaboradores', description: 'Gerenciamento de colaboradores' },
   { value: 'landing_page', label: 'Landing Page', description: 'Página pública de vendas com produtos e WhatsApp' },
@@ -38,7 +39,7 @@ export const AVAILABLE_FEATURES = [
 export type FeatureKey = typeof AVAILABLE_FEATURES[number]['value'];
 
 /** Não entra no trial nem em empresa nova. Só liga se o super admin habilitar na empresa ou no plano. */
-export const EXPLICIT_ORG_FEATURES = new Set<FeatureKey>(['service_orders_optical']);
+export const EXPLICIT_ORG_FEATURES = new Set<FeatureKey>(['service_orders_optical', 'product_wholesale_price']);
 
 export function isFeatureReleasedForOrg(input: {
   feature: string;

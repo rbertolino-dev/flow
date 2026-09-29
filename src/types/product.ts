@@ -5,6 +5,8 @@ export interface Product {
   name: string;
   description?: string | null;
   price: number;
+  /** Preço de atacado (opcional; feature product_wholesale_price). */
+  wholesale_price?: number | null;
   cost?: number | null;
   category: string;
   sku?: string | null;
@@ -31,6 +33,8 @@ export interface ProductFormData {
   name: string;
   description?: string | null;
   price: number;
+  /** Preço de atacado (opcional; feature product_wholesale_price). */
+  wholesale_price?: number | null;
   cost?: number | null;
   category: string;
   sku?: string | null;

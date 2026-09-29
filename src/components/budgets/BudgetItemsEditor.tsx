@@ -3,13 +3,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BudgetProduct, BudgetService } from '@/types/budget-module';
 import { Package, Plus, Trash2, Wrench, X, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { useOrganizationFeatures } from '@/hooks/useOrganizationFeatures';
+import { resolveProductUnitPrice, type ProductPriceTier } from '@/lib/productPricing';
 
 export type AvailableBudgetProduct = {
   id: string;
   name: string;
   price: number;
+  wholesale_price?: number | null;
   description?: string;
   sku?: string | null;
   barcode?: string | null;
@@ -47,6 +51,9 @@ export function BudgetItemsEditor({
   const [showManualProduct, setShowManualProduct] = useState(false);
   const [showManualService, setShowManualService] = useState(false);
   const [lastAddedLabel, setLastAddedLabel] = useState('');
+  const [priceTier, setPriceTier] = useState<ProductPriceTier>('retail');
+  const { hasFeature } = useOrganizationFeatures();
+  const wholesaleEnabled = hasFeature('product_wholesale_price');
   const productSearchRef = useRef<HTMLDivElement>(null);
   const serviceSearchRef = useRef<HTMLDivElement>(null);
   const productSearchInputRef = useRef<HTMLInputElement>(null);
@@ -104,6 +111,8 @@ export function BudgetItemsEditor({
 
   const addProductFromCatalog = (product: AvailableBudgetProduct, quantity = 1) => {
     const qty = Math.max(0.01, quantity);
+    const tier = wholesaleEnabled ? priceTier : 'retail';
+    const unitPrice = resolveProductUnitPrice(product, tier);
     const existingIndex = products.findIndex((item) => item.id === product.id && !item.isManual);
     if (existingIndex >= 0) {
       const next = [...products];
@@ -120,9 +129,9 @@ export function BudgetItemsEditor({
           id: product.id,
           name: product.name,
           description: product.description,
-          price: product.price,
+          price: unitPrice,
           quantity: qty,
-          subtotal: product.price * qty,
+          subtotal: unitPrice * qty,
         },
       ]);
     }
@@ -306,41 +315,67 @@ export function BudgetItemsEditor({
 
           {availableProducts.length > 0 && (
             <div className="space-y-1" ref={productSearchRef}>
-              <Label>Buscar no catálogo</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  ref={productSearchInputRef}
-                  value={productSearchQuery}
-                  onChange={(event) => {
-                    setProductSearchQuery(event.target.value);
-                    setShowProductResults(true);
-                  }}
-                  onFocus={() => setShowProductResults(true)}
-                  placeholder="Digite e clique para incluir"
-                  className="pl-10"
-                  autoFocus
-                />
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="min-w-[12rem] flex-1 space-y-1">
+                  <Label>Buscar no catálogo</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      ref={productSearchInputRef}
+                      value={productSearchQuery}
+                      onChange={(event) => {
+                        setProductSearchQuery(event.target.value);
+                        setShowProductResults(true);
+                      }}
+                      onFocus={() => setShowProductResults(true)}
+                      placeholder="Digite e clique para incluir"
+                      className="pl-10"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                {wholesaleEnabled && (
+                  <div className="w-36 space-y-1">
+                    <Label>Tipo de preço</Label>
+                    <Select value={priceTier} onValueChange={(v) => setPriceTier(v as ProductPriceTier)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="retail">Varejo</SelectItem>
+                        <SelectItem value="wholesale">Atacado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
               {showProductResults && productSearchQuery && (
                 <div className="max-h-48 overflow-y-auto rounded-lg border bg-background shadow-md">
                   {filteredProducts.length > 0 ? (
-                    filteredProducts.map((product) => (
-                      <button
-                        key={product.id}
-                        type="button"
-                        className="flex w-full items-start justify-between gap-3 border-b px-3 py-2.5 text-left last:border-b-0 hover:bg-muted"
-                        onClick={() => addProductFromCatalog(product, 1)}
-                      >
-                        <span>
-                          <span className="block text-sm font-medium">{product.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {formatCurrency(product.price)} · clique para incluir
+                    filteredProducts.map((product) => {
+                      const displayPrice = resolveProductUnitPrice(
+                        product,
+                        wholesaleEnabled ? priceTier : 'retail'
+                      );
+                      return (
+                        <button
+                          key={product.id}
+                          type="button"
+                          className="flex w-full items-start justify-between gap-3 border-b px-3 py-2.5 text-left last:border-b-0 hover:bg-muted"
+                          onClick={() => addProductFromCatalog(product, 1)}
+                        >
+                          <span>
+                            <span className="block text-sm font-medium">{product.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatCurrency(displayPrice)}
+                              {wholesaleEnabled && priceTier === 'wholesale' ? ' (atacado)' : ''}
+                              {' · clique para incluir'}
+                            </span>
                           </span>
-                        </span>
-                        <Plus className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
-                      </button>
-                    ))
+                          <Plus className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+                        </button>
+                      );
+                    })
                   ) : (
                     <div className="px-3 py-4 text-center text-sm text-muted-foreground">
                       Nenhum produto encontrado

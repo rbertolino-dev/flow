@@ -15,6 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useProducts } from "@/hooks/useProducts";
+import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
+import { resolveProductUnitPrice, type ProductPriceTier } from "@/lib/productPricing";
 import { useServices } from "@/hooks/useServices";
 import { usePosSales } from "@/hooks/usePosSales";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
@@ -101,6 +103,9 @@ export default function Pos() {
   const { toast } = useToast();
   const { activeOrgId, activeOrganization } = useActiveOrganization();
   const { products, loading: productsLoading, refetch: refetchProducts } = useProducts();
+  const { hasFeature } = useOrganizationFeatures();
+  const wholesaleEnabled = hasFeature("product_wholesale_price");
+  const [priceTier, setPriceTier] = useState<ProductPriceTier>("retail");
   const { services = [], loading: servicesLoading, refetch: refetchServices } =
     useServices();
   const { loading: posLoading, finalizeSale, getOpenCashSession, openCash, getPosSettings } =
@@ -392,8 +397,12 @@ export default function Pos() {
   const addProductToCart = (productId: string) => {
     const product = products.find((p) => p.id === productId);
     if (!product) return;
+    const tier: ProductPriceTier =
+      wholesaleEnabled && priceTier === "wholesale" ? "wholesale" : "retail";
+    const unitPrice = resolveProductUnitPrice(product, tier);
+    const lineKey = `product-${product.id}-${tier}`;
     setCart((prev) => {
-      const existing = prev.find((i) => i.item_type === "product" && i.item_id === product.id);
+      const existing = prev.find((i) => i.key === lineKey);
       if (existing) {
         return prev.map((i) =>
           i.key === existing.key ? { ...i, quantity: i.quantity + 1 } : i
@@ -402,17 +411,18 @@ export default function Pos() {
       return [
         ...prev,
         {
-          key: `product-${product.id}`,
+          key: lineKey,
           item_type: "product",
           item_id: product.id,
           name: product.name,
           sku: product.sku,
           unit: product.unit || "un",
           quantity: 1,
-          unit_price: Number(product.price),
+          unit_price: unitPrice,
           category: product.category || null,
           discount_amount: 0,
           stock_quantity: product.stock_quantity,
+          price_tier: tier,
         },
       ];
     });
@@ -425,10 +435,15 @@ export default function Pos() {
     unit?: string | null;
     category?: string | null;
     price: number;
+    wholesale_price?: number | null;
     stock_quantity?: number | null;
   }) => {
+    const tier: ProductPriceTier =
+      wholesaleEnabled && priceTier === "wholesale" ? "wholesale" : "retail";
+    const unitPrice = resolveProductUnitPrice(product, tier);
+    const lineKey = `product-${product.id}-${tier}`;
     setCart((prev) => {
-      const existing = prev.find((i) => i.item_type === "product" && i.item_id === product.id);
+      const existing = prev.find((i) => i.key === lineKey);
       if (existing) {
         return prev.map((i) =>
           i.key === existing.key ? { ...i, quantity: i.quantity + 1 } : i
@@ -437,7 +452,7 @@ export default function Pos() {
       return [
         ...prev,
         {
-          key: `product-${product.id}`,
+          key: lineKey,
           item_type: "product" as const,
           item_id: product.id,
           name: product.name,
@@ -445,9 +460,10 @@ export default function Pos() {
           unit: product.unit || "un",
           category: product.category || null,
           quantity: 1,
-          unit_price: Number(product.price),
+          unit_price: unitPrice,
           discount_amount: 0,
           stock_quantity: product.stock_quantity,
+          price_tier: tier,
         },
       ];
     });
@@ -1034,6 +1050,28 @@ export default function Pos() {
                   >
                     Busca Exata
                   </Button>
+                  {wholesaleEnabled && catalogTab === "products" && (
+                    <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={priceTier === "retail" ? "default" : "ghost"}
+                        className="h-8"
+                        onClick={() => setPriceTier("retail")}
+                      >
+                        Varejo
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={priceTier === "wholesale" ? "default" : "ghost"}
+                        className="h-8"
+                        onClick={() => setPriceTier("wholesale")}
+                      >
+                        Atacado
+                      </Button>
+                    </div>
+                  )}
                   <Button
                     type="button"
                     variant="outline"
@@ -1145,7 +1183,8 @@ export default function Pos() {
                             </p>
                           </div>
                           <p className="shrink-0 text-sm font-medium text-slate-500">
-                            {formatMoney(Number(p.price))} {p.unit || "Un"}
+                            {formatMoney(resolveProductUnitPrice(p, wholesaleEnabled ? priceTier : "retail"))}{" "}
+                            {p.unit || "Un"}
                           </p>
                         </button>
                       </li>
@@ -1265,6 +1304,11 @@ export default function Pos() {
                               {" "}
                               - {item.unit || "Un"}
                             </span>
+                            {item.price_tier === "wholesale" && (
+                              <span className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-violet-700">
+                                Atacado
+                              </span>
+                            )}
                           </p>
                           <div className="flex shrink-0 items-center gap-2.5">
                             <span className="text-base font-bold tabular-nums text-slate-900">

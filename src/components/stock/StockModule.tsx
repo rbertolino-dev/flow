@@ -55,6 +55,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatBRL, getStockStatus, stockNumbers, StockStatus } from "@/lib/stockStatus";
+import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
 import { todayIsoDate } from "@/lib/finance";
 import { formatNfeDate, NfeInvoice } from "@/lib/nfeXml";
 import { exportShoppingExcel, exportShoppingPdf, ShoppingExportRow } from "@/lib/shoppingListExport";
@@ -140,6 +141,8 @@ function ListPager({
 
 export function StockModule() {
   const { products, loading, refetch } = useProducts();
+  const { hasFeature } = useOrganizationFeatures();
+  const wholesaleEnabled = hasFeature("product_wholesale_price");
   const { listSalesDetailed, cancelSale } = usePosSales();
   const { activeOrgId } = useActiveOrganization();
   const { toast } = useToast();
@@ -755,7 +758,12 @@ export function StockModule() {
                       <TableHead className="text-slate-600">Custo Unit</TableHead>
                       <TableHead className="text-slate-600">Total $ (custo)</TableHead>
                       <TableHead className="text-blue-700/80">Total $ (venda)</TableHead>
-                      <TableHead className="text-emerald-700/80">Preços de venda</TableHead>
+                      <TableHead className="text-emerald-700/80">
+                        {wholesaleEnabled ? "Preço varejo" : "Preços de venda"}
+                      </TableHead>
+                      {wholesaleEnabled && (
+                        <TableHead className="text-violet-700/80">Preço atacado</TableHead>
+                      )}
                       <TableHead className="text-slate-600">Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -818,6 +826,11 @@ export function StockModule() {
                           <TableCell className={cn("font-medium", costTotal < 0 ? "text-rose-600" : "text-slate-800")}>{formatBRL(costTotal)}</TableCell>
                           <TableCell className={cn("font-medium", saleTotal < 0 ? "text-rose-600" : "text-blue-700")}>{formatBRL(saleTotal)}</TableCell>
                           <TableCell className="font-medium text-emerald-700">{formatBRL(price)}</TableCell>
+                          {wholesaleEnabled && (
+                            <TableCell className="font-medium text-violet-700">
+                              {product.wholesale_price != null ? formatBRL(Number(product.wholesale_price)) : "—"}
+                            </TableCell>
+                          )}
                           <TableCell>
                             <StatusBadge status={status} />
                           </TableCell>
@@ -826,7 +839,7 @@ export function StockModule() {
                     })}
                     {!filtered.length && (
                       <TableRow>
-                        <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">
+                        <TableCell colSpan={wholesaleEnabled ? 12 : 11} className="py-8 text-center text-muted-foreground">
                           Nenhum produto encontrado. O cadastro usa os produtos já existentes no CRM.
                         </TableCell>
                       </TableRow>

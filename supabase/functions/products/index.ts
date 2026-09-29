@@ -17,6 +17,7 @@ interface Product {
   sku?: string | null;
   barcode?: string | null;
   price: number;
+  wholesale_price?: number | null;
   cost?: number | null;
   category?: string | null;
   is_active: boolean;
@@ -200,6 +201,7 @@ async function ensureStockSchema(client: any) {
   `);
   await client.queryArray(`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS source TEXT`);
   await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_supply BOOLEAN NOT NULL DEFAULT false`);
+  await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS wholesale_price NUMERIC(12,2)`);
   await client.queryArray(`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS budget_id UUID`);
   await client.queryArray(`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS service_order_id UUID`);
   await client.queryArray(`ALTER TABLE pos_sales ADD COLUMN IF NOT EXISTS client_request_id TEXT`);
@@ -241,7 +243,7 @@ async function ensureStockSchema(client: any) {
 }
 
 const CATALOG_FIELDS = [
-  'name', 'description', 'sku', 'barcode', 'price', 'cost', 'category',
+  'name', 'description', 'sku', 'barcode', 'price', 'wholesale_price', 'cost', 'category',
   'brand', 'unit', 'min_stock', 'ideal_stock', 'is_active', 'is_supply',
 ];
 
@@ -1050,6 +1052,7 @@ serve(async (req) => {
             sku,
             barcode,
             price,
+            wholesale_price,
             cost,
             category,
             is_active,
@@ -1065,9 +1068,21 @@ serve(async (req) => {
             created_by_name,
             is_supply
           ) VALUES (
-            $1, $2, $3, $4, $5, $20, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $21
+            $1, $2, $3, $4, $5, $20, $6, $22, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $21
           ) RETURNING *
         `;
+
+        const wholesaleRaw = body.wholesale_price;
+        const wholesalePrice =
+          wholesaleRaw === undefined || wholesaleRaw === null || wholesaleRaw === ''
+            ? null
+            : Number(wholesaleRaw);
+        if (wholesalePrice !== null && (!Number.isFinite(wholesalePrice) || wholesalePrice < 0)) {
+          return new Response(
+            JSON.stringify({ error: 'Preço de atacado inválido' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
 
         const insertParams = [
           organizationId,
@@ -1091,6 +1106,7 @@ serve(async (req) => {
           userName,
           barcode || null,
           body.is_supply === true,
+          wholesalePrice,
         ];
 
         const result = await client.queryObject<Product>(insertQuery, insertParams);
@@ -1209,16 +1225,30 @@ serve(async (req) => {
           return new Response(JSON.stringify({ error: 'Quantidade de estoque inválida' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
         const allowedFields = [
-          'name', 'description', 'sku', 'barcode', 'price', 'cost', 'category',
+          'name', 'description', 'sku', 'barcode', 'price', 'wholesale_price', 'cost', 'category',
           'is_active', 'min_stock', 'ideal_stock', 'brand', 'unit', 'image_url',
           'commission_percentage', 'commission_fixed'
         ];
 
         for (const field of allowedFields) {
           if (body[field] !== undefined) {
+            let value = body[field];
+            if (field === 'wholesale_price') {
+              if (value === '' || value === null) {
+                value = null;
+              } else {
+                value = Number(value);
+                if (!Number.isFinite(value) || value < 0) {
+                  return new Response(
+                    JSON.stringify({ error: 'Preço de atacado inválido' }),
+                    { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                  );
+                }
+              }
+            }
             paramCount++;
             updateFields.push(`${field} = $${paramCount}`);
-            updateParams.push(body[field]);
+            updateParams.push(value);
           }
         }
         if (body.is_supply !== undefined) {

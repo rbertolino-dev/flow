@@ -78,6 +78,7 @@ export function useProducts(options?: { enabled?: boolean }) {
         name: item.name,
         description: item.description,
         price: item.price,
+        wholesale_price: item.wholesale_price != null ? Number(item.wholesale_price) : null,
         cost: item.cost,
         category: item.category,
         sku: item.sku,

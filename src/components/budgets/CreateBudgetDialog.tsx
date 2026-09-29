@@ -361,6 +361,7 @@ export function CreateBudgetDialog({
     id: product.id,
     name: product.name,
     price: product.price,
+    wholesale_price: product.wholesale_price ?? null,
     description: product.description || undefined,
     sku: product.sku,
     barcode: product.barcode,

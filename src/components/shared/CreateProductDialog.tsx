@@ -28,6 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getStockStatus } from "@/lib/stockStatus";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
+import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
 import { ImagePlus, Loader2, X } from "lucide-react";
 
 const BUCKET_ID = "whatsapp-workflow-media";
@@ -56,6 +57,7 @@ const emptyForm = {
   brand: "",
   cost: "",
   price: "",
+  wholesale_price: "",
   min_stock: "",
   ideal_stock: "",
   stock_quantity: "",
@@ -76,6 +78,8 @@ export function CreateProductDialog({
   initialDraft = null,
 }: CreateProductDialogProps) {
   const { activeOrgId } = useActiveOrganization();
+  const { hasFeature } = useOrganizationFeatures();
+  const wholesaleEnabled = hasFeature("product_wholesale_price");
   const { createProduct, updateProduct, products } = useProducts();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -110,6 +114,7 @@ export function CreateProductDialog({
         brand: product.brand || "",
         cost: product.cost != null ? String(product.cost) : "",
         price: String(product.price ?? 0),
+        wholesale_price: product.wholesale_price != null ? String(product.wholesale_price) : "",
         min_stock: product.min_stock != null ? String(product.min_stock) : "",
         ideal_stock: product.ideal_stock != null ? String(product.ideal_stock) : "",
         stock_quantity: product.stock_quantity != null ? String(product.stock_quantity) : "0",
@@ -181,6 +186,12 @@ export function CreateProductDialog({
       name: form.name.trim(),
       description: form.description.trim() || null,
       price: Number(form.price) || 0,
+      wholesale_price:
+        wholesaleEnabled && form.wholesale_price !== ""
+          ? Number(form.wholesale_price)
+          : wholesaleEnabled
+            ? null
+            : undefined,
       cost: form.cost === "" ? null : Number(form.cost),
       category: form.category.trim() || defaultCategory || "Geral",
       sku: form.sku.trim() || null,
@@ -327,21 +338,40 @@ export function CreateProductDialog({
 
           <section className="grid gap-3 md:grid-cols-2">
             <Field
-              label="Preço de venda"
+              label={wholesaleEnabled ? "Preço varejo" : "Preço de venda"}
               type="number"
               required
-              hint="Valor usado no PDV e nos orçamentos."
+              hint={wholesaleEnabled ? "Preço de venda no varejo (PDV e orçamento)." : "Valor usado no PDV e nos orçamentos."}
               value={form.price}
               error={formAttempted ? formErrors.price : undefined}
               onChange={(value) => setForm({ ...form, price: value })}
             />
-            <Field
-              label="Custo unitário"
-              type="number"
-              hint="Opcional. Entra no custo em estoque."
-              value={form.cost}
-              onChange={(value) => setForm({ ...form, cost: value })}
-            />
+            {wholesaleEnabled ? (
+              <Field
+                label="Preço atacado"
+                type="number"
+                hint="Opcional. Usado na venda quando escolher atacado."
+                value={form.wholesale_price}
+                onChange={(value) => setForm({ ...form, wholesale_price: value })}
+              />
+            ) : (
+              <Field
+                label="Custo unitário"
+                type="number"
+                hint="Opcional. Entra no custo em estoque."
+                value={form.cost}
+                onChange={(value) => setForm({ ...form, cost: value })}
+              />
+            )}
+            {wholesaleEnabled && (
+              <Field
+                label="Custo unitário"
+                type="number"
+                hint="Opcional. Entra no custo em estoque."
+                value={form.cost}
+                onChange={(value) => setForm({ ...form, cost: value })}
+              />
+            )}
           </section>
 
           <section className="grid gap-3 border-t bg-white pt-4 md:grid-cols-2">
