@@ -11,10 +11,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Unlock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { unstuckEvolutionInstance } from "@/lib/unstuckEvolutionInstance";
-import {
-  extractConnectionState,
-  fetchEvolutionConnectionStateByConfigId,
-} from "@/lib/evolutionStatus";
+import { extractConnectionState } from "@/lib/evolutionStatus";
+import { fetchEvolutionConnectionStateByConfigId } from "@/lib/evolutionConnectionStateProxy";
 
 type UnstuckInstance = {
   id: string;
