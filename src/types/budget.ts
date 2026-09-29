@@ -107,6 +107,7 @@ export interface BudgetFinanceChoice {
   financeLines: BudgetFinanceLine[];
   isRecurring: boolean;
   addCommission: boolean;
+  commissionUserId: string | null;
   commissionUserName: string | null;
   commissionAmount: number;
 }

@@ -117,7 +117,13 @@ export function buildBudgetPosSalePayload(input: {
     payment_date: saleDate,
     apply_stock: false,
     generate_financial: false,
-    add_commission: false,
+    add_commission: Boolean(
+      input.choice.addCommission &&
+        Number(input.choice.commissionAmount) > 0.009 &&
+        input.choice.commissionUserId,
+    ),
+    commission_user_id: input.choice.commissionUserId || null,
+    commission_user_name: input.choice.commissionUserName || null,
     sale_origin: "orcamento",
     client_request_id: budgetPosSaleRequestId(input.budgetId),
     financial_account: input.choice.account || null,

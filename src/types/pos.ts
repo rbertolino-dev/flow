@@ -93,6 +93,8 @@ export interface PosSale {
   notes?: string | null;
   add_commission: boolean;
   commission_amount: number;
+  commission_user_id?: string | null;
+  commission_user_name?: string | null;
   sold_by?: string | null;
   sold_by_name?: string | null;
   sold_at?: string | null;

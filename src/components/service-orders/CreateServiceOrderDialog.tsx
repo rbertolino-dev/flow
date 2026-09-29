@@ -906,6 +906,50 @@ export function CreateServiceOrderDialog({
               onChange={setItems}
               orderCode={nextCode}
             />
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <Label htmlFor="os-has-commission" className="text-sm font-medium">
+                    Tem comissão
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Vinculada ao colaborador (ou responsável) da OS.
+                  </p>
+                </div>
+                <Switch
+                  id="os-has-commission"
+                  checked={Boolean(form.has_commission)}
+                  onCheckedChange={(checked) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      has_commission: checked,
+                      commission_value: checked ? prev.commission_value || 0 : 0,
+                    }))
+                  }
+                />
+              </div>
+              {form.has_commission ? (
+                <div className="space-y-1 max-w-xs">
+                  <Label htmlFor="os-commission-value">Valor da comissão (R$)</Label>
+                  <Input
+                    id="os-commission-value"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={form.commission_value ?? ''}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        commission_value: Math.max(0, Number(e.target.value) || 0),
+                      }))
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Usuário: {form.collaborator_name || form.responsible_name || 'defina colaborador/responsável no passo 1'}
+                  </p>
+                </div>
+              ) : null}
+            </div>
             <div className="flex justify-between pt-2">
               <Button variant="outline" onClick={() => setStep(1)}>
                 Voltar

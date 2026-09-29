@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Package, Percent } from "lucide-react";
+import { Package, Percent, Wallet } from "lucide-react";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { ReportsSubnav } from "@/components/reports/ReportsSubnav";
 
@@ -9,6 +9,12 @@ const REPORTS = [
     title: "Margens",
     description: "Lucro por venda, serviço e produto no período.",
     icon: Percent,
+  },
+  {
+    to: "/relatorios/comissoes",
+    title: "Comissões",
+    description: "Comissões de vendas (PDV/orçamento) e ordens de serviço.",
+    icon: Wallet,
   },
 ];
 

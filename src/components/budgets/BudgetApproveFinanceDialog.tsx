@@ -578,6 +578,7 @@ export function BudgetApproveFinanceDialog({
                 financeLines: splitRecurrence && generateFinancial ? financeLines : [],
                 isRecurring: splitRecurrence && generateFinancial && splitMode === 'recorrencia',
                 addCommission,
+                commissionUserId: addCommission ? (commissionUserId || null) : null,
                 commissionUserName: addCommission ? (commissionUser?.full_name || commissionUser?.email || null) : null,
                 commissionAmount: addCommission ? commissionAmount : 0,
               })}
