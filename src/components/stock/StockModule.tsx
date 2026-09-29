@@ -460,6 +460,11 @@ export function StockModule() {
     });
   };
 
+  const inactiveCount = useMemo(
+    () => products.filter((product) => product.is_active === false).length,
+    [products]
+  );
+
   const selectedActiveCount = useMemo(
     () =>
       products.filter((product) => selectedLabelIds.has(product.id) && product.is_active !== false).length,
@@ -731,11 +736,33 @@ export function StockModule() {
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                   <Package className="h-5 w-5" />
                 </span>
-                Produtos
+                {activeFilter === "inactive" ? "Produtos inativados" : "Produtos"}
               </h2>
-              <Button className="rounded-full bg-blue-600 shadow-sm hover:bg-blue-700" onClick={openCreate}>
-                <Plus className="mr-2 h-4 w-4" /> Cadastrar produto
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant={activeFilter === "inactive" ? "default" : "outline"}
+                  className={cn(
+                    "rounded-full",
+                    activeFilter === "inactive"
+                      ? "bg-slate-800 text-white hover:bg-slate-900"
+                      : "border-slate-300 text-slate-700"
+                  )}
+                  onClick={() =>
+                    setActiveFilter((current) => (current === "inactive" ? "active" : "inactive"))
+                  }
+                >
+                  <Ban className="mr-2 h-4 w-4" />
+                  {activeFilter === "inactive"
+                    ? "Voltar aos ativos"
+                    : `Inativados${inactiveCount > 0 ? ` (${inactiveCount})` : ""}`}
+                </Button>
+                {activeFilter !== "inactive" && (
+                  <Button className="rounded-full bg-blue-600 shadow-sm hover:bg-blue-700" onClick={openCreate}>
+                    <Plus className="mr-2 h-4 w-4" /> Cadastrar produto
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 p-2">
@@ -830,7 +857,9 @@ export function StockModule() {
             )}
 
             <p className="text-sm text-slate-500">
-              Total de produtos: <span className="font-semibold text-slate-800">{filtered.length}</span>
+              {activeFilter === "inactive"
+                ? <>Total inativados: <span className="font-semibold text-slate-800">{filtered.length}</span></>
+                : <>Total de produtos: <span className="font-semibold text-slate-800">{filtered.length}</span></>}
               {selectedLabelIds.size > 0 && (
                 <span className="ml-2 text-slate-400">· {selectedLabelIds.size} selecionado(s)</span>
               )}
@@ -944,7 +973,9 @@ export function StockModule() {
                     {!filtered.length && (
                       <TableRow>
                         <TableCell colSpan={wholesaleEnabled ? 12 : 11} className="py-8 text-center text-muted-foreground">
-                          Nenhum produto encontrado. O cadastro usa os produtos já existentes no CRM.
+                          {activeFilter === "inactive"
+                            ? "Nenhum produto inativado."
+                            : "Nenhum produto encontrado. O cadastro usa os produtos já existentes no CRM."}
                         </TableCell>
                       </TableRow>
                     )}
