@@ -10,7 +10,7 @@ import { CreateBudgetDialog } from '@/components/budgets/CreateBudgetDialog';
 import { EditBudgetDialog } from '@/components/budgets/EditBudgetDialog';
 import { useBudgets, BUDGETS_PAGE_SIZE } from '@/hooks/useBudgets';
 import { Budget, Service, type Budget as BudgetType } from '@/types/budget';
-import { Plus, Search, X, Loader2, Wrench, Edit, Check, Receipt, Package, Trash2, ChevronDown, ChevronUp, ImagePlus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, X, Loader2, Wrench, Edit, Check, Receipt, Trash2, ChevronDown, ChevronUp, ImagePlus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink } from '@/components/ui/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -27,12 +27,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { useServices } from '@/hooks/useServices';
-import { useProducts } from '@/hooks/useProducts';
 import { useLeads } from '@/hooks/useLeads';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { CreateProductDialog } from '@/components/shared/CreateProductDialog';
-import { ProductBulkImport } from '@/components/shared/ProductBulkImport';
-import { Product } from '@/types/product';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -130,14 +126,6 @@ export default function Budgets() {
   const [uploadingNewServiceImage, setUploadingNewServiceImage] = useState(false);
   const newServiceFileInputRef = useRef<HTMLInputElement>(null);
   
-  // Estados para produtos
-  const [productSearchQuery, setProductSearchQuery] = useState('');
-  const [productCategoryFilter, setProductCategoryFilter] = useState<string>('all');
-  const [productStatusFilter, setProductStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [createProductDialogOpen, setCreateProductDialogOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
-
   const {
     budgets,
     loading,
@@ -185,7 +173,6 @@ export default function Budgets() {
   }, [budgetsPage, budgetsTotalPages]);
   const { configs: evolutionConfigs, loading: configsLoading } = useEvolutionConfigs();
   const { services, loading: servicesLoading, createService, updateService, deleteService, createServicesBulk, categories } = useServices();
-  const { products, loading: productsLoading, createProduct, createProductsBulk, updateProduct, deleteProduct, refetch: refetchProducts } = useProducts();
   const { leads = [] } = useLeads();
   const { toast } = useToast();
   
@@ -578,7 +565,7 @@ export default function Budgets() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="budgets" className="flex items-center gap-2">
               <Receipt className="w-4 h-4" />
               Orçamentos
@@ -586,10 +573,6 @@ export default function Budgets() {
             <TabsTrigger value="services" className="flex items-center gap-2">
               <Wrench className="w-4 h-4" />
               Serviços
-            </TabsTrigger>
-            <TabsTrigger value="products" className="flex items-center gap-2">
-              <Package className="w-4 h-4" />
-              Produtos
             </TabsTrigger>
           </TabsList>
 
@@ -1061,250 +1044,6 @@ export default function Budgets() {
             )}
           </TabsContent>
 
-          <TabsContent value="products" className="space-y-6">
-            {/* Ações Rápidas */}
-            <Card>
-              <CardContent className="pt-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
-                      <Input
-                        placeholder="Buscar produtos por nome, descrição ou categoria..."
-                        value={productSearchQuery}
-                        onChange={(e) => setProductSearchQuery(e.target.value)}
-                        className="pl-10 h-12 text-base"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <ProductBulkImport
-                        onImport={async (productsData) => {
-                          try {
-                            await createProductsBulk(productsData);
-                            await refetchProducts();
-                          } catch (error: any) {
-                            console.error('Erro ao importar produtos:', error);
-                          }
-                        }}
-                        isImporting={false}
-                      />
-                      <Button onClick={() => {
-                        setEditingProduct(null);
-                        setCreateProductDialogOpen(true);
-                      }}>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Novo Produto
-                      </Button>
-                    </div>
-                  </div>
-                  {/* Filtros */}
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="product-category-filter" className="text-sm whitespace-nowrap">Categoria:</Label>
-                      <Select value={productCategoryFilter} onValueChange={setProductCategoryFilter}>
-                        <SelectTrigger id="product-category-filter" className="w-[200px]">
-                          <SelectValue placeholder="Todas as categorias" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todas as categorias</SelectItem>
-                          {Array.from(new Set(products.map((p) => p.category))).sort().map((category) => (
-                            <SelectItem key={category} value={category}>
-                              {category}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="product-status-filter" className="text-sm whitespace-nowrap">Status:</Label>
-                      <Select value={productStatusFilter} onValueChange={(value: 'all' | 'active' | 'inactive') => setProductStatusFilter(value)}>
-                        <SelectTrigger id="product-status-filter" className="w-[150px]">
-                          <SelectValue placeholder="Todos os status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todos</SelectItem>
-                          <SelectItem value="active">Ativos</SelectItem>
-                          <SelectItem value="inactive">Inativos</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {(productSearchQuery || productCategoryFilter !== 'all' || productStatusFilter !== 'all') && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setProductSearchQuery('');
-                          setProductCategoryFilter('all');
-                          setProductStatusFilter('all');
-                        }}
-                      >
-                        <X className="w-4 h-4 mr-2" />
-                        Limpar Filtros
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Lista de Produtos */}
-            {productsLoading ? (
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-xl">
-                    {products.filter((p) => {
-                      const matchesSearch = 
-                        p.name.toLowerCase().includes(productSearchQuery.toLowerCase()) ||
-                        (p.description?.toLowerCase().includes(productSearchQuery.toLowerCase()) ?? false) ||
-                        (p.category?.toLowerCase().includes(productSearchQuery.toLowerCase()) ?? false);
-                      const matchesCategory = productCategoryFilter === 'all' || p.category === productCategoryFilter;
-                      const matchesStatus = 
-                        productStatusFilter === 'all' ||
-                        (productStatusFilter === 'active' && p.is_active) ||
-                        (productStatusFilter === 'inactive' && !p.is_active);
-                      return matchesSearch && matchesCategory && matchesStatus;
-                    }).length} {products.filter((p) => {
-                      const matchesSearch = 
-                        p.name.toLowerCase().includes(productSearchQuery.toLowerCase()) ||
-                        (p.description?.toLowerCase().includes(productSearchQuery.toLowerCase()) ?? false) ||
-                        (p.category?.toLowerCase().includes(productSearchQuery.toLowerCase()) ?? false);
-                      const matchesCategory = productCategoryFilter === 'all' || p.category === productCategoryFilter;
-                      const matchesStatus = 
-                        productStatusFilter === 'all' ||
-                        (productStatusFilter === 'active' && p.is_active) ||
-                        (productStatusFilter === 'inactive' && !p.is_active);
-                      return matchesSearch && matchesCategory && matchesStatus;
-                    }).length === 1 ? 'Produto' : 'Produtos'}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[300px]">Nome</TableHead>
-                        <TableHead>Descrição</TableHead>
-                        <TableHead>Categoria</TableHead>
-                        <TableHead className="text-right">Preço</TableHead>
-                        <TableHead className="text-center">Status</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {products.filter((product) => {
-                        const matchesSearch = 
-                          product.name.toLowerCase().includes(productSearchQuery.toLowerCase()) ||
-                          (product.description?.toLowerCase().includes(productSearchQuery.toLowerCase()) ?? false) ||
-                          (product.category?.toLowerCase().includes(productSearchQuery.toLowerCase()) ?? false);
-                        const matchesCategory = productCategoryFilter === 'all' || product.category === productCategoryFilter;
-                        const matchesStatus = 
-                          productStatusFilter === 'all' ||
-                          (productStatusFilter === 'active' && product.is_active) ||
-                          (productStatusFilter === 'inactive' && !product.is_active);
-                        return matchesSearch && matchesCategory && matchesStatus;
-                      }).map((product) => (
-                        <TableRow key={product.id}>
-                          <TableCell className="font-semibold">{product.name}</TableCell>
-                          <TableCell className="max-w-md">
-                            <p className="text-sm text-muted-foreground truncate">
-                              {product.description || 'Sem descrição'}
-                            </p>
-                          </TableCell>
-                          <TableCell>
-                            {product.category ? (
-                              <Badge variant="outline">{product.category}</Badge>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {product.unit ? (
-                              <Badge variant="secondary">{product.unit}</Badge>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right font-semibold">
-                            {new Intl.NumberFormat('pt-BR', {
-                              style: 'currency',
-                              currency: 'BRL',
-                            }).format(product.price)}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge
-                              variant={product.is_active ? 'default' : 'secondary'}
-                              className="cursor-pointer"
-                              onClick={async () => {
-                                try {
-                                  await updateProduct(product.id, {
-                                    ...product,
-                                    is_active: !product.is_active,
-                                  });
-                                  await refetchProducts();
-                                  toast({
-                                    title: 'Status atualizado',
-                                    description: `Produto ${product.is_active ? 'desativado' : 'ativado'} com sucesso.`,
-                                  });
-                                } catch (error: any) {
-                                  toast({
-                                    title: 'Erro',
-                                    description: error.message || 'Erro ao atualizar status do produto',
-                                    variant: 'destructive',
-                                  });
-                                }
-                              }}
-                            >
-                              {product.is_active ? (
-                                <>
-                                  <Check className="w-3 h-3 mr-1" />
-                                  Ativo
-                                </>
-                              ) : (
-                                <>
-                                  <X className="w-3 h-3 mr-1" />
-                                  Inativo
-                                </>
-                              )}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setEditingProduct(product);
-                                  setCreateProductDialogOpen(true);
-                                }}
-                              >
-                                <Edit className="w-4 h-4 mr-2" />
-                                Editar
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setProductToDelete(product)}
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
         </Tabs>
 
         {/* Dialogs */}
@@ -1852,229 +1591,6 @@ export default function Budgets() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Dialog de Criar Produto */}
-        {!editingProduct && (
-          <CreateProductDialog
-            open={createProductDialogOpen}
-            onOpenChange={(open) => {
-              setCreateProductDialogOpen(open);
-            }}
-            onProductCreated={async (product) => {
-              await refetchProducts();
-              toast({
-                title: 'Produto criado',
-                description: 'O produto foi criado com sucesso.',
-              });
-              setCreateProductDialogOpen(false);
-            }}
-          />
-        )}
-
-        {/* Dialog de Editar Produto */}
-        {editingProduct && (
-          <Dialog open={createProductDialogOpen} onOpenChange={(open) => {
-            setCreateProductDialogOpen(open);
-            if (!open) {
-              setEditingProduct(null);
-            }
-          }}>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Editar Produto</DialogTitle>
-                <DialogDescription>
-                  Atualize as informações do produto
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={async (e) => {
-                e.preventDefault();
-                const form = e.currentTarget;
-                const formData = new FormData(form);
-                const name = formData.get('name') as string;
-                const description = formData.get('description') as string;
-                const price = parseFloat(formData.get('price') as string);
-                const category = formData.get('category') as string;
-                const unit = (formData.get('unit') as string) || null;
-
-                if (!name || !price || price < 0) {
-                  toast({
-                    title: 'Erro',
-                    description: 'Nome e preço são obrigatórios',
-                    variant: 'destructive',
-                  });
-                  return;
-                }
-
-                try {
-                  await updateProduct(editingProduct.id, {
-                    name: name.trim(),
-                    description: description.trim() || null,
-                    price: price,
-                    category: category.trim() || 'Produto',
-                    unit: unit.trim() || null,
-                    is_active: editingProduct.is_active,
-                  });
-                  await refetchProducts();
-                  toast({
-                    title: 'Produto atualizado',
-                    description: 'O produto foi atualizado com sucesso.',
-                  });
-                  setEditingProduct(null);
-                  setCreateProductDialogOpen(false);
-                } catch (error: any) {
-                  toast({
-                    title: 'Erro',
-                    description: error.message || 'Erro ao atualizar produto',
-                    variant: 'destructive',
-                  });
-                }
-              }} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-product-name">
-                    Nome do Produto/Serviço <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="edit-product-name"
-                    name="name"
-                    defaultValue={editingProduct.name}
-                    placeholder="Ex: Consultoria, Software, Produto X"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="edit-product-description">Descrição</Label>
-                  <Textarea
-                    id="edit-product-description"
-                    name="description"
-                    defaultValue={editingProduct.description || ''}
-                    placeholder="Descreva o produto ou serviço..."
-                    rows={3}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-product-price">
-                      Preço (R$) <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="edit-product-price"
-                      name="price"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      defaultValue={editingProduct.price}
-                      placeholder="0.00"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-product-category">Categoria</Label>
-                    <Input
-                      id="edit-product-category"
-                      name="category"
-                      defaultValue={editingProduct.category || ''}
-                      placeholder="Ex: Produto, Serviço"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="edit-product-unit">Unidade de Medida</Label>
-                  <Select
-                    name="unit"
-                    defaultValue={editingProduct.unit || ''}
-                  >
-                    <SelectTrigger id="edit-product-unit">
-                      <SelectValue placeholder="Selecione a unidade (opcional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">Sem unidade</SelectItem>
-                      <SelectItem value="un">Unidade (un)</SelectItem>
-                      <SelectItem value="kg">Quilograma (kg)</SelectItem>
-                      <SelectItem value="g">Grama (g)</SelectItem>
-                      <SelectItem value="m">Metro (m)</SelectItem>
-                      <SelectItem value="m²">Metro quadrado (m²)</SelectItem>
-                      <SelectItem value="m³">Metro cúbico (m³)</SelectItem>
-                      <SelectItem value="l">Litro (l)</SelectItem>
-                      <SelectItem value="ml">Mililitro (ml)</SelectItem>
-                      <SelectItem value="h">Hora (h)</SelectItem>
-                      <SelectItem value="dia">Dia</SelectItem>
-                      <SelectItem value="mês">Mês</SelectItem>
-                      <SelectItem value="ano">Ano</SelectItem>
-                      <SelectItem value="cx">Caixa (cx)</SelectItem>
-                      <SelectItem value="pct">Pacote (pct)</SelectItem>
-                      <SelectItem value="fardo">Fardo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Unidade de medida que aparece no orçamento (ex: un, kg, m², h)
-                  </p>
-                </div>
-
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setEditingProduct(null);
-                      setCreateProductDialogOpen(false);
-                    }}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button type="submit">
-                    Salvar Alterações
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        )}
-
-        {/* Dialog de Confirmação de Exclusão de Produto */}
-        <AlertDialog open={!!productToDelete} onOpenChange={(open) => !open && setProductToDelete(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Excluir Produto</AlertDialogTitle>
-              <AlertDialogDescription>
-                Tem certeza que deseja excluir o produto <strong>"{productToDelete?.name}"</strong>?
-                <br />
-                Esta ação não pode ser desfeita.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setProductToDelete(null)}>
-                Cancelar
-              </AlertDialogCancel>
-              <AlertDialogAction
-                onClick={async () => {
-                  if (!productToDelete) return;
-                  try {
-                    await deleteProduct(productToDelete.id);
-                    await refetchProducts();
-                    toast({
-                      title: 'Produto excluído',
-                      description: 'O produto foi excluído com sucesso.',
-                    });
-                    setProductToDelete(null);
-                  } catch (error: any) {
-                    toast({
-                      title: 'Erro',
-                      description: error.message || 'Erro ao excluir produto',
-                      variant: 'destructive',
-                    });
-                  }
-                }}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Excluir
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
     </CRMLayout>
   );
