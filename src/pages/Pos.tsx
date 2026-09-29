@@ -1219,8 +1219,8 @@ export default function Pos() {
             </div>
 
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 pb-5 pt-3">
-              <div className="rounded-xl bg-blue-700 px-5 py-4 text-center text-white shadow-sm">
-                <p className="text-2xl font-bold tabular-nums tracking-tight">
+              <div className="rounded-lg bg-blue-700 px-4 py-2.5 text-center text-white shadow-sm">
+                <p className="text-lg font-bold tabular-nums tracking-tight">
                   Total:{" "}
                   {total.toLocaleString("pt-BR", {
                     minimumFractionDigits: 2,
@@ -1553,9 +1553,9 @@ export default function Pos() {
               </div>
             </div>
 
-            <div className="mt-auto shrink-0 space-y-3 border-t border-slate-200 bg-white px-5 py-4">
-              <div className="space-y-2 rounded-xl bg-blue-700 px-5 py-4 text-white shadow-sm">
-                <div className="flex items-center justify-between text-base font-medium">
+            <div className="mt-auto shrink-0 space-y-2 border-t border-slate-200 bg-white px-5 py-3">
+              <div className="space-y-1 rounded-lg bg-blue-700 px-3.5 py-2.5 text-white shadow-sm">
+                <div className="flex items-center justify-between text-sm font-medium">
                   <span>Subtotal:</span>
                   <span className="tabular-nums">
                     {subtotal.toLocaleString("pt-BR", {
@@ -1564,7 +1564,7 @@ export default function Pos() {
                     })}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-base font-medium">
+                <div className="flex items-center justify-between text-sm font-medium">
                   <span>Desconto:</span>
                   <span className="tabular-nums">
                     {quote.discount.toLocaleString("pt-BR", {
@@ -1574,7 +1574,7 @@ export default function Pos() {
                   </span>
                 </div>
                 {quote.surcharge > 0.009 ? (
-                  <div className="flex items-center justify-between text-base font-medium">
+                  <div className="flex items-center justify-between text-sm font-medium">
                     <span>Acréscimo:</span>
                     <span className="tabular-nums">
                       {quote.surcharge.toLocaleString("pt-BR", {
@@ -1584,7 +1584,7 @@ export default function Pos() {
                     </span>
                   </div>
                 ) : null}
-                <div className="flex items-center justify-between border-t border-white/30 pt-3 text-xl font-bold">
+                <div className="flex items-center justify-between border-t border-white/30 pt-1.5 text-base font-bold">
                   <span>Total:</span>
                   <span className="tabular-nums">
                     {total.toLocaleString("pt-BR", {
@@ -1596,16 +1596,15 @@ export default function Pos() {
               </div>
               <div>
                 <Button
-                  className="h-12 w-full rounded-xl bg-blue-600 text-base font-semibold text-white hover:bg-blue-700"
-                  size="lg"
+                  className="h-10 w-full rounded-lg bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700"
                   disabled={!canOpenConfirm}
                   onClick={openConfirmDialog}
                 >
                   Finalizar
-                  <kbd className="ml-2 rounded-md bg-blue-800 px-2 py-0.5 text-xs font-bold">F12</kbd>
+                  <kbd className="ml-2 rounded bg-blue-800 px-1.5 py-0.5 text-[10px] font-bold">F12</kbd>
                 </Button>
                 {!selectedLead && cart.length > 0 && (
-                  <p className="mt-2 text-center text-xs text-destructive">
+                  <p className="mt-1.5 text-center text-xs text-destructive">
                     Selecione ou crie um cliente da organização para continuar
                   </p>
                 )}
