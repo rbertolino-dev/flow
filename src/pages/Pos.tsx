@@ -1002,9 +1002,19 @@ export default function Pos() {
               className="flex min-h-0 flex-1 flex-col"
             >
               <div className="border-b px-4 pt-3">
-                <TabsList>
-                  <TabsTrigger value="products">Produtos</TabsTrigger>
-                  <TabsTrigger value="services">Serviços</TabsTrigger>
+                <TabsList className="h-auto rounded-full bg-slate-100 p-1">
+                  <TabsTrigger
+                    value="products"
+                    className="rounded-full px-4 py-2 data-[state=active]:bg-blue-700 data-[state=active]:text-white"
+                  >
+                    Produtos
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="services"
+                    className="rounded-full px-4 py-2 data-[state=active]:bg-blue-700 data-[state=active]:text-white"
+                  >
+                    Serviços
+                  </TabsTrigger>
                 </TabsList>
                 <div className="mt-3 flex flex-wrap items-center gap-2 pb-3">
                   <div className="relative min-w-[200px] flex-1">
@@ -1012,7 +1022,7 @@ export default function Pos() {
                     <Input
                       ref={searchInputRef}
                       className="pl-8"
-                      placeholder="Busque por nome, código ou descrição"
+                      placeholder="Buscar"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                     />
@@ -1099,31 +1109,48 @@ export default function Pos() {
                       : "Nenhum produto encontrado."}
                   </p>
                 ) : (
-                  <ul data-pos-catalog="products" className="divide-y">
-                    {filteredProducts.map((p) => (
+                  <ul data-pos-catalog="products">
+                    {filteredProducts.map((p, index) => {
+                      const code =
+                        (posSettings.stock_code_field === "barcode"
+                          ? p.barcode || p.sku
+                          : p.sku || p.barcode) || "—";
+                      return (
                       <li key={p.id}>
                         <button
                           type="button"
-                          className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-blue-50"
+                          className={cn(
+                            "flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-blue-50",
+                            index % 2 === 1 ? "bg-rose-50/70" : "bg-white"
+                          )}
                           onClick={() => addProductToCart(p.id)}
                         >
-                          <div className="min-w-0">
-                            <p className="truncate font-medium text-slate-900">{p.name}</p>
-                            <p className="truncate text-xs text-slate-500">
-                              {(posSettings.stock_code_field === "barcode"
-                                ? p.barcode || p.sku
-                                : p.sku || p.barcode) || "Sem código"}
-                            </p>
+                          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+                            {p.image_url ? (
+                              <img
+                                src={p.image_url}
+                                alt={p.name}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <Package className="h-5 w-5 text-slate-300" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-semibold text-slate-900">{p.name}</p>
+                            <p className="truncate text-xs text-slate-500">Código: {code}</p>
                             <p className={cn("truncate text-xs", stockClass(p.stock_quantity))}>
                               {stockLabel(p.stock_quantity)}
                             </p>
                           </div>
-                          <p className="shrink-0 text-sm font-bold text-emerald-700">
+                          <p className="shrink-0 text-sm font-medium text-slate-500">
                             {formatMoney(Number(p.price))} {p.unit || "Un"}
                           </p>
                         </button>
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
                 )}
               </TabsContent>
@@ -1136,21 +1163,27 @@ export default function Pos() {
                 ) : filteredServices.length === 0 ? (
                   <p className="p-6 text-sm text-muted-foreground">Nenhum serviço encontrado.</p>
                 ) : (
-                  <ul data-pos-catalog="services" className="divide-y">
-                    {filteredServices.map((s) => (
+                  <ul data-pos-catalog="services">
+                    {filteredServices.map((s, index) => (
                       <li key={s.id}>
                         <button
                           type="button"
-                          className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-amber-50"
+                          className={cn(
+                            "flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-amber-50",
+                            index % 2 === 1 ? "bg-rose-50/70" : "bg-white"
+                          )}
                           onClick={() => addServiceToCart(s.id)}
                         >
-                          <div className="min-w-0">
-                            <p className="truncate font-medium text-slate-900">{s.name}</p>
+                          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+                            <Wrench className="h-5 w-5 text-slate-300" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-semibold text-slate-900">{s.name}</p>
                             {s.category && (
                               <p className="truncate text-xs text-slate-500">{s.category}</p>
                             )}
                           </div>
-                          <p className="shrink-0 text-sm font-bold text-amber-800">
+                          <p className="shrink-0 text-sm font-medium text-slate-500">
                             {formatMoney(Number(s.price))} Un
                           </p>
                         </button>
@@ -1162,21 +1195,13 @@ export default function Pos() {
             </Tabs>
           </div>
 
-          <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-white shadow-2xl">
-            <div className="flex items-center justify-between bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 px-4 py-4 text-white">
-              <div>
-                <h2 className="text-3xl font-bold tracking-tight">Resumo</h2>
-                <p className="text-sm text-blue-100">
-                  {cart.length === 0
-                    ? "Nenhum item na venda"
-                    : `${cart.length} ${cart.length === 1 ? "item" : "itens"} na venda`}
-                </p>
-              </div>
+          <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-l bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <h2 className="text-3xl font-bold tracking-tight text-slate-800">Resumo</h2>
               <Button
                 type="button"
-                variant={barcodeMode ? "default" : "secondary"}
+                variant={barcodeMode ? "default" : "outline"}
                 size="icon"
-                className="bg-white/15 text-white hover:bg-white/25"
                 title={
                   barcodeMode
                     ? "Sair do modo código de barras"
@@ -1190,6 +1215,15 @@ export default function Pos() {
               >
                 <ScanBarcode className="h-5 w-5" />
               </Button>
+            </div>
+            <div className="bg-blue-700 px-4 py-3 text-center text-white">
+              <p className="text-2xl font-bold tabular-nums">
+                Total:{" "}
+                {total.toLocaleString("pt-BR", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </p>
             </div>
 
             {barcodeMode && (
@@ -1209,9 +1243,9 @@ export default function Pos() {
               </div>
             )}
 
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-gradient-to-b from-sky-50 to-white p-3">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-white p-4">
               {cart.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-blue-300 bg-white py-8 text-center text-base text-blue-800">
+                <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 py-8 text-center text-base text-slate-600">
                   Clique em um produto ou serviço para adicionar ao resumo.
                 </p>
               ) : (
@@ -1219,17 +1253,17 @@ export default function Pos() {
                   {cart.map((item) => {
                     const lineTotal = item.quantity * item.unit_price - item.discount_amount;
                     return (
-                      <li key={item.key} className="rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
+                      <li key={item.key} className="border-b border-slate-200 pb-4">
                         <div className="flex items-start justify-between gap-2">
                           <p className="text-lg font-bold leading-snug text-slate-900">
                             {item.name}
-                            <span className="text-lg font-semibold text-muted-foreground">
+                            <span className="text-base font-medium text-slate-500">
                               {" "}
                               - {item.unit || "Un"}
                             </span>
                           </p>
-                          <div className="flex items-center gap-1">
-                            <span className="text-lg font-bold tabular-nums text-emerald-700">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg font-bold tabular-nums text-slate-900">
                               {formatMoney(lineTotal)}
                             </span>
                             <Pencil className="h-4 w-4 text-sky-600" />
@@ -1501,19 +1535,50 @@ export default function Pos() {
               </div>
             </div>
 
-            <div className="mt-auto shrink-0">
-              <div className="flex items-center justify-between bg-gradient-to-r from-blue-700 via-indigo-700 to-violet-700 px-4 py-3 pr-14 text-white">
-                <span className="text-xl font-bold">Subtotal:</span>
-                <span className="text-4xl font-bold tabular-nums">
-                  {total.toLocaleString("pt-BR", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
+            <div className="mt-auto shrink-0 space-y-0 border-t bg-white">
+              <div className="space-y-1 bg-blue-700 px-4 py-4 text-white">
+                <div className="flex items-center justify-between text-lg font-semibold">
+                  <span>Subtotal:</span>
+                  <span className="tabular-nums">
+                    {subtotal.toLocaleString("pt-BR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-lg font-semibold">
+                  <span>Desconto:</span>
+                  <span className="tabular-nums">
+                    {quote.discount.toLocaleString("pt-BR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+                {quote.surcharge > 0.009 ? (
+                  <div className="flex items-center justify-between text-lg font-semibold">
+                    <span>Acréscimo:</span>
+                    <span className="tabular-nums">
+                      {quote.surcharge.toLocaleString("pt-BR", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
+                ) : null}
+                <div className="flex items-center justify-between border-t border-white/20 pt-2 text-2xl font-bold">
+                  <span>Total:</span>
+                  <span className="tabular-nums">
+                    {total.toLocaleString("pt-BR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
               </div>
-              <div className="border-t p-4">
+              <div className="border-t p-4 pr-16">
                 <Button
-                  className="w-full bg-amber-400 text-slate-950 hover:bg-amber-300"
+                  className="w-full bg-blue-700 text-white hover:bg-blue-800"
                   size="lg"
                   disabled={!canOpenConfirm}
                   onClick={openConfirmDialog}
