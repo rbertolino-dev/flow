@@ -1,11 +1,16 @@
 import { NavLink } from "react-router-dom";
-import { FileBarChart, LayoutDashboard, Percent, Wallet } from "lucide-react";
+import { FileBarChart, LayoutDashboard } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { REPORTS_NAV_ITEMS } from "@/components/reports/reportsNavItems";
 
 const LINKS = [
   { to: "/relatorios", label: "Início", end: true, icon: LayoutDashboard },
-  { to: "/relatorios/margens", label: "Margens", end: false, icon: Percent },
-  { to: "/relatorios/comissoes", label: "Comissões", end: false, icon: Wallet },
+  ...REPORTS_NAV_ITEMS.map((item) => ({
+    to: item.to,
+    label: item.label,
+    end: false,
+    icon: item.icon,
+  })),
 ];
 
 export function ReportsSubnav() {

@@ -1,9 +1,9 @@
-import { useEffect, useState, useMemo } from "react";
-import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2, FileSignature, Receipt, Globe, PenLine, Store, ClipboardList, Warehouse, Wallet, FileBarChart } from "lucide-react";
+import { useEffect, useState, useMemo, useRef } from "react";
+import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2, FileSignature, Receipt, Globe, PenLine, Store, ClipboardList, Warehouse, Wallet, FileBarChart, ChevronRight, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { SyncIndicator } from "./SyncIndicator";
 import { OrganizationSwitcher } from "./OrganizationSwitcher";
@@ -18,6 +18,7 @@ import { useOrgUserPermissions } from "@/hooks/useOrgUserPermissions";
 import { EditOrganizationDialog } from "./EditOrganizationDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { VersionBanner } from "@/components/VersionBanner";
+import { REPORTS_NAV_ITEMS, isReportsPath } from "@/components/reports/reportsNavItems";
 export type CRMView = 
   | "kanban" 
   | "calls" 
@@ -70,11 +71,112 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
   const [accessReady, setAccessReady] = useState(false);
   const [editOrgDialogOpen, setEditOrgDialogOpen] = useState(false);
+  const [reportsFlyoutOpen, setReportsFlyoutOpen] = useState(false);
+  const [mobileReportsOpen, setMobileReportsOpen] = useState(false);
+  const [reportsFlyoutPos, setReportsFlyoutPos] = useState({ top: 0, left: 0 });
+  const reportsFlyoutCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reportsButtonRef = useRef<HTMLButtonElement | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
   const { hasFeature, loading: featuresLoading, data: featuresData } = useOrganizationFeatures();
   const { loading: userPermsLoading, hasSavedPermissions, canViewFeature } = useOrgUserPermissions();
+  const reportsActive = activeView === "reports" || isReportsPath(location.pathname);
+
+  const clearReportsFlyoutTimer = () => {
+    if (reportsFlyoutCloseTimer.current) {
+      clearTimeout(reportsFlyoutCloseTimer.current);
+      reportsFlyoutCloseTimer.current = null;
+    }
+  };
+
+  const updateReportsFlyoutPos = () => {
+    const el = reportsButtonRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setReportsFlyoutPos({ top: rect.top, left: rect.right + 8 });
+  };
+
+  const openReportsFlyout = () => {
+    clearReportsFlyoutTimer();
+    updateReportsFlyoutPos();
+    setReportsFlyoutOpen(true);
+  };
+
+  const scheduleCloseReportsFlyout = () => {
+    clearReportsFlyoutTimer();
+    reportsFlyoutCloseTimer.current = setTimeout(() => {
+      setReportsFlyoutOpen(false);
+      reportsFlyoutCloseTimer.current = null;
+    }, 180);
+  };
+
+  useEffect(() => {
+    return () => clearReportsFlyoutTimer();
+  }, []);
+
+  useEffect(() => {
+    setReportsFlyoutOpen(false);
+    setMobileReportsOpen(isReportsPath(location.pathname));
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!reportsFlyoutOpen) return;
+    const onReposition = () => updateReportsFlyoutPos();
+    window.addEventListener("resize", onReposition);
+    window.addEventListener("scroll", onReposition, true);
+    return () => {
+      window.removeEventListener("resize", onReposition);
+      window.removeEventListener("scroll", onReposition, true);
+    };
+  }, [reportsFlyoutOpen]);
+
+  const navigateToMenuItem = (itemId: string) => {
+    if (itemId === "crm") {
+      navigate("/crm");
+    } else if (itemId === "superadmin") {
+      navigate("/superadmin");
+    } else if (itemId === "workflows") {
+      navigate("/workflows");
+    } else if (itemId === "automation-flows") {
+      navigate("/automation-flows");
+    } else if (itemId === "calendar") {
+      navigate("/calendar");
+    } else if (itemId === "broadcast") {
+      navigate("/broadcast");
+    } else if (itemId === "broadcast-2") {
+      navigate("/broadcast-2");
+    } else if (itemId === "settings") {
+      navigate("/settings");
+    } else if (itemId === "form-builder") {
+      navigate("/form-builder");
+    } else if (itemId === "post-sale") {
+      navigate("/post-sale");
+    } else if (itemId === "contracts") {
+      navigate("/contracts");
+    } else if (itemId === "budgets") {
+      navigate("/budgets");
+    } else if (itemId === "pdv") {
+      navigate("/pdv");
+    } else if (itemId === "estoque") {
+      navigate("/estoque");
+    } else if (itemId === "service-orders") {
+      navigate("/service-orders");
+    } else if (itemId === "finance") {
+      navigate("/financeiro");
+    } else if (itemId === "reports") {
+      navigate("/relatorios");
+    } else if (itemId === "employees") {
+      navigate("/employees");
+    } else if (itemId === "landing-page") {
+      navigate("/admin/landing-page");
+    } else if (itemId === "wordpress-content") {
+      navigate("/wordpress-conteudo");
+    } else if (itemId === "kanban" || itemId === "calls") {
+      navigate("/", { state: { view: itemId } });
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -295,63 +397,98 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto overflow-x-hidden sidebar-scroll">
           {menuItems.map((item) => {
-            const handleClick = () => {
-              if (item.id === 'crm') {
-                navigate('/crm');
-              } else if (item.id === 'superadmin') {
-                navigate('/superadmin');
-              } else if (item.id === 'workflows') {
-                navigate('/workflows');
-              } else if (item.id === 'automation-flows') {
-                navigate('/automation-flows');
-              } else if (item.id === 'calendar') {
-                navigate('/calendar');
-              } else if (item.id === 'broadcast') {
-                navigate('/broadcast');
-              } else if (item.id === 'broadcast-2') {
-                navigate('/broadcast-2');
-              } else if (item.id === 'settings') {
-                navigate('/settings');
-              } else if (item.id === 'form-builder') {
-                navigate('/form-builder');
-              } else if (item.id === 'post-sale') {
-                navigate('/post-sale');
-              } else if (item.id === 'contracts') {
-                navigate('/contracts');
-              // } else if (item.id === 'digital-contracts') {
-              //   navigate('/contratos-digitais');
-              } else if (item.id === 'budgets') {
-                navigate('/budgets');
-              } else if (item.id === 'pdv') {
-                navigate('/pdv');
-              } else if (item.id === 'estoque') {
-                navigate('/estoque');
-              } else if (item.id === 'service-orders') {
-                navigate('/service-orders');
-              } else if (item.id === 'finance') {
-                navigate('/financeiro');
-              } else if (item.id === 'reports') {
-                navigate('/relatorios');
-              } else if (item.id === 'employees') {
-                navigate('/employees');
-              } else if (item.id === 'landing-page') {
-                navigate('/admin/landing-page');
-              } else if (item.id === 'wordpress-content') {
-                navigate('/wordpress-conteudo');
-              } else if (item.id === 'kanban' || item.id === 'calls') {
-                // Navega para a página inicial passando a view como state
-                navigate('/', { state: { view: item.id } });
-              }
-            };
+            const isActive = item.id === "reports" ? reportsActive : activeView === item.id;
+
+            if (item.id === "reports") {
+              return (
+                <div
+                  key={item.id}
+                  className="relative"
+                  onMouseEnter={openReportsFlyout}
+                  onMouseLeave={scheduleCloseReportsFlyout}
+                >
+                  <Button
+                    ref={reportsButtonRef}
+                    variant={isActive ? "default" : "ghost"}
+                    className={cn(
+                      "w-full justify-start",
+                      !sidebarOpen && "justify-center px-2",
+                      isActive
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent"
+                    )}
+                    aria-expanded={reportsFlyoutOpen}
+                    aria-haspopup="menu"
+                    onClick={() => {
+                      if (reportsFlyoutOpen) {
+                        setReportsFlyoutOpen(false);
+                      } else {
+                        openReportsFlyout();
+                      }
+                    }}
+                  >
+                    <item.icon className="h-5 w-5 shrink-0" />
+                    {sidebarOpen && (
+                      <>
+                        <span className="ml-3 flex-1 text-left">{item.label}</span>
+                        <ChevronRight
+                          className={cn(
+                            "h-4 w-4 shrink-0 opacity-70 transition-transform",
+                            reportsFlyoutOpen && "rotate-90"
+                          )}
+                          aria-hidden
+                        />
+                      </>
+                    )}
+                  </Button>
+
+                  {reportsFlyoutOpen && (
+                    <div
+                      role="menu"
+                      aria-label="Relatórios"
+                      className="fixed z-[100] min-w-[220px] rounded-xl border border-slate-200/80 bg-slate-100 py-2 shadow-lg"
+                      style={{ top: reportsFlyoutPos.top, left: reportsFlyoutPos.left }}
+                      onMouseEnter={openReportsFlyout}
+                      onMouseLeave={scheduleCloseReportsFlyout}
+                    >
+                      {REPORTS_NAV_ITEMS.map((report) => {
+                        const Icon = report.icon;
+                        const reportActive = location.pathname === report.to;
+                        return (
+                          <button
+                            key={report.to}
+                            type="button"
+                            role="menuitem"
+                            className={cn(
+                              "flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium transition-colors",
+                              reportActive
+                                ? "bg-white text-slate-900"
+                                : "text-slate-700 hover:bg-white/80 hover:text-slate-900"
+                            )}
+                            onClick={() => {
+                              setReportsFlyoutOpen(false);
+                              navigate(report.to);
+                            }}
+                          >
+                            <Icon className="h-5 w-5 shrink-0 text-sky-600" aria-hidden />
+                            <span>{report.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
 
             return (
             <Button
               key={item.id}
-              variant={activeView === item.id ? "default" : "ghost"}
+              variant={isActive ? "default" : "ghost"}
               className={cn(
                 "w-full justify-start",
                 !sidebarOpen && "justify-center px-2",
-                activeView === item.id
+                isActive
                   ? "bg-primary text-primary-foreground hover:bg-primary/90"
                   : "text-sidebar-foreground hover:bg-sidebar-accent"
               )}
@@ -361,7 +498,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
               onFocus={() => {
                 if (item.id === "superadmin") void import("@/pages/SuperAdmin");
               }}
-              onClick={handleClick}
+              onClick={() => navigateToMenuItem(item.id)}
             >
               <item.icon className="h-5 w-5 shrink-0" />
               {sidebarOpen && <span className="ml-3">{item.label}</span>}
@@ -474,67 +611,77 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                   
                   <nav className="flex-1 p-3 space-y-1 overflow-y-auto overflow-x-hidden sidebar-scroll">
                     {menuItems.map((item) => {
-                      const handleClick = () => {
-                        if (item.id === 'crm') {
-                          navigate('/crm');
-                        } else if (item.id === 'superadmin') {
-                          navigate('/superadmin');
-                        } else if (item.id === 'workflows') {
-                          navigate('/workflows');
-                        } else if (item.id === 'automation-flows') {
-                          navigate('/automation-flows');
-                        } else if (item.id === 'calendar') {
-                          navigate('/calendar');
-                        } else if (item.id === 'broadcast') {
-                          navigate('/broadcast');
-                        } else if (item.id === 'broadcast-2') {
-                          navigate('/broadcast-2');
-                        } else if (item.id === 'settings') {
-                          navigate('/settings');
-                        } else if (item.id === 'form-builder') {
-                          navigate('/form-builder');
-                        } else if (item.id === 'post-sale') {
-                          navigate('/post-sale');
-                        } else if (item.id === 'contracts') {
-                          navigate('/contracts');
-                        // } else if (item.id === 'digital-contracts') {
-                        //   navigate('/contratos-digitais');
-                        } else if (item.id === 'budgets') {
-                          navigate('/budgets');
-                        } else if (item.id === 'pdv') {
-                          navigate('/pdv');
-                        } else if (item.id === 'estoque') {
-                          navigate('/estoque');
-                        } else if (item.id === 'service-orders') {
-                          navigate('/service-orders');
-                        } else if (item.id === 'finance') {
-                          navigate('/financeiro');
-                        } else if (item.id === 'reports') {
-                          navigate('/relatorios');
-                        } else if (item.id === 'employees') {
-                          navigate('/employees');
-                        } else if (item.id === 'landing-page') {
-                          navigate('/admin/landing-page');
-                        } else if (item.id === 'wordpress-content') {
-                          navigate('/wordpress-conteudo');
-                        } else if (item.id === 'kanban' || item.id === 'calls') {
-                          // Navega para a página inicial passando a view como state
-                          navigate('/', { state: { view: item.id } });
-                        }
-                        setMobileMenuOpen(false);
-                      };
+                      const isActive = item.id === "reports" ? reportsActive : activeView === item.id;
+
+                      if (item.id === "reports") {
+                        return (
+                          <div key={item.id} className="space-y-1">
+                            <Button
+                              variant={isActive ? "default" : "ghost"}
+                              className={cn(
+                                "w-full justify-start",
+                                isActive
+                                  ? "bg-primary text-primary-foreground"
+                                  : ""
+                              )}
+                              aria-expanded={mobileReportsOpen}
+                              onClick={() => setMobileReportsOpen((open) => !open)}
+                            >
+                              <item.icon className="h-5 w-5" />
+                              <span className="ml-3 flex-1 text-left">{item.label}</span>
+                              <ChevronDown
+                                className={cn(
+                                  "h-4 w-4 shrink-0 opacity-70 transition-transform",
+                                  mobileReportsOpen && "rotate-180"
+                                )}
+                                aria-hidden
+                              />
+                            </Button>
+                            {mobileReportsOpen && (
+                              <div className="ml-2 space-y-0.5 rounded-xl bg-slate-100 py-1.5">
+                                {REPORTS_NAV_ITEMS.map((report) => {
+                                  const Icon = report.icon;
+                                  const reportActive = location.pathname === report.to;
+                                  return (
+                                    <button
+                                      key={report.to}
+                                      type="button"
+                                      className={cn(
+                                        "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium",
+                                        reportActive
+                                          ? "bg-white text-slate-900 shadow-sm"
+                                          : "text-slate-700 hover:bg-white/70"
+                                      )}
+                                      onClick={() => {
+                                        navigate(report.to);
+                                        setMobileMenuOpen(false);
+                                      }}
+                                    >
+                                      <Icon className="h-5 w-5 shrink-0 text-sky-600" aria-hidden />
+                                      <span>{report.label}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
 
                       return (
                       <Button
                         key={item.id}
-                        variant={activeView === item.id ? "default" : "ghost"}
+                        variant={isActive ? "default" : "ghost"}
                         className={cn(
                           "w-full justify-start",
-                          activeView === item.id
+                          isActive
                             ? "bg-primary text-primary-foreground"
                             : ""
                         )}
-                        onClick={handleClick}
+                        onClick={() => {
+                          navigateToMenuItem(item.id);
+                          setMobileMenuOpen(false);
+                        }}
                       >
                         <item.icon className="h-5 w-5" />
                         <span className="ml-3">{item.label}</span>
