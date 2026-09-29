@@ -5,7 +5,7 @@ import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-organization-id',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
 };
 
 interface Product {
@@ -507,6 +507,84 @@ serve(async (req) => {
       } finally {
         await client.end();
       }
+    }
+
+    // PATCH /products/bulk — ativar/inativar vários produtos de uma vez
+    if (isBulkEndpoint && req.method === 'PATCH') {
+      if (!permissions.canWrite) {
+        await client.end();
+        return jsonResponse(403, { error: 'Sem permissão para atualizar produtos' });
+      }
+      try {
+        const body = await req.json();
+        const ids = Array.isArray(body.ids)
+          ? [...new Set(body.ids.map((id: unknown) => String(id || '').trim()).filter(Boolean))]
+          : [];
+        if (!ids.length) {
+          return jsonResponse(400, { error: 'Informe ao menos um produto (ids)' });
+        }
+        if (ids.length > 500) {
+          return jsonResponse(400, { error: 'Máximo de 500 produtos por operação' });
+        }
+        if (typeof body.is_active !== 'boolean') {
+          return jsonResponse(400, { error: 'is_active (boolean) é obrigatório' });
+        }
+        const nextActive = body.is_active === true;
+        const userName = await getUserName(supabase, user.id);
+
+        await client.queryArray('BEGIN');
+        const beforeRows = await client.queryObject<Product>(
+          `SELECT * FROM products WHERE organization_id = $1 AND id = ANY($2::uuid[])`,
+          [organizationId, ids]
+        );
+        if (!beforeRows.rows.length) {
+          await client.queryArray('ROLLBACK');
+          return jsonResponse(404, { error: 'Nenhum produto encontrado' });
+        }
+        const foundIds = beforeRows.rows.map((row) => row.id);
+        await client.queryArray(
+          `UPDATE products
+           SET is_active = $1, updated_at = now(), updated_by = $2, updated_by_name = $3
+           WHERE organization_id = $4 AND id = ANY($5::uuid[])`,
+          [nextActive, user.id, userName, organizationId, foundIds]
+        );
+        const afterRows = await client.queryObject<Product>(
+          `SELECT * FROM products WHERE organization_id = $1 AND id = ANY($2::uuid[])`,
+          [organizationId, foundIds]
+        );
+        const afterById = new Map(afterRows.rows.map((row) => [row.id, row]));
+        const actionName = nextActive ? 'activate' : 'inactivate';
+        for (const before of beforeRows.rows) {
+          const after = afterById.get(before.id);
+          if (!after) continue;
+          const wasActive = before.is_active !== false;
+          if (wasActive === nextActive) continue;
+          await writeProductAudit(client, {
+            organizationId,
+            productId: before.id,
+            userId: user.id,
+            action: actionName,
+            before: before as unknown as Record<string, unknown>,
+            after: after as unknown as Record<string, unknown>,
+          });
+        }
+        await client.queryArray('COMMIT');
+        return jsonResponse(200, {
+          data: afterRows.rows,
+          updated: afterRows.rows.length,
+          is_active: nextActive,
+        });
+      } catch (bulkError: any) {
+        try { await client.queryArray('ROLLBACK'); } catch (_rollbackError) { /* sem transação */ }
+        return jsonResponse(500, { error: bulkError?.message || 'Erro ao atualizar produtos em lote' });
+      } finally {
+        await client.end();
+      }
+    }
+
+    if (isBulkEndpoint) {
+      await client.end();
+      return jsonResponse(405, { error: 'Método não permitido. Use PATCH em /products/bulk' });
     }
 
     if (isBudgetStockEndpoint && req.method === 'POST') {

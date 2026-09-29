@@ -10,6 +10,8 @@ import {
   Filter,
   Search,
   Loader2,
+  Ban,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -140,7 +142,7 @@ function ListPager({
 }
 
 export function StockModule() {
-  const { products, loading, refetch } = useProducts();
+  const { products, loading, refetch, setProductsActive } = useProducts();
   const wholesaleEnabled = useWholesalePriceEnabled();
   const { listSalesDetailed, cancelSale } = usePosSales();
   const { activeOrgId } = useActiveOrganization();
@@ -152,9 +154,12 @@ export function StockModule() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [supplyFilter, setSupplyFilter] = useState<"all" | "supply">("all");
+  const [activeFilter, setActiveFilter] = useState<"active" | "inactive" | "all">("active");
   const [brandFilter, setBrandFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkConfirm, setBulkConfirm] = useState<"inactivate" | "activate" | null>(null);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [movementsLoading, setMovementsLoading] = useState(false);
   const [movementPage, setMovementPage] = useState(0);
@@ -209,6 +214,7 @@ export function StockModule() {
     let baixa = 0;
     let falta = 0;
     for (const product of products) {
+      if (product.is_active === false) continue;
       const { qty } = stockNumbers(product);
       const positiveQty = Math.max(qty, 0);
       cost += Number(product.cost ?? 0) * positiveQty;
@@ -224,6 +230,8 @@ export function StockModule() {
     const name = nameQuery.trim().toLowerCase();
     const code = codeQuery.trim().toLowerCase();
     return products.filter((product) => {
+      if (activeFilter === "active" && product.is_active === false) return false;
+      if (activeFilter === "inactive" && product.is_active !== false) return false;
       if (name && !product.name.toLowerCase().includes(name)) return false;
       if (code) {
         const sku = (product.sku || "").toLowerCase();
@@ -236,7 +244,7 @@ export function StockModule() {
       if (supplyFilter === "supply" && !product.is_supply) return false;
       return true;
     });
-  }, [products, nameQuery, codeQuery, categoryFilter, brandFilter, statusFilter, supplyFilter]);
+  }, [products, nameQuery, codeQuery, categoryFilter, brandFilter, statusFilter, supplyFilter, activeFilter]);
 
   const productPageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safeProductPage = Math.min(productPage, productPageCount - 1);
@@ -244,10 +252,11 @@ export function StockModule() {
 
   useEffect(() => {
     setProductPage(0);
-  }, [nameQuery, codeQuery, categoryFilter, brandFilter, statusFilter, supplyFilter]);
+  }, [nameQuery, codeQuery, categoryFilter, brandFilter, statusFilter, supplyFilter, activeFilter]);
 
   const shoppingList = useMemo(() => {
     return products
+      .filter((product) => product.is_active !== false)
       .map((product) => {
         const { qty, min, ideal } = stockNumbers(product);
         const target = Math.max(ideal, min);
@@ -435,8 +444,60 @@ export function StockModule() {
     });
   };
 
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((product) => selectedLabelIds.has(product.id));
+  const someFilteredSelected = filtered.some((product) => selectedLabelIds.has(product.id));
+
+  const toggleSelectAllFiltered = () => {
+    setSelectedLabelIds((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        for (const product of filtered) next.delete(product.id);
+      } else {
+        for (const product of filtered) next.add(product.id);
+      }
+      return next;
+    });
+  };
+
+  const selectedActiveCount = useMemo(
+    () =>
+      products.filter((product) => selectedLabelIds.has(product.id) && product.is_active !== false).length,
+    [products, selectedLabelIds]
+  );
+  const selectedInactiveCount = useMemo(
+    () =>
+      products.filter((product) => selectedLabelIds.has(product.id) && product.is_active === false).length,
+    [products, selectedLabelIds]
+  );
+
+  const confirmBulkStatus = async () => {
+    if (!bulkConfirm || !selectedLabelIds.size) return;
+    const activate = bulkConfirm === "activate";
+    const ids = products
+      .filter((product) => {
+        if (!selectedLabelIds.has(product.id)) return false;
+        return activate ? product.is_active === false : product.is_active !== false;
+      })
+      .map((product) => product.id);
+    if (!ids.length) {
+      setBulkConfirm(null);
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      await setProductsActive(ids, activate);
+      setSelectedLabelIds(new Set());
+      setBulkConfirm(null);
+    } catch {
+      /* toast já exibido no hook */
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const labelQueueProducts = useMemo(
-    () => products.filter((product) => selectedLabelIds.has(product.id)),
+    () => products.filter((product) => selectedLabelIds.has(product.id) && product.is_active !== false),
     [products, selectedLabelIds]
   );
 
@@ -692,12 +753,34 @@ export function StockModule() {
               />
               <Button
                 className="rounded-full bg-orange-500 text-white hover:bg-orange-600"
-                disabled={!selectedLabelIds.size}
+                disabled={!labelQueueProducts.length}
                 onClick={() => setLabelsDialogOpen(true)}
               >
                 <Printer className="mr-2 h-4 w-4" /> Etiquetas
-                {selectedLabelIds.size > 0 ? ` (${selectedLabelIds.size})` : ""}
+                {labelQueueProducts.length > 0 ? ` (${labelQueueProducts.length})` : ""}
               </Button>
+              {selectedActiveCount > 0 && (
+                <Button
+                  variant="destructive"
+                  className="rounded-full"
+                  disabled={bulkBusy}
+                  onClick={() => setBulkConfirm("inactivate")}
+                >
+                  <Ban className="mr-2 h-4 w-4" />
+                  Inativar ({selectedActiveCount})
+                </Button>
+              )}
+              {selectedInactiveCount > 0 && (
+                <Button
+                  variant="secondary"
+                  className="rounded-full"
+                  disabled={bulkBusy}
+                  onClick={() => setBulkConfirm("activate")}
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Reativar ({selectedInactiveCount})
+                </Button>
+              )}
               <Button variant={showFilters ? "default" : "secondary"} className="rounded-full" onClick={() => setShowFilters((v) => !v)}>
                 <Filter className="mr-2 h-4 w-4" /> Filtros
               </Button>
@@ -707,7 +790,7 @@ export function StockModule() {
             </div>
 
             {showFilters && (
-              <div className="grid gap-3 rounded-md border p-3 md:grid-cols-4">
+              <div className="grid gap-3 rounded-md border p-3 md:grid-cols-5">
                 <FilterSelect label="Categoria" value={categoryFilter} onChange={setCategoryFilter} options={categories} />
                 <FilterSelect label="Marca" value={brandFilter} onChange={setBrandFilter} options={brands} />
                 <div className="space-y-1">
@@ -717,6 +800,17 @@ export function StockModule() {
                     <SelectContent>
                       <SelectItem value="all">Todos</SelectItem>
                       <SelectItem value="supply">Insumos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Cadastro</Label>
+                  <Select value={activeFilter} onValueChange={(value) => setActiveFilter(value as "active" | "inactive" | "all")}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Ativos</SelectItem>
+                      <SelectItem value="inactive">Inativos</SelectItem>
+                      <SelectItem value="all">Todos</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -737,6 +831,9 @@ export function StockModule() {
 
             <p className="text-sm text-slate-500">
               Total de produtos: <span className="font-semibold text-slate-800">{filtered.length}</span>
+              {selectedLabelIds.size > 0 && (
+                <span className="ml-2 text-slate-400">· {selectedLabelIds.size} selecionado(s)</span>
+              )}
             </p>
 
             {loading ? (
@@ -748,7 +845,14 @@ export function StockModule() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-slate-200 bg-slate-50 hover:bg-slate-50">
-                      <TableHead className="w-10 text-slate-600" />
+                      <TableHead className="w-10 text-slate-600">
+                        <Checkbox
+                          checked={allFilteredSelected ? true : someFilteredSelected ? "indeterminate" : false}
+                          onCheckedChange={() => toggleSelectAllFiltered()}
+                          aria-label="Selecionar todos os produtos filtrados"
+                          onClick={(event) => event.stopPropagation()}
+                        />
+                      </TableHead>
                       <TableHead className="text-slate-600">Produto</TableHead>
                       <TableHead className="text-rose-700/80">Limite Falta</TableHead>
                       <TableHead className="text-slate-600">Qnt atual</TableHead>
@@ -775,21 +879,21 @@ export function StockModule() {
                       const saleTotal = price * qty;
                       const status = getStockStatus(product);
                       const selectedForLabel = selectedLabelIds.has(product.id);
+                      const inactive = product.is_active === false;
                       return (
-                        <TableRow key={product.id} className="cursor-pointer border-slate-100 hover:bg-sky-50/70" onClick={() => openEdit(product)}>
-                          <TableCell className="w-10 pr-0">
-                            <button
-                              type="button"
-                              className={cn(
-                                "mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-blue-500",
-                                selectedForLabel ? "bg-blue-500" : "bg-white"
-                              )}
+                        <TableRow
+                          key={product.id}
+                          className={cn(
+                            "cursor-pointer border-slate-100 hover:bg-sky-50/70",
+                            inactive && "opacity-60"
+                          )}
+                          onClick={() => openEdit(product)}
+                        >
+                          <TableCell className="w-10 pr-0" onClick={(event) => event.stopPropagation()}>
+                            <Checkbox
+                              checked={selectedForLabel}
+                              onCheckedChange={() => toggleLabelSelection(product.id)}
                               aria-label={selectedForLabel ? `Desmarcar ${product.name}` : `Selecionar ${product.name}`}
-                              aria-pressed={selectedForLabel}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                toggleLabelSelection(product.id);
-                              }}
                             />
                           </TableCell>
                           <TableCell>
@@ -801,9 +905,10 @@ export function StockModule() {
                                 status === "ideal" && "bg-emerald-500",
                               )} />
                               <div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                   <div className="font-medium text-slate-900">{product.name}</div>
                                   {product.is_supply && <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100">Insumo</Badge>}
+                                  {inactive && <Badge variant="secondary">Inativo</Badge>}
                                 </div>
                                 {product.sku && <div className="text-xs text-slate-400">{product.sku}</div>}
                               </div>
@@ -1254,6 +1359,34 @@ export function StockModule() {
           });
         }}
       />
+      <Dialog open={!!bulkConfirm} onOpenChange={(open) => { if (!open && !bulkBusy) setBulkConfirm(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {bulkConfirm === "activate" ? "Reativar produtos?" : "Inativar produtos?"}
+            </DialogTitle>
+            <DialogDescription>
+              {bulkConfirm === "activate"
+                ? `${selectedInactiveCount} produto(s) voltarão a aparecer no estoque, PDV e orçamento.`
+                : `${selectedActiveCount} produto(s) serão ocultados do estoque, PDV e orçamento. O histórico de vendas e lançamentos permanece.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" disabled={bulkBusy} onClick={() => setBulkConfirm(null)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant={bulkConfirm === "activate" ? "default" : "destructive"}
+              disabled={bulkBusy}
+              onClick={() => void confirmBulkStatus()}
+            >
+              {bulkBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {bulkConfirm === "activate" ? "Reativar" : "Inativar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={singleEntryOpen} onOpenChange={setSingleEntryOpen}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
@@ -1266,7 +1399,7 @@ export function StockModule() {
               <Select value={movementProductId} onValueChange={setMovementProductId}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  {products.map((product) => (
+                  {products.filter((product) => product.is_active !== false).map((product) => (
                     <SelectItem key={product.id} value={product.id}>{product.name}</SelectItem>
                   ))}
                 </SelectContent>

@@ -209,6 +209,49 @@ export function useProducts(options?: { enabled?: boolean }) {
     }
   };
 
+  const setProductsActive = async (productIds: string[], isActive: boolean) => {
+    if (!activeOrgId) throw new Error("Organização não encontrada");
+    const ids = [...new Set(productIds.filter(Boolean))];
+    if (!ids.length) throw new Error("Selecione ao menos um produto");
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Usuário não autenticado");
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/products/bulk`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+          "X-Organization-Id": activeOrgId,
+        },
+        body: JSON.stringify({ ids, is_active: isActive }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json().catch(() => ({}));
+      await fetchProducts();
+      toast({
+        title: isActive ? "Produtos reativados" : "Produtos inativados",
+        description: `${result.updated ?? ids.length} produto(s) ${isActive ? "reativado(s)" : "inativado(s)"}. Eles ${isActive ? "voltam a aparecer" : "deixam de aparecer"} no estoque, PDV e orçamento.`,
+      });
+      return result;
+    } catch (error: any) {
+      console.error("Erro ao atualizar status em lote:", error);
+      toast({
+        title: "Erro ao atualizar produtos",
+        description: error.message,
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
   const deleteProduct = async (productId: string) => {
     if (!activeOrgId) throw new Error("Organização não encontrada");
 
@@ -323,6 +366,7 @@ export function useProducts(options?: { enabled?: boolean }) {
     createProduct,
     createProductsBulk,
     updateProduct,
+    setProductsActive,
     deleteProduct,
     getProductsByCategory,
     getActiveProducts,
