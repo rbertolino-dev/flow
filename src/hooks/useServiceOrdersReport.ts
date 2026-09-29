@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useToast } from "@/hooks/use-toast";
@@ -93,6 +93,13 @@ export function useServiceOrdersReport() {
       setLoading(false);
     }
   }, [activeOrgId, toast]);
+
+  useEffect(() => {
+    if (activeOrgId) {
+      void load();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeOrgId]);
 
   const periodOrders = useMemo(
     () => filterOrdersByPeriod(rawOrders, dateFrom, dateTo, dateMode),
