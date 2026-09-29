@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Percent, Users } from "lucide-react";
+import { ClipboardList, Percent, Users } from "lucide-react";
 
 export type ReportsNavItem = {
   to: string;
@@ -15,6 +15,12 @@ export const REPORTS_NAV_ITEMS: ReportsNavItem[] = [
     label: "Margens",
     icon: Percent,
     description: "Lucro por venda, serviço e produto no período.",
+  },
+  {
+    to: "/relatorios/ordens-servico",
+    label: "Ordens de Serviço",
+    icon: ClipboardList,
+    description: "Volume, valores, status e desempenho das OS.",
   },
   {
     to: "/relatorios/comissoes",
