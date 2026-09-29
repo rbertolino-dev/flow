@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { BudgetProduct, BudgetService } from '@/types/budget-module';
-import { Package, Plus, Trash2, Wrench, X, Search } from 'lucide-react';
+import { Package, Plus, Trash2, Wrench, X, Search, ChevronDown, ChevronUp } from 'lucide-react';
 
 export type AvailableBudgetProduct = {
   id: string;
@@ -44,6 +44,8 @@ export function BudgetItemsEditor({
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
   const [showProductResults, setShowProductResults] = useState(false);
   const [showServiceResults, setShowServiceResults] = useState(false);
+  const [showManualProduct, setShowManualProduct] = useState(false);
+  const [showManualService, setShowManualService] = useState(false);
   const [lastAddedLabel, setLastAddedLabel] = useState('');
   const productSearchRef = useRef<HTMLDivElement>(null);
   const serviceSearchRef = useRef<HTMLDivElement>(null);
@@ -282,6 +284,7 @@ export function BudgetItemsEditor({
               className="h-8 w-8"
               onClick={() => {
                 setShowAddProduct(false);
+                setShowManualProduct(false);
                 setNewProduct({ name: '', price: '0', quantity: '1' });
                 setProductSearchQuery('');
                 setShowProductResults(false);
@@ -348,57 +351,72 @@ export function BudgetItemsEditor({
             </div>
           )}
 
-          <div className="rounded-lg border border-dashed border-slate-200 bg-white/70 p-3">
-            <p className="mb-2 text-xs font-medium text-slate-600">Ou item avulso</p>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-3 space-y-1 sm:col-span-1">
-                <Label>Nome</Label>
-                <Input
-                  value={newProduct.name}
-                  onChange={(event) => setNewProduct({ ...newProduct, name: event.target.value })}
-                  placeholder="Produto avulso"
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      addManualProduct();
-                    }
-                  }}
-                />
+          <div className="rounded-lg border border-dashed border-slate-200 bg-white/70">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
+              onClick={() => setShowManualProduct((open) => !open)}
+              aria-expanded={showManualProduct}
+            >
+              <span className="text-xs font-medium text-slate-600">Ou item avulso</span>
+              <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+                {showManualProduct ? 'Recolher' : 'Expandir'}
+                {showManualProduct ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </span>
+            </button>
+            {showManualProduct ? (
+              <div className="space-y-2 border-t border-dashed border-slate-200 px-3 pb-3 pt-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-3 space-y-1 sm:col-span-1">
+                    <Label>Nome</Label>
+                    <Input
+                      value={newProduct.name}
+                      onChange={(event) => setNewProduct({ ...newProduct, name: event.target.value })}
+                      placeholder="Produto avulso"
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          addManualProduct();
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Preço</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={newProduct.price}
+                      onChange={(event) => setNewProduct({ ...newProduct, price: event.target.value })}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          addManualProduct();
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Qtd</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={newProduct.quantity}
+                      onChange={(event) => setNewProduct({ ...newProduct, quantity: event.target.value })}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          addManualProduct();
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                <Button type="button" variant="outline" onClick={addManualProduct} className="w-full">
+                  Incluir avulso e continuar
+                </Button>
               </div>
-              <div className="space-y-1">
-                <Label>Preço</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={newProduct.price}
-                  onChange={(event) => setNewProduct({ ...newProduct, price: event.target.value })}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      addManualProduct();
-                    }
-                  }}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Qtd</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={newProduct.quantity}
-                  onChange={(event) => setNewProduct({ ...newProduct, quantity: event.target.value })}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      addManualProduct();
-                    }
-                  }}
-                />
-              </div>
-            </div>
-            <Button type="button" variant="outline" onClick={addManualProduct} className="mt-2 w-full">
-              Incluir avulso e continuar
-            </Button>
+            ) : null}
           </div>
         </div>
       )}
@@ -417,6 +435,7 @@ export function BudgetItemsEditor({
               className="h-8 w-8"
               onClick={() => {
                 setShowAddService(false);
+                setShowManualService(false);
                 setNewService({ name: '', price: '0', quantity: '1' });
                 setServiceSearchQuery('');
                 setShowServiceResults(false);
@@ -483,57 +502,72 @@ export function BudgetItemsEditor({
             </div>
           )}
 
-          <div className="rounded-lg border border-dashed border-slate-200 bg-white/70 p-3">
-            <p className="mb-2 text-xs font-medium text-slate-600">Ou serviço avulso</p>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-3 space-y-1 sm:col-span-1">
-                <Label>Nome</Label>
-                <Input
-                  value={newService.name}
-                  onChange={(event) => setNewService({ ...newService, name: event.target.value })}
-                  placeholder="Serviço avulso"
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      addManualService();
-                    }
-                  }}
-                />
+          <div className="rounded-lg border border-dashed border-slate-200 bg-white/70">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
+              onClick={() => setShowManualService((open) => !open)}
+              aria-expanded={showManualService}
+            >
+              <span className="text-xs font-medium text-slate-600">Ou serviço avulso</span>
+              <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+                {showManualService ? 'Recolher' : 'Expandir'}
+                {showManualService ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </span>
+            </button>
+            {showManualService ? (
+              <div className="space-y-2 border-t border-dashed border-slate-200 px-3 pb-3 pt-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-3 space-y-1 sm:col-span-1">
+                    <Label>Nome</Label>
+                    <Input
+                      value={newService.name}
+                      onChange={(event) => setNewService({ ...newService, name: event.target.value })}
+                      placeholder="Serviço avulso"
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          addManualService();
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Preço</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={newService.price}
+                      onChange={(event) => setNewService({ ...newService, price: event.target.value })}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          addManualService();
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Qtd</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={newService.quantity}
+                      onChange={(event) => setNewService({ ...newService, quantity: event.target.value })}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          addManualService();
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                <Button type="button" variant="outline" onClick={addManualService} className="w-full">
+                  Incluir avulso e continuar
+                </Button>
               </div>
-              <div className="space-y-1">
-                <Label>Preço</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={newService.price}
-                  onChange={(event) => setNewService({ ...newService, price: event.target.value })}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      addManualService();
-                    }
-                  }}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Qtd</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={newService.quantity}
-                  onChange={(event) => setNewService({ ...newService, quantity: event.target.value })}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      addManualService();
-                    }
-                  }}
-                />
-              </div>
-            </div>
-            <Button type="button" variant="outline" onClick={addManualService} className="mt-2 w-full">
-              Incluir avulso e continuar
-            </Button>
+            ) : null}
           </div>
         </div>
       )}
