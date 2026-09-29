@@ -38,6 +38,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Product } from "@/types/product";
 import { CreateProductDialog } from "@/components/shared/CreateProductDialog";
+import { ProductLabelsDialog } from "@/components/stock/ProductLabelsDialog";
 import { StockXmlEntryDialog } from "@/components/stock/StockXmlEntryDialog";
 import {
   DropdownMenu,
@@ -188,6 +189,8 @@ export function StockModule() {
   const [singleEntryOpen, setSingleEntryOpen] = useState(false);
   const [xmlEntryOpen, setXmlEntryOpen] = useState(false);
   const [productPage, setProductPage] = useState(0);
+  const [selectedLabelIds, setSelectedLabelIds] = useState<Set<string>>(new Set());
+  const [labelsDialogOpen, setLabelsDialogOpen] = useState(false);
 
   const categories = useMemo(
     () => uniqueNames([...products.map((p) => p.category || ""), ...categoriesCatalog.map((row) => row.name)]),
@@ -420,6 +423,20 @@ export function StockModule() {
     setEditing(product);
     setDialogOpen(true);
   };
+
+  const toggleLabelSelection = (productId: string) => {
+    setSelectedLabelIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
+  };
+
+  const labelQueueProducts = useMemo(
+    () => products.filter((product) => selectedLabelIds.has(product.id)),
+    [products, selectedLabelIds]
+  );
 
   const submitMovement = async (input: { productId: string; kind: "in" | "out" | "adjust"; quantity: number; notes: string }) => {
     if (!activeOrgId) throw new Error("Organização não encontrada");
@@ -671,6 +688,14 @@ export function StockModule() {
                 onChange={(e) => setCodeQuery(e.target.value)}
                 className="max-w-xs border-slate-200 bg-white"
               />
+              <Button
+                className="rounded-full bg-orange-500 text-white hover:bg-orange-600"
+                disabled={!selectedLabelIds.size}
+                onClick={() => setLabelsDialogOpen(true)}
+              >
+                <Printer className="mr-2 h-4 w-4" /> Etiquetas
+                {selectedLabelIds.size > 0 ? ` (${selectedLabelIds.size})` : ""}
+              </Button>
               <Button variant={showFilters ? "default" : "secondary"} className="rounded-full" onClick={() => setShowFilters((v) => !v)}>
                 <Filter className="mr-2 h-4 w-4" /> Filtros
               </Button>
@@ -721,6 +746,7 @@ export function StockModule() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-slate-200 bg-slate-50 hover:bg-slate-50">
+                      <TableHead className="w-10 text-slate-600" />
                       <TableHead className="text-slate-600">Produto</TableHead>
                       <TableHead className="text-rose-700/80">Limite Falta</TableHead>
                       <TableHead className="text-slate-600">Qnt atual</TableHead>
@@ -741,8 +767,24 @@ export function StockModule() {
                       const costTotal = cost * qty;
                       const saleTotal = price * qty;
                       const status = getStockStatus(product);
+                      const selectedForLabel = selectedLabelIds.has(product.id);
                       return (
                         <TableRow key={product.id} className="cursor-pointer border-slate-100 hover:bg-sky-50/70" onClick={() => openEdit(product)}>
+                          <TableCell className="w-10 pr-0">
+                            <button
+                              type="button"
+                              className={cn(
+                                "mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-blue-500",
+                                selectedForLabel ? "bg-blue-500" : "bg-white"
+                              )}
+                              aria-label={selectedForLabel ? `Desmarcar ${product.name}` : `Selecionar ${product.name}`}
+                              aria-pressed={selectedForLabel}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                toggleLabelSelection(product.id);
+                              }}
+                            />
+                          </TableCell>
                           <TableCell>
                             <div className="flex items-start gap-2.5">
                               <span className={cn(
@@ -784,7 +826,7 @@ export function StockModule() {
                     })}
                     {!filtered.length && (
                       <TableRow>
-                        <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
+                        <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">
                           Nenhum produto encontrado. O cadastro usa os produtos já existentes no CRM.
                         </TableCell>
                       </TableRow>
@@ -1187,6 +1229,18 @@ export function StockModule() {
         }}
         product={editing ? products.find((item) => item.id === editing.id) ?? editing : null}
         onSaved={() => refetch()}
+      />
+      <ProductLabelsDialog
+        open={labelsDialogOpen}
+        onOpenChange={setLabelsDialogOpen}
+        products={labelQueueProducts}
+        onRemove={(productId) => {
+          setSelectedLabelIds((prev) => {
+            const next = new Set(prev);
+            next.delete(productId);
+            return next;
+          });
+        }}
       />
       <Dialog open={singleEntryOpen} onOpenChange={setSingleEntryOpen}>
         <DialogContent className="sm:max-w-3xl">
