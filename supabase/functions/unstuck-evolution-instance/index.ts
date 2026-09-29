@@ -192,7 +192,6 @@ serve(async (req) => {
     : (fetchMatch?.Chatwoot ?? null);
   const webhookBackup = webhookFind.ok ? webhookFind.json : null;
   const settingsBackup = settingsFind.ok ? settingsFind.json : (fetchMatch?.Setting ?? null);
-  const instanceToken = typeof fetchMatch?.token === "string" ? fetchMatch.token : null;
   const integration = typeof fetchMatch?.integration === "string"
     ? fetchMatch.integration
     : "WHATSAPP-BAILEYS";
@@ -205,23 +204,33 @@ serve(async (req) => {
     });
   }
 
-  await sleep(2500);
+  // Aguarda limpeza no Manager — token antigo da instância excluída NÃO deve ser reutilizado
+  // (causa create 4xx e deixa a instância apagada sem recriar).
+  await sleep(3500);
 
   const createBody: Record<string, unknown> = {
     instanceName,
     integration,
     qrcode: true,
   };
-  if (instanceToken) createBody.token = instanceToken;
 
   let created = await evoFetch("POST", `${base}/instance/create`, apiKey, createBody, 60000);
   if (!created.ok) {
-    await sleep(2000);
+    await sleep(3000);
     created = await evoFetch("POST", `${base}/instance/create`, apiKey, createBody, 60000);
   }
   if (!created.ok) {
+    await sleep(4000);
+    created = await evoFetch("POST", `${base}/instance/create`, apiKey, createBody, 60000);
+  }
+  if (!created.ok) {
+    console.error("[unstuck-evolution-instance] create failed after delete", {
+      instanceName,
+      status: created.status,
+      body: created.json,
+    });
     return json(502, {
-      error: "Instância excluída, mas a recriação na Evolution falhou. Tente novamente.",
+      error: "Instância excluída, mas a recriação na Evolution falhou. Tente Destravar de novo.",
       evolutionHttpStatus: created.status,
     });
   }

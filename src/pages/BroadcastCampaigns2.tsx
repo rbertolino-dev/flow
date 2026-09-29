@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users, Shield, List, Edit, Image as ImageIcon, Video, Wifi, WifiOff, AlertTriangle, History } from "lucide-react";
+import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users, Shield, List, Edit, Image as ImageIcon, Video, Wifi, WifiOff, AlertTriangle, History, Unlock } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format as formatDate } from "date-fns";
@@ -61,6 +61,7 @@ import { InstanceHealthDashboard } from "@/components/crm/InstanceHealthDashboar
 import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
 import type { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { ReconnectInstanceDialog } from "@/components/crm/ReconnectInstanceDialog";
+import { UnstuckInstanceDialog } from "@/components/crm/UnstuckInstanceDialog";
 import { BroadcastTimeWindowManager } from "@/components/crm/BroadcastTimeWindowManager";
 import { TimeWindowConflictDialog } from "@/components/crm/TimeWindowConflictDialog";
 import { InstanceGroupManager } from "@/components/crm/InstanceGroupManager";
@@ -615,6 +616,7 @@ export default function BroadcastCampaigns2() {
   const [syncingEvolutionStatus, setSyncingEvolutionStatus] = useState(false);
   const [messageTemplates, setMessageTemplates] = useState<any[]>([]);
   const [reconnectingInstance, setReconnectingInstance] = useState<any | null>(null);
+  const [unstuckingInstance, setUnstuckingInstance] = useState<any | null>(null);
   const [campaignTemplates, setCampaignTemplates] = useState<any[]>([]);
   const [activeTimeWindow, setActiveTimeWindow] = useState<TimeWindow | null>(null);
   const [instanceGroups, setInstanceGroups] = useState<any[]>([]);
@@ -3389,7 +3391,7 @@ export default function BroadcastCampaigns2() {
                     Reconectar Instâncias WhatsApp
                   </CardTitle>
                   <p className="text-sm text-muted-foreground mt-2">
-                    Reconecte suas instâncias WhatsApp desconectadas usando QR code ou número de telefone
+                    Reconecte com QR code ou use Destravar se a instância sumiu na Evolution (excluída e não recriada).
                   </p>
                 </CardHeader>
                 <CardContent>
@@ -3408,7 +3410,7 @@ export default function BroadcastCampaigns2() {
                         .map((instance: any) => (
                           <div
                             key={instance.id}
-                            className="flex items-center justify-between p-4 border border-destructive/20 rounded-lg bg-destructive/5"
+                            className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 border border-destructive/20 rounded-lg bg-destructive/5"
                           >
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -3425,14 +3427,22 @@ export default function BroadcastCampaigns2() {
                                 </p>
                               )}
                             </div>
-                            <Button
-                              variant="default"
-                              onClick={() => setReconnectingInstance(instance)}
-                              className="ml-4"
-                            >
-                              <Wifi className="h-4 w-4 mr-2" />
-                              Reconectar
-                            </Button>
+                            <div className="flex flex-wrap gap-2 sm:ml-4 shrink-0">
+                              <Button
+                                variant="destructive"
+                                onClick={() => setUnstuckingInstance(instance)}
+                              >
+                                <Unlock className="h-4 w-4 mr-2" />
+                                Destravar
+                              </Button>
+                              <Button
+                                variant="default"
+                                onClick={() => setReconnectingInstance(instance)}
+                              >
+                                <Wifi className="h-4 w-4 mr-2" />
+                                Reconectar
+                              </Button>
+                            </div>
                           </div>
                         ))}
                     </div>
@@ -5802,6 +5812,18 @@ export default function BroadcastCampaigns2() {
           onReconnected={() => {
             setReconnectingInstance(null);
             fetchInstances();
+          }}
+        />
+      )}
+      {unstuckingInstance && (
+        <UnstuckInstanceDialog
+          open={!!unstuckingInstance}
+          onOpenChange={(open) => {
+            if (!open) setUnstuckingInstance(null);
+          }}
+          instance={unstuckingInstance}
+          onDone={() => {
+            void fetchInstances();
           }}
         />
       )}
