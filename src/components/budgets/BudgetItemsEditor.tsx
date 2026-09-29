@@ -40,14 +40,15 @@ export function BudgetItemsEditor({
   const [showAddService, setShowAddService] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: '', price: '0', quantity: '1' });
   const [newService, setNewService] = useState({ name: '', price: '0', quantity: '1' });
-  const [selectedProductId, setSelectedProductId] = useState('');
-  const [selectedServiceId, setSelectedServiceId] = useState('');
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
   const [showProductResults, setShowProductResults] = useState(false);
   const [showServiceResults, setShowServiceResults] = useState(false);
+  const [lastAddedLabel, setLastAddedLabel] = useState('');
   const productSearchRef = useRef<HTMLDivElement>(null);
   const serviceSearchRef = useRef<HTMLDivElement>(null);
+  const productSearchInputRef = useRef<HTMLInputElement>(null);
+  const serviceSearchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -84,6 +85,21 @@ export function BudgetItemsEditor({
     })
     .slice(0, 10);
 
+  const focusProductSearch = () => {
+    window.setTimeout(() => productSearchInputRef.current?.focus(), 0);
+  };
+
+  const focusServiceSearch = () => {
+    window.setTimeout(() => serviceSearchInputRef.current?.focus(), 0);
+  };
+
+  const flashAdded = (label: string) => {
+    setLastAddedLabel(label);
+    window.setTimeout(() => {
+      setLastAddedLabel((current) => (current === label ? '' : current));
+    }, 1800);
+  };
+
   const addProductFromCatalog = (product: AvailableBudgetProduct, quantity = 1) => {
     const qty = Math.max(0.01, quantity);
     const existingIndex = products.findIndex((item) => item.id === product.id && !item.isManual);
@@ -95,100 +111,102 @@ export function BudgetItemsEditor({
         subtotal: (next[existingIndex].quantity + qty) * next[existingIndex].price,
       };
       onProductsChange(next);
-      return;
-    }
-    onProductsChange([
-      ...products,
-      {
-        id: product.id,
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        quantity: qty,
-        subtotal: product.price * qty,
-      },
-    ]);
-  };
-
-  const addProduct = () => {
-    if (selectedProductId) {
-      const product = availableProducts.find((item) => item.id === selectedProductId);
-      if (product) {
-        addProductFromCatalog(product, parseFloat(newProduct.quantity) || 1);
-        setSelectedProductId('');
-        setNewProduct({ name: '', price: '0', quantity: '1' });
-        setProductSearchQuery('');
-        setShowProductResults(false);
-        setShowAddProduct(false);
-        return;
-      }
-    }
-
-    if (newProduct.name && parseFloat(newProduct.price) > 0) {
-      const quantity = parseFloat(newProduct.quantity) || 1;
-      const price = parseFloat(newProduct.price);
+    } else {
       onProductsChange([
         ...products,
         {
-          id: `manual-${Date.now()}`,
-          name: newProduct.name,
-          price,
-          quantity,
-          subtotal: price * quantity,
-          isManual: true,
+          id: product.id,
+          name: product.name,
+          description: product.description,
+          price: product.price,
+          quantity: qty,
+          subtotal: product.price * qty,
         },
       ]);
-      setNewProduct({ name: '', price: '0', quantity: '1' });
-      setProductSearchQuery('');
-      setShowProductResults(false);
-      setShowAddProduct(false);
     }
+    setProductSearchQuery('');
+    setShowProductResults(false);
+    setNewProduct({ name: '', price: '0', quantity: '1' });
+    flashAdded(product.name);
+    focusProductSearch();
   };
 
-  const addService = () => {
-    if (selectedServiceId) {
-      const service = availableServices.find((item) => item.id === selectedServiceId);
-      if (service) {
-        const quantity = parseFloat(newService.quantity) || 1;
-        onServicesChange([
-          ...services,
-          {
-            id: service.id,
-            name: service.name,
-            description: service.description,
-            price: service.price,
-            quantity,
-            subtotal: service.price * quantity,
-          },
-        ]);
-        setSelectedServiceId('');
-        setNewService({ name: '', price: '0', quantity: '1' });
-        setServiceSearchQuery('');
-        setShowServiceResults(false);
-        setShowAddService(false);
-        return;
-      }
-    }
-
-    if (newService.name && parseFloat(newService.price) > 0) {
-      const quantity = parseFloat(newService.quantity) || 1;
-      const price = parseFloat(newService.price);
+  const addServiceFromCatalog = (
+    service: { id: string; name: string; price: number; description?: string },
+    quantity = 1
+  ) => {
+    const qty = Math.max(0.01, quantity);
+    const existingIndex = services.findIndex((item) => item.id === service.id && !item.isManual);
+    if (existingIndex >= 0) {
+      const next = [...services];
+      next[existingIndex] = {
+        ...next[existingIndex],
+        quantity: next[existingIndex].quantity + qty,
+        subtotal: (next[existingIndex].quantity + qty) * next[existingIndex].price,
+      };
+      onServicesChange(next);
+    } else {
       onServicesChange([
         ...services,
         {
-          id: `manual-${Date.now()}`,
-          name: newService.name,
-          price,
-          quantity,
-          subtotal: price * quantity,
-          isManual: true,
+          id: service.id,
+          name: service.name,
+          description: service.description,
+          price: service.price,
+          quantity: qty,
+          subtotal: service.price * qty,
         },
       ]);
-      setNewService({ name: '', price: '0', quantity: '1' });
-      setServiceSearchQuery('');
-      setShowServiceResults(false);
-      setShowAddService(false);
     }
+    setServiceSearchQuery('');
+    setShowServiceResults(false);
+    setNewService({ name: '', price: '0', quantity: '1' });
+    flashAdded(service.name);
+    focusServiceSearch();
+  };
+
+  const addManualProduct = () => {
+    if (!newProduct.name || !(parseFloat(newProduct.price) > 0)) return;
+    const quantity = parseFloat(newProduct.quantity) || 1;
+    const price = parseFloat(newProduct.price);
+    onProductsChange([
+      ...products,
+      {
+        id: `manual-${Date.now()}`,
+        name: newProduct.name,
+        price,
+        quantity,
+        subtotal: price * quantity,
+        isManual: true,
+      },
+    ]);
+    flashAdded(newProduct.name);
+    setNewProduct({ name: '', price: '0', quantity: '1' });
+    setProductSearchQuery('');
+    setShowProductResults(false);
+    focusProductSearch();
+  };
+
+  const addManualService = () => {
+    if (!newService.name || !(parseFloat(newService.price) > 0)) return;
+    const quantity = parseFloat(newService.quantity) || 1;
+    const price = parseFloat(newService.price);
+    onServicesChange([
+      ...services,
+      {
+        id: `manual-${Date.now()}`,
+        name: newService.name,
+        price,
+        quantity,
+        subtotal: price * quantity,
+        isManual: true,
+      },
+    ]);
+    flashAdded(newService.name);
+    setNewService({ name: '', price: '0', quantity: '1' });
+    setServiceSearchQuery('');
+    setShowServiceResults(false);
+    focusServiceSearch();
   };
 
   const removeProduct = (index: number) => {
@@ -230,6 +248,7 @@ export function BudgetItemsEditor({
           onClick={() => {
             setShowAddProduct(true);
             setShowAddService(false);
+            focusProductSearch();
           }}
         >
           <Plus className="mr-2 h-4 w-4" />
@@ -241,6 +260,7 @@ export function BudgetItemsEditor({
           onClick={() => {
             setShowAddService(true);
             setShowAddProduct(false);
+            focusServiceSearch();
           }}
         >
           <Plus className="mr-2 h-4 w-4" />
@@ -262,14 +282,24 @@ export function BudgetItemsEditor({
               className="h-8 w-8"
               onClick={() => {
                 setShowAddProduct(false);
-                setSelectedProductId('');
                 setNewProduct({ name: '', price: '0', quantity: '1' });
                 setProductSearchQuery('');
+                setShowProductResults(false);
               }}
             >
               <X className="h-4 w-4" />
             </Button>
           </div>
+
+          <p className="text-xs text-muted-foreground">
+            Clique no produto da lista para incluir na hora e continue buscando o próximo.
+          </p>
+
+          {lastAddedLabel ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+              Incluído: <span className="font-medium">{lastAddedLabel}</span>
+            </div>
+          ) : null}
 
           {availableProducts.length > 0 && (
             <div className="space-y-1" ref={productSearchRef}>
@@ -277,14 +307,16 @@ export function BudgetItemsEditor({
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  ref={productSearchInputRef}
                   value={productSearchQuery}
                   onChange={(event) => {
                     setProductSearchQuery(event.target.value);
                     setShowProductResults(true);
                   }}
                   onFocus={() => setShowProductResults(true)}
-                  placeholder="Nome ou descrição"
+                  placeholder="Digite e clique para incluir"
                   className="pl-10"
+                  autoFocus
                 />
               </div>
               {showProductResults && productSearchQuery && (
@@ -295,23 +327,15 @@ export function BudgetItemsEditor({
                         key={product.id}
                         type="button"
                         className="flex w-full items-start justify-between gap-3 border-b px-3 py-2.5 text-left last:border-b-0 hover:bg-muted"
-                        onClick={() => {
-                          setSelectedProductId(product.id);
-                          setNewProduct({
-                            name: product.name,
-                            price: product.price.toString(),
-                            quantity: '1',
-                          });
-                          setProductSearchQuery(product.name);
-                          setShowProductResults(false);
-                        }}
+                        onClick={() => addProductFromCatalog(product, 1)}
                       >
                         <span>
                           <span className="block text-sm font-medium">{product.name}</span>
                           <span className="text-xs text-muted-foreground">
-                            {formatCurrency(product.price)}
+                            {formatCurrency(product.price)} · clique para incluir
                           </span>
                         </span>
+                        <Plus className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
                       </button>
                     ))
                   ) : (
@@ -324,37 +348,58 @@ export function BudgetItemsEditor({
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-2">
-            <div className="col-span-3 space-y-1 sm:col-span-1">
-              <Label>Nome</Label>
-              <Input
-                value={newProduct.name}
-                onChange={(event) => setNewProduct({ ...newProduct, name: event.target.value })}
-                placeholder="Produto avulso"
-              />
+          <div className="rounded-lg border border-dashed border-slate-200 bg-white/70 p-3">
+            <p className="mb-2 text-xs font-medium text-slate-600">Ou item avulso</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-3 space-y-1 sm:col-span-1">
+                <Label>Nome</Label>
+                <Input
+                  value={newProduct.name}
+                  onChange={(event) => setNewProduct({ ...newProduct, name: event.target.value })}
+                  placeholder="Produto avulso"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      addManualProduct();
+                    }
+                  }}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Preço</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={newProduct.price}
+                  onChange={(event) => setNewProduct({ ...newProduct, price: event.target.value })}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      addManualProduct();
+                    }
+                  }}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Qtd</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={newProduct.quantity}
+                  onChange={(event) => setNewProduct({ ...newProduct, quantity: event.target.value })}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      addManualProduct();
+                    }
+                  }}
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label>Preço</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={newProduct.price}
-                onChange={(event) => setNewProduct({ ...newProduct, price: event.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Qtd</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={newProduct.quantity}
-                onChange={(event) => setNewProduct({ ...newProduct, quantity: event.target.value })}
-              />
-            </div>
+            <Button type="button" variant="outline" onClick={addManualProduct} className="mt-2 w-full">
+              Incluir avulso e continuar
+            </Button>
           </div>
-          <Button type="button" onClick={addProduct} className="w-full">
-            Incluir produto
-          </Button>
         </div>
       )}
 
@@ -372,14 +417,24 @@ export function BudgetItemsEditor({
               className="h-8 w-8"
               onClick={() => {
                 setShowAddService(false);
-                setSelectedServiceId('');
                 setNewService({ name: '', price: '0', quantity: '1' });
                 setServiceSearchQuery('');
+                setShowServiceResults(false);
               }}
             >
               <X className="h-4 w-4" />
             </Button>
           </div>
+
+          <p className="text-xs text-muted-foreground">
+            Clique no serviço da lista para incluir na hora e continue buscando o próximo.
+          </p>
+
+          {lastAddedLabel ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+              Incluído: <span className="font-medium">{lastAddedLabel}</span>
+            </div>
+          ) : null}
 
           {availableServices.length > 0 && (
             <div className="space-y-1" ref={serviceSearchRef}>
@@ -387,14 +442,16 @@ export function BudgetItemsEditor({
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  ref={serviceSearchInputRef}
                   value={serviceSearchQuery}
                   onChange={(event) => {
                     setServiceSearchQuery(event.target.value);
                     setShowServiceResults(true);
                   }}
                   onFocus={() => setShowServiceResults(true)}
-                  placeholder="Nome do serviço"
+                  placeholder="Digite e clique para incluir"
                   className="pl-10"
+                  autoFocus
                 />
               </div>
               {showServiceResults && serviceSearchQuery && (
@@ -405,21 +462,15 @@ export function BudgetItemsEditor({
                         key={service.id}
                         type="button"
                         className="flex w-full items-start justify-between gap-3 border-b px-3 py-2.5 text-left last:border-b-0 hover:bg-muted"
-                        onClick={() => {
-                          setSelectedServiceId(service.id);
-                          setNewService({
-                            name: service.name,
-                            price: service.price.toString(),
-                            quantity: '1',
-                          });
-                          setServiceSearchQuery(service.name);
-                          setShowServiceResults(false);
-                        }}
+                        onClick={() => addServiceFromCatalog(service, 1)}
                       >
                         <span>
                           <span className="block text-sm font-medium">{service.name}</span>
-                          <span className="text-xs text-muted-foreground">{formatCurrency(service.price)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatCurrency(service.price)} · clique para incluir
+                          </span>
                         </span>
+                        <Plus className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
                       </button>
                     ))
                   ) : (
@@ -432,37 +483,58 @@ export function BudgetItemsEditor({
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-2">
-            <div className="col-span-3 space-y-1 sm:col-span-1">
-              <Label>Nome</Label>
-              <Input
-                value={newService.name}
-                onChange={(event) => setNewService({ ...newService, name: event.target.value })}
-                placeholder="Serviço avulso"
-              />
+          <div className="rounded-lg border border-dashed border-slate-200 bg-white/70 p-3">
+            <p className="mb-2 text-xs font-medium text-slate-600">Ou serviço avulso</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-3 space-y-1 sm:col-span-1">
+                <Label>Nome</Label>
+                <Input
+                  value={newService.name}
+                  onChange={(event) => setNewService({ ...newService, name: event.target.value })}
+                  placeholder="Serviço avulso"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      addManualService();
+                    }
+                  }}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Preço</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={newService.price}
+                  onChange={(event) => setNewService({ ...newService, price: event.target.value })}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      addManualService();
+                    }
+                  }}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Qtd</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={newService.quantity}
+                  onChange={(event) => setNewService({ ...newService, quantity: event.target.value })}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      addManualService();
+                    }
+                  }}
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label>Preço</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={newService.price}
-                onChange={(event) => setNewService({ ...newService, price: event.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Qtd</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={newService.quantity}
-                onChange={(event) => setNewService({ ...newService, quantity: event.target.value })}
-              />
-            </div>
+            <Button type="button" variant="outline" onClick={addManualService} className="mt-2 w-full">
+              Incluir avulso e continuar
+            </Button>
           </div>
-          <Button type="button" onClick={addService} className="w-full">
-            Incluir serviço
-          </Button>
         </div>
       )}
 
