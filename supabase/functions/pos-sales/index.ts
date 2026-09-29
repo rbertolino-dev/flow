@@ -193,7 +193,8 @@ async function syncPosFinancial(
     const amount = Number(line.amount || 0);
     if (amount <= 0.009) continue;
     const method = String(line.method || "").toLowerCase();
-    const paid = !explicitLines && !DEFERRED_PAYMENT_METHODS.has(method);
+    // Sempre em aberto: o operador confirma "Receber" no dialog pós-venda,
+    // independente da forma de pagamento (PIX, dinheiro, cartão, etc.).
     const id = await upsert({
       p_organization_id: input.organizationId,
       p_direction: "receber",
@@ -201,7 +202,7 @@ async function syncPosFinancial(
       p_due_date: line.due_date || input.paymentDate,
       p_source_type: "pdv",
       p_source_id: `venda:${input.saleId}:${index}`,
-      p_status: paid ? "paid" : "open",
+      p_status: "open",
       p_settlement_status: "confirmado",
       p_lead_id: input.leadId,
       p_description: description,
@@ -210,7 +211,7 @@ async function syncPosFinancial(
       p_category: category,
       p_account: account,
       p_origin_label: "PDV",
-      p_paid_at: paid ? input.soldAt : null,
+      p_paid_at: null,
       p_created_by: input.userId,
       p_payment_method: method,
       p_attachment_name: input.attachmentName || null,
@@ -222,7 +223,7 @@ async function syncPosFinancial(
         amount,
         due_date: String(line.due_date || input.paymentDate).slice(0, 10),
         method,
-        status: paid ? "paid" : "open",
+        status: "open",
       });
     }
   }

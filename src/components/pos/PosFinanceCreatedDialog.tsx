@@ -103,11 +103,15 @@ export function PosFinanceCreatedDialog({ open, description, entries, onDone }: 
               <span>{getPaymentMethodLabel(row.method as PaymentMethod)}</span>
               <Button
                 type="button"
-                className="bg-orange-500 text-white hover:bg-orange-600"
-                disabled={row.status === "paid" || busyId === row.id}
+                className={
+                  row.status === "paid"
+                    ? "bg-emerald-600 text-white hover:bg-emerald-600"
+                    : "bg-orange-500 text-white hover:bg-orange-600"
+                }
+                disabled={row.status === "paid" || busyId === row.id || !activeOrgId}
                 onClick={() => void receive(row)}
               >
-                {row.status === "paid" ? "Recebido" : "Receber"}
+                {busyId === row.id ? "..." : row.status === "paid" ? "Recebido" : "Receber"}
               </Button>
             </div>
           ))}
