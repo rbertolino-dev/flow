@@ -30,6 +30,20 @@ export interface BudgetClient {
   company?: string;
 }
 
+export interface BudgetPdfDisplayOptions {
+  show_product_subtotals: boolean;
+  show_service_subtotals: boolean;
+  show_additions: boolean;
+  show_signature: boolean;
+}
+
+export const DEFAULT_BUDGET_PDF_DISPLAY_OPTIONS: BudgetPdfDisplayOptions = {
+  show_product_subtotals: true,
+  show_service_subtotals: true,
+  show_additions: true,
+  show_signature: false,
+};
+
 export interface BudgetFormData {
   leadId: string;
   products: BudgetProduct[];
@@ -43,6 +57,7 @@ export interface BudgetFormData {
   headerColor?: string; // Cor da barra superior (hex)
   logoUrl?: string; // URL do logo/imagem no cabeçalho
   additions?: number; // Acréscimos/descontos
+  pdfDisplayOptions?: BudgetPdfDisplayOptions;
 }
 
 export interface Budget {
@@ -67,6 +82,7 @@ export interface Budget {
   header_color?: string; // Cor da barra superior (hex)
   logo_url?: string; // URL do logo/imagem no cabeçalho
   pdf_url?: string;
+  pdf_display_options?: BudgetPdfDisplayOptions;
   created_at: string;
   updated_at: string;
   created_by?: string;

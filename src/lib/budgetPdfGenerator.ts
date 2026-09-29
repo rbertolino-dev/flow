@@ -1,6 +1,6 @@
 // Função para gerar PDF de orçamento usando jsPDF
 // Design moderno e compacto baseado na imagem de referência
-import { BudgetPdfOptions, Budget } from '@/types/budget';
+import { BudgetPdfOptions, Budget, DEFAULT_BUDGET_PDF_DISPLAY_OPTIONS } from '@/types/budget';
 import { formatPaymentMethods } from '@/lib/paymentMethods';
 import { format } from 'date-fns';
 import { jsPDF } from 'jspdf';
@@ -31,6 +31,14 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     options.organizationData?.logo_url ||
     undefined;
   const organizationData = options.organizationData;
+  const displayOptions = {
+    ...DEFAULT_BUDGET_PDF_DISPLAY_OPTIONS,
+    ...((budget as any).pdf_display_options || {}),
+  };
+  const showProductSubtotals = displayOptions.show_product_subtotals !== false;
+  const showServiceSubtotals = displayOptions.show_service_subtotals !== false;
+  const showAdditions = displayOptions.show_additions !== false;
+  const showSignature = displayOptions.show_signature === true;
 
   // Função para converter hex para RGB
   const hexToRgb = (hex: string): [number, number, number] => {
@@ -308,11 +316,13 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(0, 0, 0);
     
-    // Colunas: Serviço, Preço Unit, Qntd, Total
+    // Colunas: Serviço, Preço Unit, Qntd, Total (Total opcional)
     doc.text('Servico', leftColumnX + 2, yPosition);
     doc.text('Preco Unit', leftColumnX + 120, yPosition, { align: 'right' });
     doc.text('Qntd', leftColumnX + 150, yPosition, { align: 'right' });
-    doc.text('Total', leftColumnX + 170, yPosition, { align: 'right' });
+    if (showServiceSubtotals) {
+      doc.text('Total', leftColumnX + 170, yPosition, { align: 'right' });
+    }
     yPosition += lineHeight * 1.0;
 
     drawSeparator(yPosition);
@@ -335,7 +345,9 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
         doc.text('Servico', leftColumnX + 2, yPosition);
         doc.text('Preco Unit', leftColumnX + 120, yPosition, { align: 'right' });
         doc.text('Qntd', leftColumnX + 150, yPosition, { align: 'right' });
-        doc.text('Total', leftColumnX + 170, yPosition, { align: 'right' });
+        if (showServiceSubtotals) {
+          doc.text('Total', leftColumnX + 170, yPosition, { align: 'right' });
+        }
         yPosition += lineHeight * 1.0;
         drawSeparator(yPosition);
         yPosition += lineHeight * 0.6;
@@ -355,7 +367,9 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
       doc.text(descLines[0], leftColumnX + 2, yPosition);
       doc.text(formatCurrency(service.price || 0), leftColumnX + 120, yPosition, { align: 'right' });
       doc.text((service.quantity || 1).toString(), leftColumnX + 150, yPosition, { align: 'right' });
-      doc.text(formatCurrency(service.subtotal || (service.price || 0) * (service.quantity || 1)), leftColumnX + 170, yPosition, { align: 'right' });
+      if (showServiceSubtotals) {
+        doc.text(formatCurrency(service.subtotal || (service.price || 0) * (service.quantity || 1)), leftColumnX + 170, yPosition, { align: 'right' });
+      }
       
       yPosition += lineHeight * 0.9;
 
@@ -399,11 +413,13 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(0, 0, 0);
     
-    // Colunas: Produto, Preço Unit, Qntd, Total
+    // Colunas: Produto, Preço Unit, Qntd, Total (Total opcional)
     doc.text('Produto', leftColumnX + 2, yPosition);
     doc.text('Preco Unit', leftColumnX + 120, yPosition, { align: 'right' });
     doc.text('Qntd', leftColumnX + 150, yPosition, { align: 'right' });
-    doc.text('Total', leftColumnX + 170, yPosition, { align: 'right' });
+    if (showProductSubtotals) {
+      doc.text('Total', leftColumnX + 170, yPosition, { align: 'right' });
+    }
     yPosition += lineHeight * 1.0;
 
     drawSeparator(yPosition);
@@ -426,7 +442,9 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
         doc.text('Produto', leftColumnX + 2, yPosition);
         doc.text('Preco Unit', leftColumnX + 120, yPosition, { align: 'right' });
         doc.text('Qntd', leftColumnX + 150, yPosition, { align: 'right' });
-        doc.text('Total', leftColumnX + 170, yPosition, { align: 'right' });
+        if (showProductSubtotals) {
+          doc.text('Total', leftColumnX + 170, yPosition, { align: 'right' });
+        }
         yPosition += lineHeight * 1.0;
         drawSeparator(yPosition);
         yPosition += lineHeight * 0.6;
@@ -446,7 +464,9 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
       doc.text(descLines[0], leftColumnX + 2, yPosition);
       doc.text(formatCurrency(product.price || 0), leftColumnX + 120, yPosition, { align: 'right' });
       doc.text((product.quantity || 1).toString(), leftColumnX + 150, yPosition, { align: 'right' });
-      doc.text(formatCurrency(product.subtotal || (product.price || 0) * (product.quantity || 1)), leftColumnX + 170, yPosition, { align: 'right' });
+      if (showProductSubtotals) {
+        doc.text(formatCurrency(product.subtotal || (product.price || 0) * (product.quantity || 1)), leftColumnX + 170, yPosition, { align: 'right' });
+      }
       
       yPosition += lineHeight * 0.9;
 
@@ -479,15 +499,17 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   doc.text(formatCurrency(subtotal), leftColumnX + 170, yPosition, { align: 'right' });
   yPosition += lineHeight * 0.8;
   
-  const discount = budget.additions < 0 ? Math.abs(budget.additions) : 0;
-  doc.text('DESCONTO:', leftColumnX + 120, yPosition, { align: 'right' });
-  doc.text(formatCurrency(discount), leftColumnX + 170, yPosition, { align: 'right' });
-  yPosition += lineHeight * 0.8;
-  
-  const addition = budget.additions > 0 ? budget.additions : 0;
-  doc.text('ACRESCIMO:', leftColumnX + 120, yPosition, { align: 'right' });
-  doc.text(formatCurrency(addition), leftColumnX + 170, yPosition, { align: 'right' });
-  yPosition += lineHeight * 0.8;
+  if (showAdditions) {
+    const discount = budget.additions < 0 ? Math.abs(budget.additions) : 0;
+    doc.text('DESCONTO:', leftColumnX + 120, yPosition, { align: 'right' });
+    doc.text(formatCurrency(discount), leftColumnX + 170, yPosition, { align: 'right' });
+    yPosition += lineHeight * 0.8;
+    
+    const addition = budget.additions > 0 ? budget.additions : 0;
+    doc.text('ACRESCIMO:', leftColumnX + 120, yPosition, { align: 'right' });
+    doc.text(formatCurrency(addition), leftColumnX + 170, yPosition, { align: 'right' });
+    yPosition += lineHeight * 0.8;
+  }
   
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
@@ -577,21 +599,23 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   }
 
   // ==========================================
-  // RODAPÉ - ASSINATURA
+  // RODAPÉ - ASSINATURA (opcional)
   // ==========================================
-  const minSpaceForSignature = 20;
-  if (yPosition + minSpaceForSignature > pageHeight - margin) {
-    doc.addPage();
-    yPosition = margin + 5;
+  if (showSignature) {
+    const minSpaceForSignature = 20;
+    if (yPosition + minSpaceForSignature > pageHeight - margin) {
+      doc.addPage();
+      yPosition = margin + 5;
+    }
+    
+    drawSeparator(yPosition);
+    yPosition += lineHeight * 1.5;
+    
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Assinatura', pageWidth / 2, yPosition, { align: 'center' });
   }
-  
-  drawSeparator(yPosition);
-  yPosition += lineHeight * 1.5;
-  
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 100, 100);
-  doc.text('Assinatura', pageWidth / 2, yPosition, { align: 'center' });
 
   // Rodapé com numeração de páginas
   const totalPages = doc.getNumberOfPages();

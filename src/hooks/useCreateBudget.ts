@@ -75,6 +75,12 @@ export function useCreateBudget() {
           background_image_url: formData.backgroundImageUrl || null,
           header_color: formData.headerColor || null,
           logo_url: formData.logoUrl || null,
+          pdf_display_options: formData.pdfDisplayOptions || {
+            show_product_subtotals: true,
+            show_service_subtotals: true,
+            show_additions: true,
+            show_signature: false,
+          },
           created_by: user.id,
         })
         .select()

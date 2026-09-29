@@ -421,6 +421,12 @@ export function useBudgets(filters?: BudgetFilters) {
           background_image_url: budgetData.backgroundImageUrl || null,
           header_color: budgetData.headerColor || null,
           logo_url: budgetData.logoUrl || null,
+          pdf_display_options: budgetData.pdfDisplayOptions || {
+            show_product_subtotals: true,
+            show_service_subtotals: true,
+            show_additions: true,
+            show_signature: false,
+          },
           created_by: user.id,
         })
         .select(`

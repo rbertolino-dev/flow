@@ -14,8 +14,8 @@ import { useLeads } from '@/hooks/useLeads';
 import { useProducts } from '@/hooks/useProducts';
 import { useServices } from '@/hooks/useServices';
 import { usePipelineStages } from '@/hooks/usePipelineStages';
-import { BudgetFormData, BudgetProduct, BudgetService } from '@/types/budget-module';
-import { Search, X, Loader2, Plus, UserRound, Palette, CalendarDays, MapPin, CreditCard, FileText } from 'lucide-react';
+import { BudgetFormData, BudgetProduct, BudgetService, DEFAULT_BUDGET_PDF_DISPLAY_OPTIONS, BudgetPdfDisplayOptions } from '@/types/budget-module';
+import { Search, X, Loader2, Plus, UserRound, Palette, CalendarDays, MapPin, CreditCard, FileText, Percent, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { normalizePhone, isValidBrazilianPhone } from '@/lib/phoneUtils';
@@ -121,6 +121,11 @@ export function CreateBudgetDialog({
   const [markupValue, setMarkupValue] = useState('0');
   const [discountIsPercent, setDiscountIsPercent] = useState(false);
   const [markupIsPercent, setMarkupIsPercent] = useState(false);
+  const [enableDiscount, setEnableDiscount] = useState(false);
+  const [enableMarkup, setEnableMarkup] = useState(false);
+  const [pdfDisplayOptions, setPdfDisplayOptions] = useState<BudgetPdfDisplayOptions>({
+    ...DEFAULT_BUDGET_PDF_DISPLAY_OPTIONS,
+  });
   const [headerColor, setHeaderColor] = useState('#1e3a5f');
   const [showCreateLeadDialog, setShowCreateLeadDialog] = useState(false);
   const [creatingLead, setCreatingLead] = useState(false);
@@ -273,8 +278,8 @@ export function CreateBudgetDialog({
     const subtotalProducts = productsList.reduce((sum, item) => sum + item.subtotal, 0);
     const subtotalServices = servicesList.reduce((sum, item) => sum + item.subtotal, 0);
     const subtotal = subtotalProducts + subtotalServices;
-    const rawDiscount = parseFloat(String(discountValue).replace(',', '.')) || 0;
-    const rawMarkup = parseFloat(String(markupValue).replace(',', '.')) || 0;
+    const rawDiscount = enableDiscount ? parseFloat(String(discountValue).replace(',', '.')) || 0 : 0;
+    const rawMarkup = enableMarkup ? parseFloat(String(markupValue).replace(',', '.')) || 0 : 0;
     const discount = discountIsPercent ? (subtotal * rawDiscount) / 100 : rawDiscount;
     const markup = markupIsPercent ? (subtotal * rawMarkup) / 100 : rawMarkup;
     const additionsValue = markup - discount;
@@ -302,6 +307,9 @@ export function CreateBudgetDialog({
     setMarkupValue('0');
     setDiscountIsPercent(false);
     setMarkupIsPercent(false);
+    setEnableDiscount(false);
+    setEnableMarkup(false);
+    setPdfDisplayOptions({ ...DEFAULT_BUDGET_PDF_DISPLAY_OPTIONS });
     setHeaderColor('#1e3a5f');
   };
 
@@ -336,6 +344,7 @@ export function CreateBudgetDialog({
       observations: enableObservations ? observations || undefined : undefined,
       headerColor: headerColor || undefined,
       additions: totals.additionsValue,
+      pdfDisplayOptions,
     };
 
     createBudget(formData, {
@@ -394,9 +403,23 @@ export function CreateBudgetDialog({
                     <span className="text-muted-foreground">Subtotal</span>
                     <span className="font-medium tabular-nums">{money(totals.subtotal)}</span>
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div className="space-y-1">
-                      <Label htmlFor="budget-discount" className="text-xs">Desconto</Label>
+
+                  <OptionalToggle
+                    id="enable-discount"
+                    checked={enableDiscount}
+                    onCheckedChange={(checked) => {
+                      setEnableDiscount(checked);
+                      if (!checked) {
+                        setDiscountValue('0');
+                        setDiscountIsPercent(false);
+                      }
+                    }}
+                    label="Adicionar desconto"
+                    icon={Percent}
+                  />
+                  {enableDiscount ? (
+                    <div className="space-y-1 pl-1">
+                      <Label htmlFor="budget-discount" className="text-xs">Valor do desconto</Label>
                       <div className="flex gap-1">
                         <Input
                           id="budget-discount"
@@ -417,8 +440,24 @@ export function CreateBudgetDialog({
                         </Button>
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="budget-markup" className="text-xs">Acréscimo</Label>
+                  ) : null}
+
+                  <OptionalToggle
+                    id="enable-markup"
+                    checked={enableMarkup}
+                    onCheckedChange={(checked) => {
+                      setEnableMarkup(checked);
+                      if (!checked) {
+                        setMarkupValue('0');
+                        setMarkupIsPercent(false);
+                      }
+                    }}
+                    label="Adicionar acréscimo"
+                    icon={PlusCircle}
+                  />
+                  {enableMarkup ? (
+                    <div className="space-y-1 pl-1">
+                      <Label htmlFor="budget-markup" className="text-xs">Valor do acréscimo</Label>
                       <div className="flex gap-1">
                         <Input
                           id="budget-markup"
@@ -439,12 +478,51 @@ export function CreateBudgetDialog({
                         </Button>
                       </div>
                     </div>
-                  </div>
+                  ) : null}
+
                   <Separator />
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold">Total</span>
                     <span className="text-lg font-semibold tabular-nums text-emerald-700">{money(totals.total)}</span>
                   </div>
+                </div>
+
+                <div className="space-y-1 rounded-xl border border-slate-200 bg-white p-3">
+                  <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Opções do PDF
+                  </h4>
+                  <OptionalToggle
+                    id="show-product-subtotals"
+                    checked={pdfDisplayOptions.show_product_subtotals}
+                    onCheckedChange={(checked) =>
+                      setPdfDisplayOptions((prev) => ({ ...prev, show_product_subtotals: checked }))
+                    }
+                    label="Mostrar subtotais de cada produto"
+                  />
+                  <OptionalToggle
+                    id="show-service-subtotals"
+                    checked={pdfDisplayOptions.show_service_subtotals}
+                    onCheckedChange={(checked) =>
+                      setPdfDisplayOptions((prev) => ({ ...prev, show_service_subtotals: checked }))
+                    }
+                    label="Mostrar subtotais de cada serviço"
+                  />
+                  <OptionalToggle
+                    id="show-additions-pdf"
+                    checked={pdfDisplayOptions.show_additions}
+                    onCheckedChange={(checked) =>
+                      setPdfDisplayOptions((prev) => ({ ...prev, show_additions: checked }))
+                    }
+                    label="Mostrar acréscimos no PDF"
+                  />
+                  <OptionalToggle
+                    id="show-signature"
+                    checked={pdfDisplayOptions.show_signature}
+                    onCheckedChange={(checked) =>
+                      setPdfDisplayOptions((prev) => ({ ...prev, show_signature: checked }))
+                    }
+                    label="Espaço para assinatura"
+                  />
                 </div>
 
                 <div className="space-y-2">
