@@ -34,6 +34,27 @@ export interface PosSalePayment {
   created_at?: string;
 }
 
+export interface PosSaleLogChange {
+  field: string;
+  from?: string | number | null;
+  to?: string | number | null;
+  amount?: number;
+  payment_id?: string;
+  payment_index?: number;
+}
+
+export interface PosSaleLog {
+  id: string;
+  organization_id: string;
+  sale_id: string;
+  payment_id?: string | null;
+  event_type: string;
+  actor_id?: string | null;
+  actor_name?: string | null;
+  changes?: PosSaleLogChange[] | null;
+  created_at: string;
+}
+
 export interface PosFinanceEntryRef {
   id: string;
   amount: number;
@@ -106,6 +127,7 @@ export interface PosSale {
   items?: PosSaleItem[];
   payments?: PosSalePayment[];
   returns?: PosSaleReturn[];
+  logs?: PosSaleLog[];
   /** Valor pago na forma filtrada. Presente só quando o histórico filtra por forma de pagamento. */
   payment_amount?: number;
 }
@@ -412,6 +434,21 @@ export interface UpdateSalePayload {
   customer_phone?: string | null;
   sold_at?: string | null;
   supplier_name?: string | null;
+}
+
+export interface UpdateSalePaymentPayload {
+  sale_id: string;
+  payment_id: string;
+  method: string;
+}
+
+export interface UpdateSalePaymentResult {
+  sale_id: string;
+  sale_number?: number;
+  payments: PosSalePayment[];
+  logs: PosSaleLog[];
+  changed?: { from: string; to: string; payment_id: string };
+  unchanged?: boolean;
 }
 
 export interface UpdateSaleItemsPayload {

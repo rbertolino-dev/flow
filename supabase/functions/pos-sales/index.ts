@@ -72,6 +72,23 @@ async function ensurePosIntegrity(client: Client) {
     ADD COLUMN IF NOT EXISTS enable_wholesale_price BOOLEAN NOT NULL DEFAULT false
   `;
   await client.queryArray`
+    CREATE TABLE IF NOT EXISTS pos_sale_logs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      organization_id UUID NOT NULL,
+      sale_id UUID NOT NULL,
+      payment_id UUID,
+      event_type TEXT NOT NULL,
+      actor_id UUID,
+      actor_name TEXT,
+      changes JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
+  await client.queryArray`
+    CREATE INDEX IF NOT EXISTS idx_pos_sale_logs_sale
+    ON pos_sale_logs (organization_id, sale_id, created_at DESC)
+  `;
+  await client.queryArray`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_pos_sales_org_request
     ON pos_sales (organization_id, client_request_id)
     WHERE client_request_id IS NOT NULL
@@ -382,12 +399,20 @@ serve(async (req) => {
           items: serializedReturnItems.filter((item) => item.return_id === row.id),
         }));
 
+        const logs = await pg.queryObject`
+          SELECT * FROM pos_sale_logs
+          WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
+          ORDER BY created_at DESC
+          LIMIT 50
+        `;
+
         return json({
           data: {
             ...serializeRows([sale.rows[0] as Record<string, unknown>])[0],
             items: serializeRows(items.rows as Record<string, unknown>[]),
             payments: serializeRows(payments.rows as Record<string, unknown>[]),
             returns,
+            logs: serializeRows(logs.rows as Record<string, unknown>[]),
           },
         });
       }
@@ -1300,6 +1325,190 @@ serve(async (req) => {
         );
         if (!result.rows.length) return json({ error: "Falha ao atualizar venda" }, 500);
         return json({ data: serializeRows([result.rows[0] as Record<string, unknown>])[0] });
+      }
+
+      // ---- update_sale_payment: altera forma de pagamento + financeiro + log ----
+      if (postAction === "update_sale_payment") {
+        const saleId = body.sale_id || body.id;
+        const paymentId = body.payment_id;
+        const newMethod = String(body.method || "").trim().toLowerCase();
+        const allowedMethods = new Set([
+          "dinheiro", "pix", "cartao_credito", "cartao_debito", "boleto",
+          "transferencia_bancaria", "parcelado", "cheque", "permuta", "carne", "crediario",
+        ]);
+        if (!saleId || !paymentId) {
+          return json({ error: "sale_id e payment_id são obrigatórios" }, 400);
+        }
+        if (!allowedMethods.has(newMethod)) {
+          return json({ error: "Forma de pagamento inválida" }, 400);
+        }
+
+        const sale = await pg.queryObject<{ id: string; status: string; sale_number: number }>`
+          SELECT id, status, sale_number FROM pos_sales
+          WHERE id = ${saleId} AND organization_id = ${organizationId}
+          LIMIT 1
+        `;
+        if (!sale.rows.length) return json({ error: "Venda não encontrada" }, 404);
+        if (sale.rows[0].status === "cancelled") {
+          return json({ error: "Venda cancelada não pode ser alterada" }, 400);
+        }
+
+        const payments = await pg.queryObject<{
+          id: string;
+          method: string;
+          amount: number;
+          created_at: string;
+        }>`
+          SELECT id, method, amount, created_at::text AS created_at
+          FROM pos_sale_payments
+          WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
+          ORDER BY created_at ASC
+        `;
+        const paymentIndex = payments.rows.findIndex((row) => row.id === paymentId);
+        if (paymentIndex < 0) {
+          return json({ error: "Pagamento não encontrado nesta venda" }, 404);
+        }
+        const current = payments.rows[paymentIndex];
+        const oldMethod = String(current.method || "").toLowerCase();
+        if (oldMethod === newMethod) {
+          return json({
+            data: {
+              payments: serializeRows(payments.rows as unknown as Record<string, unknown>[]),
+              logs: [],
+              unchanged: true,
+            },
+          });
+        }
+
+        await pg.queryArray`
+          UPDATE pos_sale_payments
+          SET method = ${newMethod}
+          WHERE id = ${paymentId}
+            AND sale_id = ${saleId}
+            AND organization_id = ${organizationId}
+        `;
+
+        const actorName = userName || user.email || "Usuário";
+        const changePayload = {
+          field: "payment_method",
+          from: oldMethod,
+          to: newMethod,
+          amount: Number(current.amount || 0),
+          payment_id: paymentId,
+          payment_index: paymentIndex,
+        };
+        await pg.queryArray`
+          INSERT INTO pos_sale_logs (
+            organization_id, sale_id, payment_id, event_type, actor_id, actor_name, changes
+          ) VALUES (
+            ${organizationId},
+            ${saleId},
+            ${paymentId},
+            ${"payment_method_changed"},
+            ${user.id},
+            ${actorName},
+            ${JSON.stringify([changePayload])}::jsonb
+          )
+        `;
+
+        const sourceExact = `venda:${saleId}:${paymentIndex}`;
+        const sourcePrefix = `venda:${saleId}:`;
+        try {
+          const { data: exactEntries, error: exactErr } = await supabase
+            .from("financial_entries")
+            .select("id, payment_method, source_id")
+            .eq("organization_id", organizationId)
+            .eq("source_type", "pdv")
+            .eq("source_id", sourceExact);
+          if (exactErr) throw exactErr;
+
+          let entriesToUpdate = exactEntries || [];
+          if (!entriesToUpdate.length) {
+            const { data: allEntries, error: allErr } = await supabase
+              .from("financial_entries")
+              .select("id, payment_method, source_id")
+              .eq("organization_id", organizationId)
+              .eq("source_type", "pdv")
+              .like("source_id", `${sourcePrefix}%`);
+            if (allErr) throw allErr;
+            const rows = allEntries || [];
+            if (payments.rows.length === 1) {
+              entriesToUpdate = rows;
+            } else {
+              entriesToUpdate = rows.filter(
+                (row) => String(row.payment_method || "").toLowerCase() === oldMethod
+              );
+            }
+          }
+
+          for (const entry of entriesToUpdate) {
+            const previousMethod = String(entry.payment_method || "").toLowerCase();
+            const { error: updErr } = await supabase
+              .from("financial_entries")
+              .update({
+                payment_method: newMethod,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", entry.id)
+              .eq("organization_id", organizationId);
+            if (updErr) {
+              console.error("[pos-sales] falha ao atualizar financeiro:", updErr);
+              continue;
+            }
+            const { data: latestLog } = await supabase
+              .from("financial_entry_logs")
+              .select("id")
+              .eq("entry_id", entry.id)
+              .eq("event_type", "edited")
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (latestLog?.id) {
+              await supabase
+                .from("financial_entry_logs")
+                .update({
+                  actor_id: user.id,
+                  actor_name: actorName,
+                  changes: [
+                    {
+                      field: "payment_method",
+                      from: previousMethod || oldMethod,
+                      to: newMethod,
+                    },
+                  ],
+                })
+                .eq("id", latestLog.id);
+            }
+          }
+        } catch (financeErr) {
+          console.error("[pos-sales] erro ao sincronizar forma de pagamento no financeiro:", financeErr);
+        }
+
+        const paymentsOut = await pg.queryObject`
+          SELECT * FROM pos_sale_payments
+          WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
+          ORDER BY created_at ASC
+        `;
+        const logsOut = await pg.queryObject`
+          SELECT * FROM pos_sale_logs
+          WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
+          ORDER BY created_at DESC
+          LIMIT 50
+        `;
+
+        return json({
+          data: {
+            sale_id: saleId,
+            sale_number: sale.rows[0].sale_number,
+            payments: serializeRows(paymentsOut.rows as Record<string, unknown>[]),
+            logs: serializeRows(logsOut.rows as Record<string, unknown>[]),
+            changed: {
+              from: oldMethod,
+              to: newMethod,
+              payment_id: paymentId,
+            },
+          },
+        });
       }
 
       // ---- cancel_sale / delete_sale: soft cancel + reverter estoque ----

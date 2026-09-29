@@ -26,13 +26,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { usePosSales } from "@/hooks/usePosSales";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { supabase } from "@/integrations/supabase/client";
-import { getPaymentMethodLabel, type PaymentMethod } from "@/lib/paymentMethods";
+import { PAYMENT_METHODS, getPaymentMethodLabel, type PaymentMethod } from "@/lib/paymentMethods";
 import { printPosA4, printPosCupom } from "@/lib/posPrint";
-import type { PosCartItem, PosSale, PosSaleItem } from "@/types/pos";
+import type { PosCartItem, PosSale, PosSaleItem, PosSaleLog } from "@/types/pos";
 import { PosReturnExchangeDialog, type PosReturnPayload } from "@/components/pos/PosReturnExchangeDialog";
 import { Loader2, Pencil, Printer, FileText } from "lucide-react";
 
@@ -60,12 +67,25 @@ function toDatetimeLocalValue(iso: string | null | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function paymentLabel(method: string): string {
+function paymentLabel(method: string) {
   try {
     return getPaymentMethodLabel(method as PaymentMethod);
   } catch {
     return method;
   }
+}
+
+function formatSaleLogLine(log: PosSaleLog): string {
+  const when = formatDateTimeShort(log.created_at);
+  const who = log.actor_name || "Usuário";
+  const changes = Array.isArray(log.changes) ? log.changes : [];
+  const paymentChange = changes.find((c) => c.field === "payment_method");
+  if (paymentChange) {
+    const from = paymentLabel(String(paymentChange.from || ""));
+    const to = paymentLabel(String(paymentChange.to || ""));
+    return `${when} — ${who} alterou a forma de pagamento de ${from} para ${to}.`;
+  }
+  return `${when} — ${who} registrou alteração na venda.`;
 }
 
 function SectionHeader({ title }: { title: string }) {
@@ -205,7 +225,7 @@ export function PosSaleReceiptSheet({
 }: PosSaleReceiptSheetProps) {
   const { toast } = useToast();
   const { activeOrgId, activeOrganization } = useActiveOrganization();
-  const { getSale, updateSale, cancelSale, updateSaleItems, returnExchange, loading } =
+  const { getSale, updateSale, updateSalePayment, cancelSale, updateSaleItems, returnExchange, loading } =
     usePosSales();
 
   const [sale, setSale] = useState<PosSale | null>(null);
@@ -217,6 +237,7 @@ export function PosSaleReceiptSheet({
   const [fetching, setFetching] = useState(false);
   const [notes, setNotes] = useState("");
   const [notesDirty, setNotesDirty] = useState(false);
+  const [paymentBusyId, setPaymentBusyId] = useState<string | null>(null);
 
   const [editDateOpen, setEditDateOpen] = useState(false);
   const [soldAtLocal, setSoldAtLocal] = useState("");
@@ -318,12 +339,40 @@ export function PosSaleReceiptSheet({
       const iso = new Date(soldAtLocal).toISOString();
       const updated = await updateSale({ sale_id: sale.id, sold_at: iso });
       setSale((prev) =>
-        prev ? { ...prev, ...updated, items: prev.items, payments: prev.payments } : prev
+        prev ? { ...prev, ...updated, items: prev.items, payments: prev.payments, logs: prev.logs } : prev
       );
       setEditDateOpen(false);
       onChanged?.();
     } catch {
       // toast já no hook
+    }
+  };
+
+  const handleChangePaymentMethod = async (paymentId: string, method: string) => {
+    if (!sale || sale.status === "cancelled") return;
+    const current = (sale.payments || []).find((p) => p.id === paymentId);
+    if (!current || current.method === method) return;
+    setPaymentBusyId(paymentId);
+    try {
+      const result = await updateSalePayment({
+        sale_id: sale.id,
+        payment_id: paymentId,
+        method,
+      });
+      setSale((prev) =>
+        prev
+          ? {
+              ...prev,
+              payments: result.payments?.length ? result.payments : prev.payments,
+              logs: result.logs ?? prev.logs,
+            }
+          : prev
+      );
+      onChanged?.();
+    } catch {
+      // toast já no hook
+    } finally {
+      setPaymentBusyId(null);
     }
   };
 
@@ -528,21 +577,61 @@ export function PosSaleReceiptSheet({
 
                 {/* Formas de pagamento */}
                 <SectionHeader title="Formas de pagamento" />
-                <div className="flex flex-wrap gap-2 px-4 py-3">
+                <div className="space-y-2 px-4 py-3">
                   {(sale.payments || []).length === 0 ? (
                     <span className="text-sm text-gray-400">—</span>
                   ) : (
                     (sale.payments || []).map((p) => (
-                      <span
+                      <div
                         key={p.id}
-                        className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-white"
-                        title={formatMoney(Number(p.amount))}
+                        className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2"
                       >
-                        {paymentLabel(p.method)}
-                      </span>
+                        <span className="min-w-[88px] text-sm font-semibold tabular-nums text-slate-800">
+                          {formatMoney(Number(p.amount))}
+                        </span>
+                        <Select
+                          value={p.method}
+                          disabled={
+                            sale.status === "cancelled" ||
+                            paymentBusyId === p.id ||
+                            loading
+                          }
+                          onValueChange={(value) => void handleChangePaymentMethod(p.id, value)}
+                        >
+                          <SelectTrigger className="h-9 w-[200px]" aria-label="Forma de pagamento">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PAYMENT_METHODS.map((method) => (
+                              <SelectItem key={method.value} value={method.value}>
+                                {method.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {paymentBusyId === p.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        ) : null}
+                      </div>
                     ))
                   )}
+                  <p className="text-xs text-muted-foreground">
+                    Ao alterar a forma, o financeiro é atualizado e a mudança fica registrada no log.
+                  </p>
                 </div>
+
+                {(sale.logs || []).length > 0 && (
+                  <>
+                    <SectionHeader title="Log de alterações" />
+                    <div className="space-y-2 px-4 py-3">
+                      {(sale.logs || []).map((log) => (
+                        <p key={log.id} className="text-xs leading-relaxed text-slate-600">
+                          {formatSaleLogLine(log)}
+                        </p>
+                      ))}
+                    </div>
+                  </>
+                )}
 
                 {/* Fornecedor */}
                 <SectionHeader title="Fornecedor" />

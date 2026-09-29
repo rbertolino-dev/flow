@@ -14,6 +14,8 @@ import type {
   PosSale,
   UpdateSaleItemsPayload,
   UpdateSalePayload,
+  UpdateSalePaymentPayload,
+  UpdateSalePaymentResult,
 } from "@/types/pos";
 
 function normalizePosSettings(raw?: Partial<PosSettings> | null): PosSettings {
@@ -260,6 +262,34 @@ export function usePosSales() {
     [callPos, toast]
   );
 
+  const updateSalePayment = useCallback(
+    async (payload: UpdateSalePaymentPayload): Promise<UpdateSalePaymentResult> => {
+      setLoading(true);
+      try {
+        const result = await callPos("", {
+          method: "POST",
+          body: { action: "update_sale_payment", ...payload },
+        });
+        const data = result.data as UpdateSalePaymentResult;
+        if (!data?.unchanged) {
+          toast({
+            title: "Forma de pagamento atualizada",
+            description: "A alteração foi registrada no histórico e no financeiro.",
+          });
+        }
+        return data;
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error ? error.message : "Erro ao alterar forma de pagamento";
+        toast({ title: "Erro", description: message, variant: "destructive" });
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [callPos, toast]
+  );
+
   const cancelSale = useCallback(
     async (saleId: string): Promise<PosSale> => {
       setLoading(true);
@@ -350,6 +380,7 @@ export function usePosSales() {
     closeCash,
     finalizeSale,
     updateSale,
+    updateSalePayment,
     cancelSale,
     updateSaleItems,
     returnExchange,
