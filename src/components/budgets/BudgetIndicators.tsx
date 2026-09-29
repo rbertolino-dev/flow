@@ -1,9 +1,16 @@
 import { useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Budget } from '@/types/budget';
 import { isAfter, isBefore, addDays } from 'date-fns';
-import { Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign } from 'lucide-react';
+import {
+  Calendar,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  DollarSign,
+  FileText,
+  ThumbsUp,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface BudgetIndicatorsProps {
   budgets: Budget[];
@@ -11,69 +18,151 @@ interface BudgetIndicatorsProps {
   dateTo?: string;
 }
 
+const money = (value: number) =>
+  new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: value >= 10000 ? 0 : 2,
+  }).format(value);
+
+type MetricTone = 'blue' | 'emerald' | 'teal' | 'violet' | 'red' | 'amber' | 'green';
+
+const toneStyles: Record<
+  MetricTone,
+  { shell: string; icon: string; value: string; label: string; bar: string }
+> = {
+  blue: {
+    shell: 'from-blue-500/15 via-blue-400/10 to-transparent border-blue-400/30',
+    icon: 'bg-blue-500 text-white shadow-blue-500/30',
+    value: 'text-blue-700 dark:text-blue-300',
+    label: 'text-blue-600/80 dark:text-blue-400/80',
+    bar: 'bg-blue-500',
+  },
+  emerald: {
+    shell: 'from-emerald-500/15 via-emerald-400/10 to-transparent border-emerald-400/30',
+    icon: 'bg-emerald-500 text-white shadow-emerald-500/30',
+    value: 'text-emerald-700 dark:text-emerald-300',
+    label: 'text-emerald-600/80 dark:text-emerald-400/80',
+    bar: 'bg-emerald-500',
+  },
+  teal: {
+    shell: 'from-teal-500/15 via-teal-400/10 to-transparent border-teal-400/30',
+    icon: 'bg-teal-500 text-white shadow-teal-500/30',
+    value: 'text-teal-700 dark:text-teal-300',
+    label: 'text-teal-600/80 dark:text-teal-400/80',
+    bar: 'bg-teal-500',
+  },
+  violet: {
+    shell: 'from-violet-500/15 via-violet-400/10 to-transparent border-violet-400/30',
+    icon: 'bg-violet-500 text-white shadow-violet-500/30',
+    value: 'text-violet-700 dark:text-violet-300',
+    label: 'text-violet-600/80 dark:text-violet-400/80',
+    bar: 'bg-violet-500',
+  },
+  red: {
+    shell: 'from-red-500/15 via-red-400/10 to-transparent border-red-400/30',
+    icon: 'bg-red-500 text-white shadow-red-500/30',
+    value: 'text-red-700 dark:text-red-300',
+    label: 'text-red-600/80 dark:text-red-400/80',
+    bar: 'bg-red-500',
+  },
+  amber: {
+    shell: 'from-amber-500/15 via-amber-400/10 to-transparent border-amber-400/30',
+    icon: 'bg-amber-500 text-white shadow-amber-500/30',
+    value: 'text-amber-700 dark:text-amber-300',
+    label: 'text-amber-600/80 dark:text-amber-400/80',
+    bar: 'bg-amber-500',
+  },
+  green: {
+    shell: 'from-green-500/15 via-green-400/10 to-transparent border-green-400/30',
+    icon: 'bg-green-500 text-white shadow-green-500/30',
+    value: 'text-green-700 dark:text-green-300',
+    label: 'text-green-600/80 dark:text-green-400/80',
+    bar: 'bg-green-500',
+  },
+};
+
+function MetricChip({
+  tone,
+  icon: Icon,
+  label,
+  value,
+  hint,
+}: {
+  tone: MetricTone;
+  icon: typeof FileText;
+  label: string;
+  value: string | number;
+  hint?: string;
+}) {
+  const styles = toneStyles[tone];
+  return (
+    <div
+      className={cn(
+        'group flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border bg-gradient-to-br px-2.5 py-2 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md',
+        styles.shell
+      )}
+      title={hint}
+    >
+      <div
+        className={cn(
+          'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg shadow-md transition-transform group-hover:scale-105',
+          styles.icon
+        )}
+      >
+        <Icon className="h-3.5 w-3.5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className={cn('truncate text-[10px] font-semibold uppercase tracking-wide', styles.label)}>
+          {label}
+        </p>
+        <p className={cn('truncate text-sm font-bold leading-tight tabular-nums sm:text-base', styles.value)}>
+          {value}
+        </p>
+        {hint ? (
+          <p className={cn('truncate text-[9px] font-medium opacity-80', styles.label)}>{hint}</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function BudgetIndicators({ budgets, dateFrom, dateTo }: BudgetIndicatorsProps) {
-  // Filtrar orçamentos baseado nos filtros de data da página
   const budgetsInPeriod = useMemo(() => {
     if (!budgets || !Array.isArray(budgets)) return [];
-    
-    // Se não houver filtro de data, usar todos os orçamentos
-    if (!dateFrom && !dateTo) {
-      return budgets;
-    }
-    
+    if (!dateFrom && !dateTo) return budgets;
+
     return budgets.filter((budget) => {
       if (!budget.created_at) return false;
       const createdAt = new Date(budget.created_at);
-      
-      if (dateFrom && createdAt < new Date(dateFrom)) {
-        return false;
-      }
-      
+      if (dateFrom && createdAt < new Date(dateFrom)) return false;
       if (dateTo) {
         const dateToEnd = new Date(dateTo);
-        dateToEnd.setHours(23, 59, 59, 999); // Incluir o dia inteiro
-        if (createdAt > dateToEnd) {
-          return false;
-        }
+        dateToEnd.setHours(23, 59, 59, 999);
+        if (createdAt > dateToEnd) return false;
       }
-      
       return true;
     });
   }, [budgets, dateFrom, dateTo]);
 
-  // Calcular status dos orçamentos
   const { expired, expiringSoon, valid, approved } = useMemo(() => {
     const now = new Date();
     const oneWeekFromNow = addDays(now, 7);
-    
     let expiredCount = 0;
     let expiringSoonCount = 0;
     let validCount = 0;
     let approvedCount = 0;
 
     budgetsInPeriod.forEach((budget) => {
-      // Contar aprovados
-      if (budget.approved) {
-        approvedCount++;
-      }
-
+      if (budget.approved) approvedCount++;
       if (!budget.expires_at) {
         validCount++;
         return;
       }
-
       const expiresAt = new Date(budget.expires_at);
-      
-      if (isBefore(expiresAt, now)) {
-        // Já expirou
-        expiredCount++;
-      } else if (isAfter(expiresAt, oneWeekFromNow)) {
-        // Válido (mais de 1 semana)
-        validCount++;
-      } else {
-        // Próximo de expirar (dentro de 1 semana)
-        expiringSoonCount++;
-      }
+      if (isBefore(expiresAt, now)) expiredCount++;
+      else if (isAfter(expiresAt, oneWeekFromNow)) validCount++;
+      else expiringSoonCount++;
     });
 
     return {
@@ -86,190 +175,88 @@ export function BudgetIndicators({ budgets, dateFrom, dateTo }: BudgetIndicators
 
   const total = budgetsInPeriod.length;
 
-  // Calcular total em reais dos orçamentos no período
-  const totalValue = useMemo(() => {
-    return budgetsInPeriod.reduce((sum, budget) => {
-      return sum + (budget.total || 0);
-    }, 0);
-  }, [budgetsInPeriod]);
+  const totalValue = useMemo(
+    () => budgetsInPeriod.reduce((sum, budget) => sum + (budget.total || 0), 0),
+    [budgetsInPeriod]
+  );
 
-  // Calcular total em reais dos orçamentos aprovados no período
-  const approvedValue = useMemo(() => {
-    return budgetsInPeriod
-      .filter(budget => budget.approved)
-      .reduce((sum, budget) => {
-        return sum + (budget.total || 0);
-      }, 0);
-  }, [budgetsInPeriod]);
+  const approvedValue = useMemo(
+    () =>
+      budgetsInPeriod
+        .filter((budget) => budget.approved)
+        .reduce((sum, budget) => sum + (budget.total || 0), 0),
+    [budgetsInPeriod]
+  );
 
-  // Formatar valor em reais
-  const formattedTotalValue = new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(totalValue);
-
-  // Formatar valor em reais dos aprovados
-  const formattedApprovedValue = new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(approvedValue);
+  const periodLabel = useMemo(() => {
+    if (dateFrom && dateTo) {
+      return `${new Date(dateFrom).toLocaleDateString('pt-BR')} – ${new Date(dateTo).toLocaleDateString('pt-BR')}`;
+    }
+    if (dateFrom) return `A partir de ${new Date(dateFrom).toLocaleDateString('pt-BR')}`;
+    if (dateTo) return `Até ${new Date(dateTo).toLocaleDateString('pt-BR')}`;
+    return 'Todos os orçamentos';
+  }, [dateFrom, dateTo]);
 
   return (
-    <Card className="border-0 shadow-sm bg-gradient-to-br from-background to-muted/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-semibold flex items-center gap-2">
-          <div className="p-1.5 rounded-md bg-primary/10">
-            <Calendar className="w-4 h-4 text-primary" />
+    <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+      <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2 dark:border-slate-800">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-indigo-500 text-white shadow-md shadow-sky-500/25">
+            <Calendar className="h-3.5 w-3.5" />
           </div>
-          Indicadores
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="pt-0">
-        {/* Todos os indicadores em uma linha - Design moderno e compacto */}
-        <div className="grid grid-cols-4 gap-3">
-          {/* Total de Orçamentos */}
-          <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 via-blue-100/60 to-blue-50 dark:from-blue-950/40 dark:via-blue-900/30 dark:to-blue-950/40 border border-blue-200/60 dark:border-blue-800/40 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02]">
-            <p className="text-[9px] font-semibold text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wide">
-              Total
-            </p>
-            <p className="text-3xl font-bold text-blue-900 dark:text-blue-100 leading-none mb-1">{total}</p>
-            <p className="text-[9px] text-blue-600/80 dark:text-blue-400/80 font-medium">orçamentos</p>
-          </div>
-          
-          {/* Valor Total Orçado */}
-          <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50 via-emerald-100/60 to-emerald-50 dark:from-emerald-950/40 dark:via-emerald-900/30 dark:to-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/40 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02]">
-            <p className="text-[9px] font-semibold text-emerald-700 dark:text-emerald-300 mb-2 uppercase tracking-wide flex items-center gap-1">
-              <DollarSign className="w-3 h-3" />
-              Valor Total
-            </p>
-            <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100 leading-none mb-1">{formattedTotalValue}</p>
-            <p className="text-[9px] text-emerald-600/80 dark:text-emerald-400/80 font-medium">orçado</p>
-          </div>
-          
-          {/* Aprovados - Quantidade */}
-          <div className="p-4 rounded-xl bg-gradient-to-br from-green-50 via-green-100/60 to-green-50 dark:from-green-950/40 dark:via-green-900/30 dark:to-green-950/40 border border-green-200/60 dark:border-green-800/40 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02]">
-            <p className="text-[9px] font-semibold text-green-700 dark:text-green-300 mb-2 uppercase tracking-wide flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" />
-              Aprovados
-            </p>
-            <p className="text-3xl font-bold text-green-900 dark:text-green-100 leading-none mb-1">{approved}</p>
-            <p className="text-[9px] text-green-600/80 dark:text-green-400/80 font-medium">orçamentos</p>
-          </div>
-          
-          {/* Valor Aprovado */}
-          <div className="p-4 rounded-xl bg-gradient-to-br from-green-50 via-green-100/60 to-green-50 dark:from-green-950/40 dark:via-green-900/30 dark:to-green-950/40 border border-green-200/60 dark:border-green-800/40 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02]">
-            <p className="text-[9px] font-semibold text-green-700 dark:text-green-300 mb-2 uppercase tracking-wide flex items-center gap-1">
-              <DollarSign className="w-3 h-3" />
-              Valor Aprovado
-            </p>
-            <p className="text-2xl font-bold text-green-900 dark:text-green-100 leading-none mb-1">{formattedApprovedValue}</p>
-            <p className="text-[9px] text-green-600/80 dark:text-green-400/80 font-medium">aprovado</p>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Indicadores</h3>
+            <p className="text-[10px] text-muted-foreground">{periodLabel}</p>
           </div>
         </div>
+        {total > 0 ? (
+          <div className="hidden h-1.5 w-28 overflow-hidden rounded-full bg-slate-100 sm:flex dark:bg-slate-800">
+            {expired > 0 && (
+              <div className="bg-red-500" style={{ width: `${(expired / total) * 100}%` }} />
+            )}
+            {expiringSoon > 0 && (
+              <div className="bg-amber-500" style={{ width: `${(expiringSoon / total) * 100}%` }} />
+            )}
+            {valid > 0 && (
+              <div className="bg-green-500" style={{ width: `${(valid / total) * 100}%` }} />
+            )}
+          </div>
+        ) : null}
+      </div>
 
-        {/* Período - Compacto */}
-        {(dateFrom || dateTo) && (
-          <div className="px-2 py-1.5 rounded-lg bg-muted/50 border border-border/50">
-            <p className="text-[10px] text-muted-foreground">
-              {dateFrom && dateTo && `📅 ${new Date(dateFrom).toLocaleDateString('pt-BR')} - ${new Date(dateTo).toLocaleDateString('pt-BR')}`}
-              {dateFrom && !dateTo && `📅 A partir de ${new Date(dateFrom).toLocaleDateString('pt-BR')}`}
-              {!dateFrom && dateTo && `📅 Até ${new Date(dateTo).toLocaleDateString('pt-BR')}`}
-            </p>
-          </div>
-        )}
-        {!dateFrom && !dateTo && (
-          <div className="px-2 py-1.5 rounded-lg bg-muted/50 border border-border/50">
-            <p className="text-[10px] text-muted-foreground">
-              📅 Todos os orçamentos
-            </p>
-          </div>
-        )}
-
-        {/* Status dos orçamentos - Design moderno com gradientes */}
-        <div className="grid grid-cols-3 gap-2">
-          {/* Expirou */}
-          <div className="group relative p-2.5 rounded-xl bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20 border border-red-200/50 dark:border-red-800/30 hover:border-red-300 dark:hover:border-red-700 transition-all">
-            <div className="flex flex-col items-center">
-              <div className="p-1.5 rounded-lg bg-red-500/10 mb-1.5 group-hover:bg-red-500/20 transition-colors">
-                <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
-              </div>
-              <p className="text-[11px] font-semibold text-red-700 dark:text-red-300 mb-0.5">Expirou</p>
-              <p className="text-lg font-bold text-red-900 dark:text-red-100">{expired}</p>
-            </div>
-          </div>
-
-          {/* Próximo de Expirar */}
-          <div className="group relative p-2.5 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20 border border-amber-200/50 dark:border-amber-800/30 hover:border-amber-300 dark:hover:border-amber-700 transition-all">
-            <div className="flex flex-col items-center">
-              <div className="p-1.5 rounded-lg bg-amber-500/10 mb-1.5 group-hover:bg-amber-500/20 transition-colors">
-                <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              </div>
-              <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 mb-0.5">Próximo</p>
-              <p className="text-lg font-bold text-amber-900 dark:text-amber-100">{expiringSoon}</p>
-              <p className="text-[9px] text-amber-600/70 dark:text-amber-400/70 mt-0.5">≤ 7 dias</p>
-            </div>
-          </div>
-
-          {/* Válido */}
-          <div className="group relative p-2.5 rounded-xl bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border border-green-200/50 dark:border-green-800/30 hover:border-green-300 dark:hover:border-green-700 transition-all">
-            <div className="flex flex-col items-center">
-              <div className="p-1.5 rounded-lg bg-green-500/10 mb-1.5 group-hover:bg-green-500/20 transition-colors">
-                <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
-              </div>
-              <p className="text-[11px] font-semibold text-green-700 dark:text-green-300 mb-0.5">Válido</p>
-              <p className="text-lg font-bold text-green-900 dark:text-green-100">{valid}</p>
-              <p className="text-[9px] text-green-600/70 dark:text-green-400/70 mt-0.5">&gt; 7 dias</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Resumo visual - Barra de progresso moderna */}
-        {total > 0 && (
-          <div className="pt-2 border-t border-border/50">
-            <div className="flex gap-0.5 h-2 rounded-full overflow-hidden bg-muted/50">
-              {expired > 0 && (
-                <div
-                  className="bg-gradient-to-r from-red-500 to-red-600 transition-all"
-                  style={{ width: `${(expired / total) * 100}%` }}
-                  title={`${expired} expirado(s)`}
-                />
-              )}
-              {expiringSoon > 0 && (
-                <div
-                  className="bg-gradient-to-r from-amber-500 to-amber-600 transition-all"
-                  style={{ width: `${(expiringSoon / total) * 100}%` }}
-                  title={`${expiringSoon} próximo(s) de expirar`}
-                />
-              )}
-              {valid > 0 && (
-                <div
-                  className="bg-gradient-to-r from-green-500 to-green-600 transition-all"
-                  style={{ width: `${(valid / total) * 100}%` }}
-                  title={`${valid} válido(s)`}
-                />
-              )}
-            </div>
-            <div className="flex items-center justify-center gap-1.5 mt-2">
-              {expired > 0 && (
-                <Badge variant="destructive" className="text-[10px] px-2 py-0.5 h-5 font-medium">
-                  {expired} expirado{expired !== 1 ? 's' : ''}
-                </Badge>
-              )}
-              {expiringSoon > 0 && (
-                <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20 text-[10px] px-2 py-0.5 h-5 font-medium">
-                  {expiringSoon} próximo{expiringSoon !== 1 ? 's' : ''}
-                </Badge>
-              )}
-              {valid > 0 && (
-                <Badge variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/20 text-[10px] px-2 py-0.5 h-5 font-medium">
-                  {valid} válido{valid !== 1 ? 's' : ''}
-                </Badge>
-              )}
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      <div className="flex gap-2 overflow-x-auto p-2.5 [scrollbar-width:thin]">
+        <MetricChip tone="blue" icon={FileText} label="Total" value={total} hint="orçamentos" />
+        <MetricChip
+          tone="emerald"
+          icon={DollarSign}
+          label="Valor total"
+          value={money(totalValue)}
+          hint="orçado"
+        />
+        <MetricChip
+          tone="teal"
+          icon={ThumbsUp}
+          label="Aprovados"
+          value={approved}
+          hint="orçamentos"
+        />
+        <MetricChip
+          tone="violet"
+          icon={DollarSign}
+          label="Valor aprovado"
+          value={money(approvedValue)}
+          hint="aprovado"
+        />
+        <MetricChip tone="red" icon={AlertTriangle} label="Expirou" value={expired} />
+        <MetricChip
+          tone="amber"
+          icon={Clock}
+          label="Próximo"
+          value={expiringSoon}
+          hint="≤ 7 dias"
+        />
+        <MetricChip tone="green" icon={CheckCircle2} label="Válido" value={valid} hint="> 7 dias" />
+      </div>
+    </section>
   );
 }
-
