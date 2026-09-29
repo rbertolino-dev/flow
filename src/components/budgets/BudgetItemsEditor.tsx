@@ -22,8 +22,6 @@ interface BudgetItemsEditorProps {
   onServicesChange: (services: BudgetService[]) => void;
   availableProducts?: AvailableBudgetProduct[];
   availableServices?: Array<{ id: string; name: string; price: number; description?: string }>;
-  codeQuery?: string;
-  onCodeQueryChange?: (value: string) => void;
 }
 
 function formatCurrency(value: number) {
@@ -37,8 +35,6 @@ export function BudgetItemsEditor({
   onServicesChange,
   availableProducts = [],
   availableServices = [],
-  codeQuery,
-  onCodeQueryChange,
 }: BudgetItemsEditorProps) {
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showAddService, setShowAddService] = useState(false);
@@ -50,11 +46,8 @@ export function BudgetItemsEditor({
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
   const [showProductResults, setShowProductResults] = useState(false);
   const [showServiceResults, setShowServiceResults] = useState(false);
-  const [localCode, setLocalCode] = useState('');
   const productSearchRef = useRef<HTMLDivElement>(null);
   const serviceSearchRef = useRef<HTMLDivElement>(null);
-  const codeValue = codeQuery ?? localCode;
-  const setCodeValue = onCodeQueryChange ?? setLocalCode;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -115,21 +108,6 @@ export function BudgetItemsEditor({
         subtotal: product.price * qty,
       },
     ]);
-  };
-
-  const tryAddByCode = () => {
-    const code = codeValue.trim().toLowerCase();
-    if (!code) return false;
-    const product = availableProducts.find(
-      (item) =>
-        item.sku?.toLowerCase() === code ||
-        item.barcode?.toLowerCase() === code ||
-        item.id.toLowerCase() === code
-    );
-    if (!product) return false;
-    addProductFromCatalog(product, 1);
-    setCodeValue('');
-    return true;
   };
 
   const addProduct = () => {
@@ -245,23 +223,7 @@ export function BudgetItemsEditor({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="w-24 space-y-1">
-          <Label htmlFor="budget-item-code" className="text-xs text-muted-foreground">Código</Label>
-          <Input
-            id="budget-item-code"
-            value={codeValue}
-            onChange={(event) => setCodeValue(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                if (!tryAddByCode()) setShowAddProduct(true);
-              }
-            }}
-            placeholder="SKU"
-            className="h-10"
-          />
-        </div>
+      <div className="flex flex-wrap gap-2">
         <Button
           type="button"
           className="h-10 flex-1 bg-slate-800 text-white hover:bg-slate-900"
@@ -321,7 +283,7 @@ export function BudgetItemsEditor({
                     setShowProductResults(true);
                   }}
                   onFocus={() => setShowProductResults(true)}
-                  placeholder="Nome, SKU ou descrição"
+                  placeholder="Nome ou descrição"
                   className="pl-10"
                 />
               </div>
@@ -347,7 +309,6 @@ export function BudgetItemsEditor({
                         <span>
                           <span className="block text-sm font-medium">{product.name}</span>
                           <span className="text-xs text-muted-foreground">
-                            {product.sku ? `SKU ${product.sku} · ` : ''}
                             {formatCurrency(product.price)}
                           </span>
                         </span>

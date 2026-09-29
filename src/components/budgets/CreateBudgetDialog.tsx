@@ -107,7 +107,6 @@ export function CreateBudgetDialog({
   const leadSearchRef = useRef<HTMLDivElement>(null);
   const [productsList, setProductsList] = useState<BudgetProduct[]>([]);
   const [servicesList, setServicesList] = useState<BudgetService[]>([]);
-  const [itemCode, setItemCode] = useState('');
   const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
   const [enablePayments, setEnablePayments] = useState(false);
   const [validityDays, setValidityDays] = useState(30);
@@ -123,7 +122,6 @@ export function CreateBudgetDialog({
   const [discountIsPercent, setDiscountIsPercent] = useState(false);
   const [markupIsPercent, setMarkupIsPercent] = useState(false);
   const [headerColor, setHeaderColor] = useState('#1e3a5f');
-  const [logoUrl, setLogoUrl] = useState('');
   const [showCreateLeadDialog, setShowCreateLeadDialog] = useState(false);
   const [creatingLead, setCreatingLead] = useState(false);
   const [leadFormData, setLeadFormData] = useState({
@@ -290,7 +288,6 @@ export function CreateBudgetDialog({
     setLeadSearchQuery('');
     setProductsList([]);
     setServicesList([]);
-    setItemCode('');
     setPaymentMethods([]);
     setEnablePayments(false);
     setValidityDays(30);
@@ -306,7 +303,6 @@ export function CreateBudgetDialog({
     setDiscountIsPercent(false);
     setMarkupIsPercent(false);
     setHeaderColor('#1e3a5f');
-    setLogoUrl('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -339,7 +335,6 @@ export function CreateBudgetDialog({
       deliveryLocation: enableDeliveryLocation ? deliveryLocation || undefined : undefined,
       observations: enableObservations ? observations || undefined : undefined,
       headerColor: headerColor || undefined,
-      logoUrl: logoUrl || undefined,
       additions: totals.additionsValue,
     };
 
@@ -381,7 +376,7 @@ export function CreateBudgetDialog({
                 <div>
                   <h3 className="text-sm font-semibold tracking-wide text-slate-800">Produtos / Serviços</h3>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Use o código, busque no catálogo ou inclua um item avulso.
+                    Busque no catálogo ou inclua um item avulso.
                   </p>
                 </div>
 
@@ -392,8 +387,6 @@ export function CreateBudgetDialog({
                   onServicesChange={setServicesList}
                   availableProducts={availableProducts}
                   availableServices={activeServices}
-                  codeQuery={itemCode}
-                  onCodeQueryChange={setItemCode}
                 />
 
                 <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
@@ -691,19 +684,6 @@ export function CreateBudgetDialog({
                       className="resize-none"
                     />
                   ) : null}
-
-                  <div className="space-y-1 pt-1">
-                    <Label htmlFor="budget-logo" className="text-xs text-muted-foreground">
-                      URL do logo (opcional)
-                    </Label>
-                    <Input
-                      id="budget-logo"
-                      value={logoUrl}
-                      onChange={(event) => setLogoUrl(event.target.value)}
-                      placeholder="https://..."
-                      className="h-9"
-                    />
-                  </div>
                 </div>
               </section>
             </div>

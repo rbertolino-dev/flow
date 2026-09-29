@@ -994,7 +994,7 @@ export default function Pos() {
           ))}
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(340px,1fr)_minmax(460px,560px)]">
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(320px,1fr)_minmax(480px,580px)]">
           <div className="flex h-full min-h-0 max-h-[42%] flex-col overflow-hidden border-r bg-white lg:max-h-none">
             <Tabs
               value={catalogTab}
@@ -1195,13 +1195,14 @@ export default function Pos() {
             </Tabs>
           </div>
 
-          <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-l bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b px-4 py-3">
+          <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-l bg-slate-50 shadow-xl">
+            <div className="flex shrink-0 items-center justify-between bg-white px-5 pb-2 pt-5">
               <h2 className="text-3xl font-bold tracking-tight text-slate-800">Resumo</h2>
               <Button
                 type="button"
                 variant={barcodeMode ? "default" : "outline"}
                 size="icon"
+                className="h-10 w-10 rounded-xl"
                 title={
                   barcodeMode
                     ? "Sair do modo código de barras"
@@ -1216,20 +1217,22 @@ export default function Pos() {
                 <ScanBarcode className="h-5 w-5" />
               </Button>
             </div>
-            <div className="bg-blue-700 px-4 py-3 text-center text-white">
-              <p className="text-2xl font-bold tabular-nums">
-                Total:{" "}
-                {total.toLocaleString("pt-BR", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </p>
-            </div>
 
-            {barcodeMode && (
-              <div className="border-b px-4 py-2">
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 pb-5 pt-3">
+              <div className="rounded-xl bg-blue-700 px-5 py-4 text-center text-white shadow-sm">
+                <p className="text-2xl font-bold tabular-nums tracking-tight">
+                  Total:{" "}
+                  {total.toLocaleString("pt-BR", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </p>
+              </div>
+
+              {barcodeMode && (
                 <Input
                   ref={barcodeInputRef}
+                  className="h-11 rounded-xl bg-white"
                   placeholder="Bipe o código de barras"
                   value={barcodeDraft}
                   onChange={(e) => setBarcodeDraft(e.target.value)}
@@ -1240,12 +1243,10 @@ export default function Pos() {
                     }
                   }}
                 />
-              </div>
-            )}
+              )}
 
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-white p-4">
               {cart.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 py-8 text-center text-base text-slate-600">
+                <p className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-base text-slate-500">
                   Clique em um produto ou serviço para adicionar ao resumo.
                 </p>
               ) : (
@@ -1253,17 +1254,20 @@ export default function Pos() {
                   {cart.map((item) => {
                     const lineTotal = item.quantity * item.unit_price - item.discount_amount;
                     return (
-                      <li key={item.key} className="border-b border-slate-200 pb-4">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-lg font-bold leading-snug text-slate-900">
+                      <li
+                        key={item.key}
+                        className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="text-base font-bold leading-snug text-slate-900">
                             {item.name}
-                            <span className="text-base font-medium text-slate-500">
+                            <span className="font-medium text-slate-500">
                               {" "}
                               - {item.unit || "Un"}
                             </span>
                           </p>
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg font-bold tabular-nums text-slate-900">
+                          <div className="flex shrink-0 items-center gap-2.5">
+                            <span className="text-base font-bold tabular-nums text-slate-900">
                               {formatMoney(lineTotal)}
                             </span>
                             <Pencil className="h-4 w-4 text-sky-600" />
@@ -1272,14 +1276,14 @@ export default function Pos() {
                             </button>
                           </div>
                         </div>
-                        <div className="mt-2 grid grid-cols-3 gap-2">
-                          <div className="space-y-1">
-                            <Label className="text-sm text-muted-foreground">Valor unit:</Label>
+                        <div className="mt-3 grid grid-cols-3 gap-3">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-slate-500">Valor unit:</Label>
                             <Input
                               type="number"
                               min={0}
                               step="0.01"
-                              className="h-10 text-base"
+                              className="h-10 rounded-lg bg-white text-base"
                               value={item.unit_price}
                               onChange={(e) =>
                                 updateCartItem(item.key, {
@@ -1288,26 +1292,26 @@ export default function Pos() {
                               }
                             />
                           </div>
-                          <div className="space-y-1">
-                            <Label className="text-sm text-muted-foreground">Qnt:</Label>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-slate-500">Qnt:</Label>
                             <Input
                               type="number"
                               min={0.001}
                               step="1"
-                              className="h-10 text-base"
+                              className="h-10 rounded-lg bg-white text-base"
                               value={item.quantity}
                               onChange={(e) =>
                                 updateCartQty(item.key, Number(e.target.value) || 0)
                               }
                             />
                           </div>
-                          <div className="space-y-1">
-                            <Label className="text-sm text-muted-foreground">Desconto:</Label>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-slate-500">Desconto:</Label>
                             <Input
                               type="number"
                               min={0}
                               step="0.01"
-                              className="h-10 text-base"
+                              className="h-10 rounded-lg bg-white text-base"
                               placeholder="Digite"
                               value={item.discount_amount || ""}
                               onChange={(e) =>
@@ -1329,164 +1333,175 @@ export default function Pos() {
                   <Button
                     type="button"
                     size="sm"
-                    className="bg-red-600 text-white hover:bg-red-700"
+                    className="rounded-lg bg-red-600 text-white hover:bg-red-700"
                     onClick={() => setCart([])}
                   >
                     Limpar Tudo
                   </Button>
                 </div>
               )}
-            </div>
 
-            <div className="max-h-[230px] shrink-0 space-y-3 overflow-y-auto border-t border-indigo-100 bg-white p-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label className="text-sm font-medium text-slate-700">Promoção</Label>
-                <Select
-                  value={promotionId || "__none__"}
-                  onValueChange={(value) => setPromotionId(value === "__none__" ? "" : value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Nenhuma" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Nenhuma</SelectItem>
-                    {posSettings.promotions.filter((item) => isPromotionValid(item)).map((item) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {item.name} ({item.percent.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedPromotion ? (
-                  <p className="text-xs text-muted-foreground">
-                    {selectedPromotion.percent.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%
-                    {selectedPromotion.categories.length
-                      ? ` nas categorias ${selectedPromotion.categories.join(", ")}`
-                      : " em todos os produtos"}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-sm font-medium text-slate-700">Desconto geral</Label>
-                {activePaymentDiscount ? (
-                  <p className="text-xs text-muted-foreground">
-                    {activePaymentDiscount.percent}% à vista nesta forma de pagamento
-                  </p>
-                ) : null}
-                {quote.surchargeRule ? (
-                  <p className="text-xs text-muted-foreground">
-                    Acréscimo de {quote.surchargeRule.percent.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%
-                    {activePaymentMethod === "cartao_credito" ? ` em ${installments}x` : " à vista"}
-                  </p>
-                ) : null}
-                <Input
-                  ref={discountInputRef}
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  className="h-10 text-base"
-                  value={discount || ""}
-                  onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))}
-                  placeholder="0,00"
-                />
-              </div>
-              </div>
-
-              {posSettings.show_payment_method && (
-              <div className="space-y-2 rounded-xl border border-indigo-100 bg-indigo-50/70 p-3">
-                <Label className="text-sm font-medium text-slate-700">Formas de pagamento</Label>
-                {payments.map((p) => {
-                  const change = Math.max(0, roundMoney(Number(p.tendered_amount || 0) - Number(p.amount)));
-                  return (
-                  <div
-                    key={p.id}
-                    className="space-y-2 rounded-lg border border-indigo-100 bg-white px-3 py-2.5 text-sm"
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Promoção</Label>
+                  <Select
+                    value={promotionId || "__none__"}
+                    onValueChange={(value) => setPromotionId(value === "__none__" ? "" : value)}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span>
-                        {PAYMENT_METHODS.find((m) => m.value === p.method)?.label || p.method}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          aria-label={`Valor ${PAYMENT_METHODS.find((m) => m.value === p.method)?.label || p.method}`}
-                          className="h-8 w-28 text-right"
-                          value={p.amount}
-                          onChange={(event) => updatePayment(p.id, { amount: Math.max(0, Number(event.target.value) || 0) })}
-                        />
-                        <button type="button" aria-label="Remover forma" onClick={() => removePayment(p.id)}>
-                          <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                        </button>
-                      </div>
-                    </div>
-                    {p.method === "dinheiro" ? (
-                      <div className="flex items-center justify-between gap-2">
-                        <Label className="text-xs">Recebido</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          aria-label="Valor recebido"
-                          className="h-8 w-28 text-right"
-                          value={p.tendered_amount ?? ""}
-                          onChange={(event) =>
-                            updatePayment(p.id, { tendered_amount: Math.max(0, Number(event.target.value) || 0) })
-                          }
-                        />
-                      </div>
-                    ) : null}
-                    {p.method === "dinheiro" && change > 0.009 ? (
-                      <p className="text-right text-xs font-medium">Troco {formatMoney(change)}</p>
-                    ) : null}
-                  </div>
-                  );
-                })}
-                {payments.length > 0 && Math.abs(paymentGap) > 0.01 ? (
-                  <p className="text-xs text-destructive">
-                    {paymentGap < 0 ? `Falta ${formatMoney(Math.abs(paymentGap))}` : `Passou ${formatMoney(paymentGap)}`}
-                  </p>
-                ) : null}
-                {activePaymentMethod === "cartao_credito" ? (
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Parcelas</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={48}
-                      value={installments}
-                      onChange={(e) => setInstallments(Math.min(48, Math.max(1, Number(e.target.value) || 1)))}
-                    />
-                  </div>
-                ) : null}
-                <div className="flex gap-2">
-                  <Select value={paymentMethodDraft} onValueChange={setPaymentMethodDraft}>
-                    <SelectTrigger ref={paymentTriggerRef} className="flex-1">
-                      <SelectValue placeholder="Adicione uma ou mais formas de pagamento" />
+                    <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white">
+                      <SelectValue placeholder="Nenhuma" />
                     </SelectTrigger>
                     <SelectContent>
-                      {PAYMENT_METHODS.map((m) => (
-                        <SelectItem key={m.value} value={m.value}>
-                          {m.label}
+                      <SelectItem value="__none__">Nenhuma</SelectItem>
+                      {posSettings.promotions.filter((item) => isPromotionValid(item)).map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name} ({item.percent.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={addPayment}
-                    aria-label="Adicionar forma de pagamento"
-                    disabled={!paymentMethodDraft || total - paymentsSum <= 0.009}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
+                  {selectedPromotion ? (
+                    <p className="text-xs text-muted-foreground">
+                      {selectedPromotion.percent.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%
+                      {selectedPromotion.categories.length
+                        ? ` nas categorias ${selectedPromotion.categories.join(", ")}`
+                        : " em todos os produtos"}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Desconto geral</Label>
+                  {activePaymentDiscount ? (
+                    <p className="text-xs text-muted-foreground">
+                      {activePaymentDiscount.percent}% à vista nesta forma de pagamento
+                    </p>
+                  ) : null}
+                  {quote.surchargeRule ? (
+                    <p className="text-xs text-muted-foreground">
+                      Acréscimo de {quote.surchargeRule.percent.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%
+                      {activePaymentMethod === "cartao_credito" ? ` em ${installments}x` : " à vista"}
+                    </p>
+                  ) : null}
+                  <Input
+                    ref={discountInputRef}
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className="h-11 rounded-xl border-slate-200 bg-white text-base"
+                    value={discount || ""}
+                    onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))}
+                    placeholder="0,00"
+                  />
                 </div>
               </div>
+
+              {posSettings.show_payment_method && (
+                <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <Label className="text-sm font-medium text-slate-700">Formas de pagamento</Label>
+                  {payments.map((p) => {
+                    const change = Math.max(0, roundMoney(Number(p.tendered_amount || 0) - Number(p.amount)));
+                    return (
+                      <div
+                        key={p.id}
+                        className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-slate-800">
+                            {PAYMENT_METHODS.find((m) => m.value === p.method)?.label || p.method}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              aria-label={`Valor ${PAYMENT_METHODS.find((m) => m.value === p.method)?.label || p.method}`}
+                              className="h-9 w-28 rounded-lg bg-white text-right"
+                              value={p.amount}
+                              onChange={(event) =>
+                                updatePayment(p.id, { amount: Math.max(0, Number(event.target.value) || 0) })
+                              }
+                            />
+                            <button type="button" aria-label="Remover forma" onClick={() => removePayment(p.id)}>
+                              <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                            </button>
+                          </div>
+                        </div>
+                        {p.method === "dinheiro" ? (
+                          <div className="flex items-center justify-between gap-2">
+                            <Label className="text-xs">Recebido</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              aria-label="Valor recebido"
+                              className="h-9 w-28 rounded-lg bg-white text-right"
+                              value={p.tendered_amount ?? ""}
+                              onChange={(event) =>
+                                updatePayment(p.id, {
+                                  tendered_amount: Math.max(0, Number(event.target.value) || 0),
+                                })
+                              }
+                            />
+                          </div>
+                        ) : null}
+                        {p.method === "dinheiro" && change > 0.009 ? (
+                          <p className="text-right text-xs font-medium">Troco {formatMoney(change)}</p>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                  {payments.length > 0 && Math.abs(paymentGap) > 0.01 ? (
+                    <p className="text-xs text-destructive">
+                      {paymentGap < 0
+                        ? `Falta ${formatMoney(Math.abs(paymentGap))}`
+                        : `Passou ${formatMoney(paymentGap)}`}
+                    </p>
+                  ) : null}
+                  {activePaymentMethod === "cartao_credito" ? (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Parcelas</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={48}
+                        className="h-10 rounded-lg bg-white"
+                        value={installments}
+                        onChange={(e) =>
+                          setInstallments(Math.min(48, Math.max(1, Number(e.target.value) || 1)))
+                        }
+                      />
+                    </div>
+                  ) : null}
+                  <div className="flex gap-2.5">
+                    <Select value={paymentMethodDraft} onValueChange={setPaymentMethodDraft}>
+                      <SelectTrigger
+                        ref={paymentTriggerRef}
+                        className="h-11 flex-1 rounded-xl border-slate-200 bg-white"
+                      >
+                        <SelectValue placeholder="Adicione uma ou mais formas de pagamento" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PAYMENT_METHODS.map((m) => (
+                          <SelectItem key={m.value} value={m.value}>
+                            {m.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-11 w-11 shrink-0 rounded-xl"
+                      onClick={addPayment}
+                      aria-label="Adicionar forma de pagamento"
+                      disabled={!paymentMethodDraft || total - paymentsSum <= 0.009}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               )}
 
               <Textarea
@@ -1494,11 +1509,14 @@ export default function Pos() {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
+                className="min-h-[72px] rounded-xl border-slate-200 bg-white"
               />
 
-              <div className="space-y-2 rounded-md border bg-background p-3">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="add-commission">Adicionar comissão</Label>
+              <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="add-commission" className="text-sm font-medium text-slate-700">
+                    Adicionar comissão
+                  </Label>
                   <Switch
                     id="add-commission"
                     checked={addCommission || posSettings.commission_required}
@@ -1516,10 +1534,10 @@ export default function Pos() {
                   </p>
                 )}
                 {addCommission && (
-                  <div className="space-y-1">
-                    <Label className="text-xs">Usuário vinculado à comissão</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Usuário vinculado à comissão</Label>
                     <Select value={commissionUserId} onValueChange={setCommissionUserId}>
-                      <SelectTrigger>
+                      <SelectTrigger className="h-11 rounded-xl bg-white">
                         <SelectValue placeholder="Selecione o colaborador" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1535,9 +1553,9 @@ export default function Pos() {
               </div>
             </div>
 
-            <div className="mt-auto shrink-0 space-y-0 border-t bg-white">
-              <div className="space-y-1 bg-blue-700 px-4 py-4 text-white">
-                <div className="flex items-center justify-between text-lg font-semibold">
+            <div className="mt-auto shrink-0 space-y-3 border-t border-slate-200 bg-white px-5 py-4">
+              <div className="space-y-2 rounded-xl bg-blue-700 px-5 py-4 text-white shadow-sm">
+                <div className="flex items-center justify-between text-base font-medium">
                   <span>Subtotal:</span>
                   <span className="tabular-nums">
                     {subtotal.toLocaleString("pt-BR", {
@@ -1546,7 +1564,7 @@ export default function Pos() {
                     })}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-lg font-semibold">
+                <div className="flex items-center justify-between text-base font-medium">
                   <span>Desconto:</span>
                   <span className="tabular-nums">
                     {quote.discount.toLocaleString("pt-BR", {
@@ -1556,7 +1574,7 @@ export default function Pos() {
                   </span>
                 </div>
                 {quote.surcharge > 0.009 ? (
-                  <div className="flex items-center justify-between text-lg font-semibold">
+                  <div className="flex items-center justify-between text-base font-medium">
                     <span>Acréscimo:</span>
                     <span className="tabular-nums">
                       {quote.surcharge.toLocaleString("pt-BR", {
@@ -1566,7 +1584,7 @@ export default function Pos() {
                     </span>
                   </div>
                 ) : null}
-                <div className="flex items-center justify-between border-t border-white/20 pt-2 text-2xl font-bold">
+                <div className="flex items-center justify-between border-t border-white/30 pt-3 text-xl font-bold">
                   <span>Total:</span>
                   <span className="tabular-nums">
                     {total.toLocaleString("pt-BR", {
@@ -1576,15 +1594,15 @@ export default function Pos() {
                   </span>
                 </div>
               </div>
-              <div className="border-t p-4 pr-16">
+              <div>
                 <Button
-                  className="w-full bg-blue-700 text-white hover:bg-blue-800"
+                  className="h-12 w-full rounded-xl bg-blue-600 text-base font-semibold text-white hover:bg-blue-700"
                   size="lg"
                   disabled={!canOpenConfirm}
                   onClick={openConfirmDialog}
                 >
                   Finalizar
-                  <kbd className="ml-2 rounded bg-white/20 px-1.5 py-0.5 text-xs font-bold">F12</kbd>
+                  <kbd className="ml-2 rounded-md bg-blue-800 px-2 py-0.5 text-xs font-bold">F12</kbd>
                 </Button>
                 {!selectedLead && cart.length > 0 && (
                   <p className="mt-2 text-center text-xs text-destructive">
