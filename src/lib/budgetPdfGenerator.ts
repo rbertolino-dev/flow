@@ -60,19 +60,25 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     }).format(value);
   };
 
-  // Função para escrever título em vermelho (como na imagem)
+  // Título de seção — tom sóbrio alinhado à cor do cabeçalho
   const writeRedTitle = (text: string, x: number, y: number, fontSize: number = 9) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(fontSize);
-    doc.setTextColor(200, 0, 0); // Vermelho
+    const accent = hexToRgb(headerColor);
+    // Escurece um pouco para legibilidade em corpo do documento
+    doc.setTextColor(
+      Math.max(0, accent[0] - 40),
+      Math.max(0, accent[1] - 40),
+      Math.max(0, accent[2] - 40)
+    );
     doc.text(text, x, y);
-    doc.setTextColor(0, 0, 0); // Voltar para preto
+    doc.setTextColor(0, 0, 0);
   };
 
-  // Função para desenhar linha separadora cinza
+  // Linha separadora suave
   const drawSeparator = (y: number) => {
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.2);
+    doc.setDrawColor(220, 225, 232);
+    doc.setLineWidth(0.3);
     doc.line(margin, y, pageWidth - margin, y);
   };
 
@@ -528,60 +534,74 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   // Layout: Esquerda = Formas de pagamento + Validade | Direita = Contato responsável
   // ==========================================
   checkNewPage(lineHeight * 10);
-  
-  const leftInfoX = leftColumnX;
-  const rightInfoX = leftColumnX + maxWidth / 2 + 10;
-  let infoY = yPosition;
 
-  // Coluna esquerda: Formas de pagamento (título em vermelho)
-  writeRedTitle('• Formas de pagamento', leftInfoX, infoY, 8);
-  infoY += lineHeight * 0.8;
+  const leftInfoX = leftColumnX;
+  const rightColStart = leftColumnX + maxWidth / 2 + 8;
+  const rightColWidth = rightColumnX - rightColStart;
+  let infoY = yPosition;
+  let rightInfoY = yPosition;
+
+  // Coluna esquerda: Formas de pagamento
+  writeRedTitle('Formas de pagamento', leftInfoX, infoY, 8);
+  infoY += lineHeight * 0.85;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
+  doc.setTextColor(55, 55, 55);
   if (budget.payment_methods && budget.payment_methods.length > 0) {
     const paymentText = formatPaymentMethods(budget.payment_methods as any[]);
-    const paymentLines = doc.splitTextToSize(paymentText, maxWidth / 2 - 5);
+    const paymentLines = doc.splitTextToSize(paymentText, maxWidth / 2 - 8);
     paymentLines.forEach((line: string) => {
       doc.text(line, leftInfoX, infoY);
       infoY += lineHeight * 0.8;
     });
   } else {
-    doc.text('', leftInfoX, infoY);
+    doc.setTextColor(140, 140, 140);
+    doc.text('Nao informado', leftInfoX, infoY);
     infoY += lineHeight * 0.8;
   }
-  infoY += lineHeight * 0.5;
+  infoY += lineHeight * 0.55;
 
-  // Validade (título em vermelho)
-  writeRedTitle('• Validade', leftInfoX, infoY, 8);
-  infoY += lineHeight * 0.8;
+  // Validade
+  writeRedTitle('Validade', leftInfoX, infoY, 8);
+  infoY += lineHeight * 0.85;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
+  doc.setTextColor(55, 55, 55);
   const validityDays = budget.validity_days || 7;
   const validityText = `O presente orcamento possui validade de ${validityDays} dias uteis. Apos o prazo entre em contato para novo orcamento.`;
-  const validityLines = doc.splitTextToSize(validityText, maxWidth / 2 - 5);
+  const validityLines = doc.splitTextToSize(validityText, maxWidth / 2 - 8);
   validityLines.forEach((line: string) => {
     doc.text(line, leftInfoX, infoY);
     infoY += lineHeight * 0.8;
   });
 
-  // Coluna direita: Contato responsável (título em vermelho)
-  let rightInfoY = yPosition;
-  writeRedTitle('Contato responsavel:', rightInfoX, rightInfoY, 8);
-  rightInfoY += lineHeight * 0.8;
+  // Coluna direita: Contato responsável — tudo alinhado à esquerda da coluna
+  writeRedTitle('Contato responsavel', rightColStart, rightInfoY, 8);
+  rightInfoY += lineHeight * 0.85;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  
-  // Dados do contato responsável (da organização)
-  if (organizationData?.phone) {
-    doc.text(organizationData.phone, rightInfoX, rightInfoY, { align: 'right' });
-    rightInfoY += lineHeight * 0.8;
-  }
-  if (organizationData?.contact_email) {
-    doc.text(organizationData.contact_email, rightInfoX, rightInfoY, { align: 'right' });
+  doc.setTextColor(55, 55, 55);
+
+  const contactLines: string[] = [];
+  if (organizationData?.phone) contactLines.push(String(organizationData.phone));
+  if (organizationData?.contact_email) contactLines.push(String(organizationData.contact_email));
+
+  if (contactLines.length > 0) {
+    contactLines.forEach((line) => {
+      const wrapped = doc.splitTextToSize(line, rightColWidth);
+      wrapped.forEach((wLine: string) => {
+        doc.text(wLine, rightColStart, rightInfoY);
+        rightInfoY += lineHeight * 0.8;
+      });
+    });
+  } else {
+    doc.setTextColor(140, 140, 140);
+    doc.text('Nao informado', rightColStart, rightInfoY);
     rightInfoY += lineHeight * 0.8;
   }
 
-  yPosition = Math.max(infoY, rightInfoY) + lineHeight * 0.8;
+  doc.setTextColor(0, 0, 0);
+  yPosition = Math.max(infoY, rightInfoY) + lineHeight * 0.9;
 
   // Observações (se houver)
   if (budget.observations) {
