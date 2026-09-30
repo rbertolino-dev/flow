@@ -1310,13 +1310,32 @@ export default function Budgets() {
                   <Label htmlFor="service-category" className="text-base font-semibold">
                     Categoria
                   </Label>
-                  <Input
-                    id="service-category"
-                    value={serviceFormData.category}
-                    onChange={(e) => setServiceFormData({ ...serviceFormData, category: e.target.value })}
-                    placeholder="Ex: Instalação, Manutenção"
-                    className="h-12 text-base"
-                  />
+                  <Select
+                    value={serviceFormData.category || '__none__'}
+                    onValueChange={(value) =>
+                      setServiceFormData({
+                        ...serviceFormData,
+                        category: value === '__none__' ? '' : value,
+                      })
+                    }
+                  >
+                    <SelectTrigger id="service-category" className="h-12 text-base">
+                      <SelectValue placeholder="Selecione uma categoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Sem categoria</SelectItem>
+                      {(categories || []).map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(categories || []).length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Nenhuma categoria cadastrada. Use &quot;Gerenciar Categorias&quot; para criar.
+                    </p>
+                  ) : null}
                 </div>
               </div>
 

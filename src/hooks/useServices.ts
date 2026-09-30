@@ -369,7 +369,7 @@ export function useServices() {
     }
   }, [activeOrgId, services]);
   
-  // Escutar eventos de criação de categoria
+  // Escutar eventos de criação/renomeação de categoria
   useEffect(() => {
     const handleCategoryCreated = (event: CustomEvent) => {
       const newCategory = event.detail as string;
@@ -380,10 +380,19 @@ export function useServices() {
         return prev;
       });
     };
+
+    const handleCategoryRenamed = (event: CustomEvent<{ from: string; to: string }>) => {
+      const { from, to } = event.detail;
+      setCategories((prev) =>
+        Array.from(new Set(prev.map((c) => (c === from ? to : c)))).sort()
+      );
+    };
     
     window.addEventListener('service-category-created', handleCategoryCreated as EventListener);
+    window.addEventListener('service-category-renamed', handleCategoryRenamed as EventListener);
     return () => {
       window.removeEventListener('service-category-created', handleCategoryCreated as EventListener);
+      window.removeEventListener('service-category-renamed', handleCategoryRenamed as EventListener);
     };
   }, []);
 

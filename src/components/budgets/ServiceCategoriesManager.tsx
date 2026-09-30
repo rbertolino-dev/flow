@@ -27,7 +27,7 @@ export function ServiceCategoriesManager({
   const [newCategoryName, setNewCategoryName] = useState('');
   const { toast } = useToast();
 
-  const handleCreateCategory = () => {
+  const handleOpenManager = () => {
     setEditingCategory(null);
     setNewCategoryName('');
     setShowDialog(true);
@@ -54,29 +54,54 @@ export function ServiceCategoriesManager({
     // Se está editando, atualizar todos os serviços com essa categoria
     if (editingCategory && editingCategory !== categoryName) {
       const servicesToUpdate = services.filter(s => s.category === editingCategory);
-      
-      if (servicesToUpdate.length === 0) {
-        toast({
-          title: 'Nenhum serviço encontrado',
-          description: 'Não há serviços com esta categoria para atualizar.',
-          variant: 'destructive',
-        });
-        return;
-      }
 
       try {
-        // Atualizar todos os serviços que usam a categoria antiga
-        await Promise.all(
-          servicesToUpdate.map(service => 
-            onCategoryUpdate(service.id, categoryName)
-          )
+        if (servicesToUpdate.length > 0) {
+          await Promise.all(
+            servicesToUpdate.map(service =>
+              onCategoryUpdate(service.id, categoryName)
+            )
+          );
+        }
+
+        // Atualizar nome no localStorage mesmo sem serviços usando a categoria
+        if (activeOrgId) {
+          try {
+            const stored = localStorage.getItem(`service_categories_${activeOrgId}`);
+            const existingCategories = stored ? (JSON.parse(stored) as string[]) : [];
+            const updatedCategories = Array.from(
+              new Set(
+                existingCategories
+                  .map((c) => (c === editingCategory ? categoryName : c))
+                  .concat(categoryName)
+              )
+            ).sort();
+            localStorage.setItem(
+              `service_categories_${activeOrgId}`,
+              JSON.stringify(updatedCategories)
+            );
+          } catch (e) {
+            console.error('Erro ao atualizar localStorage:', e);
+          }
+        }
+
+        window.dispatchEvent(
+          new CustomEvent('service-category-created', { detail: categoryName })
+        );
+        window.dispatchEvent(
+          new CustomEvent('service-category-renamed', {
+            detail: { from: editingCategory, to: categoryName },
+          })
         );
 
         toast({
           title: 'Categoria atualizada',
-          description: `${servicesToUpdate.length} serviço(s) foram atualizados.`,
+          description:
+            servicesToUpdate.length > 0
+              ? `${servicesToUpdate.length} serviço(s) foram atualizados.`
+              : 'Categoria renomeada com sucesso.',
         });
-        
+
         setShowDialog(false);
         setEditingCategory(null);
         setNewCategoryName('');
@@ -113,6 +138,11 @@ export function ServiceCategoriesManager({
       
       // Forçar atualização da lista de categorias
       window.dispatchEvent(new CustomEvent('service-category-created', { detail: categoryName }));
+    } else {
+      // Mesmo nome — só fecha
+      setShowDialog(false);
+      setEditingCategory(null);
+      setNewCategoryName('');
     }
   };
 
@@ -186,7 +216,7 @@ export function ServiceCategoriesManager({
       <Button
         type="button"
         variant="outline"
-        onClick={handleCreateCategory}
+        onClick={handleOpenManager}
         className="gap-2"
       >
         <Tag className="w-4 h-4" />
@@ -198,36 +228,48 @@ export function ServiceCategoriesManager({
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold flex items-center gap-2">
               <Tag className="w-6 h-6 text-primary" />
-              {editingCategory ? 'Editar Categoria' : 'Nova Categoria'}
+              {editingCategory ? 'Editar Categoria' : 'Gerenciar Categorias'}
             </DialogTitle>
             <DialogDescription>
               {editingCategory 
                 ? `Editando categoria "${editingCategory}". Todos os serviços com esta categoria serão atualizados.`
-                : 'Crie uma nova categoria para organizar seus serviços.'}
+                : 'Crie e organize categorias para selecionar ao cadastrar serviços.'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="category-name">Nome da Categoria *</Label>
-              <Input
-                id="category-name"
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                placeholder="Ex: Consultoria, Desenvolvimento, Suporte..."
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleSaveCategory();
-                  }
-                }}
-              />
+              <Label htmlFor="category-name">
+                {editingCategory ? 'Novo nome da categoria *' : 'Nova categoria'}
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="category-name"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="Ex: Consultoria, Desenvolvimento, Suporte..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSaveCategory();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  onClick={handleSaveCategory}
+                  disabled={!newCategoryName.trim()}
+                  className="shrink-0"
+                >
+                  {editingCategory ? 'Atualizar' : 'Criar'}
+                </Button>
+              </div>
             </div>
 
-            {categories.length > 0 && (
+            {categories.length > 0 ? (
               <div className="space-y-2">
-                <Label>Categorias Existentes</Label>
-                <div className="flex flex-wrap gap-2 p-4 border rounded-lg bg-muted/30">
+                <Label>Categorias cadastradas ({categories.length})</Label>
+                <div className="flex flex-wrap gap-2 p-4 border rounded-lg bg-muted/30 max-h-60 overflow-y-auto">
                   {categories.map((category) => {
                     const count = services.filter(s => s.category === category).length;
                     return (
@@ -242,8 +284,9 @@ export function ServiceCategoriesManager({
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                          className="h-4 w-4 p-0 hover:bg-primary/10"
                           onClick={() => handleEditCategory(category)}
+                          title="Editar"
                         >
                           <Edit className="w-3 h-3" />
                         </Button>
@@ -253,6 +296,7 @@ export function ServiceCategoriesManager({
                           size="sm"
                           className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
                           onClick={() => handleDeleteCategory(category)}
+                          title="Excluir"
                         >
                           <X className="w-3 h-3" />
                         </Button>
@@ -261,6 +305,10 @@ export function ServiceCategoriesManager({
                   })}
                 </div>
               </div>
+            ) : (
+              <p className="text-sm text-muted-foreground rounded-lg border border-dashed p-4 text-center">
+                Nenhuma categoria ainda. Digite um nome acima e clique em Criar.
+              </p>
             )}
           </div>
 
@@ -274,14 +322,7 @@ export function ServiceCategoriesManager({
                 setNewCategoryName('');
               }}
             >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              onClick={handleSaveCategory}
-              disabled={!newCategoryName.trim()}
-            >
-              {editingCategory ? 'Atualizar' : 'Criar'} Categoria
+              Fechar
             </Button>
           </DialogFooter>
         </DialogContent>
