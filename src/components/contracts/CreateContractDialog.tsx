@@ -104,7 +104,7 @@ export function CreateContractDialog({
     if (activeOrgId) {
       const { data: orgData } = await supabase
         .from('organizations')
-        .select('name, address, city, state, company_profile, tax_regime, business_type, tagline, social_media')
+        .select('name, cnpj, address, city, state, company_profile, tax_regime, business_type, tagline, social_media')
         .eq('id', activeOrgId)
         .single();
       organizationData = orgData;
@@ -143,6 +143,8 @@ export function CreateContractDialog({
     
     // Substituir tags do REMETENTE (Empresa/Organização)
     content = content.replace(/\{\{empresa_nome\}\}/g, organizationData?.name || '');
+    content = content.replace(/\{\{empresa_cpf_cnpj\}\}/g, organizationData?.cnpj || '');
+    content = content.replace(/\{\{empresa_cnpj\}\}/g, organizationData?.cnpj || '');
     content = content.replace(/\{\{empresa_endereco\}\}/g, organizationData?.address || '');
     content = content.replace(/\{\{empresa_cidade\}\}/g, organizationData?.city || '');
     content = content.replace(/\{\{empresa_estado\}\}/g, organizationData?.state || '');

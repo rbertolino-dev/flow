@@ -104,6 +104,7 @@ export const CONTRACT_VARIABLES_DESTINATARIO = {
 export const CONTRACT_VARIABLES_REMETENTE = {
   // Dados básicos
   empresa_nome: '{{empresa_nome}}',
+  empresa_cpf_cnpj: '{{empresa_cpf_cnpj}}',
   empresa_endereco: '{{empresa_endereco}}',
   empresa_cidade: '{{empresa_cidade}}',
   empresa_estado: '{{empresa_estado}}',
