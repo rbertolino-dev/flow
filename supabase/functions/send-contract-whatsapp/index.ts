@@ -8,47 +8,12 @@ const corsHeaders = {
 };
 
 /**
- * Calcula delay de digitação realista baseado no tamanho da mensagem
- * Valores DOBRADOS para máxima segurança:
- * - Mínimo: 4000ms (4 segundos) - tempo de pensar antes de começar
- * - Máximo: 30000ms (30 segundos) - mensagens muito longas
- * - Velocidade: 3.5 caracteres/segundo (média humana)
+ * Delay curto para envio único de contrato.
+ * Não usa o delay "humano" dobrado de disparos em massa (podia chegar a 40s).
  */
-function calculateTypingDelay(message: string, messageType: 'text' | 'media' | 'document' = 'text'): number {
-  if (!message || message.length === 0) {
-    // Mensagens sem texto: tempo mínimo baseado no tipo (DOBRADO)
-    if (messageType === 'document') return 5000; // 5s para documentos sem caption
-    if (messageType === 'media') return 6000; // 6s para mídia sem caption
-    return 4000; // 4s para texto sem mensagem
-  }
-  
-  // Velocidade média de digitação humana: ~200-250 caracteres/minuto
-  // Isso dá aproximadamente 3.3-4.2 caracteres por segundo
-  const charsPerSecond = 3.5;
-  
-  // Tempo base (pensar + começar a digitar) - DOBRADO
-  let baseDelay: number;
-  if (messageType === 'document') {
-    baseDelay = 5000; // 5s para documentos (mais complexo)
-  } else if (messageType === 'media') {
-    baseDelay = 5000; // 5s para mídia
-  } else {
-    baseDelay = 4000; // 4s para texto
-  }
-  
-  // Tempo de digitação baseado no tamanho da mensagem
-  const typingTime = (message.length / charsPerSecond) * 1000; // converter para ms
-  
-  // Variação aleatória ±25% para parecer mais humano
-  const variation = 0.25;
-  const randomMultiplier = 1 + (Math.random() * variation * 2 - variation);
-  
-  const calculatedDelay = baseDelay + (typingTime * randomMultiplier);
-  
-  // Limites DOBRADOS: mínimo baseado no tipo, máximo 30s (texto/mídia) ou 40s (documentos)
-  const maxDelay = messageType === 'document' ? 40000 : 30000; // 40s para documentos, 30s para texto/mídia
-  
-  return Math.max(baseDelay, Math.min(maxDelay, Math.round(calculatedDelay)));
+function getContractSendDelayMs(): number {
+  // 500–1200ms: suficiente para não parecer spam, sem travar o usuário
+  return 500 + Math.floor(Math.random() * 700);
 }
 
 serve(async (req) => {
@@ -116,16 +81,26 @@ serve(async (req) => {
       );
     }
 
-    // Buscar contrato
-    const { data: contract, error: contractError } = await supabase
-      .from('contracts')
-      .select(`
-        *,
-        lead:leads(id, name, phone),
-        organization:organizations(id)
-      `)
-      .eq('id', contract_id)
-      .single();
+    // Buscar contrato e instância em paralelo (menos latência)
+    console.log('🔍 Buscando contrato e instância em paralelo...');
+    const [contractResult, evolutionResult] = await Promise.all([
+      supabase
+        .from('contracts')
+        .select(`
+          *,
+          lead:leads(id, name, phone, email, company)
+        `)
+        .eq('id', contract_id)
+        .single(),
+      supabase
+        .from('evolution_config')
+        .select('api_url, api_key, instance_name, is_connected, organization_id')
+        .eq('id', instance_id)
+        .maybeSingle(),
+    ]);
+
+    const { data: contract, error: contractError } = contractResult;
+    const { data: evolutionConfig, error: configError } = evolutionResult;
 
     if (contractError || !contract) {
       console.error('❌ Erro ao buscar contrato:', contractError);
@@ -145,14 +120,6 @@ serve(async (req) => {
       has_lead: !!contract.lead,
       organization_id: contract.organization_id
     });
-
-    // Buscar configuração da instância Evolution
-    console.log('🔍 Buscando instância Evolution:', instance_id);
-    const { data: evolutionConfig, error: configError } = await supabase
-      .from('evolution_config')
-      .select('api_url, api_key, instance_name, is_connected, organization_id')
-      .eq('id', instance_id)
-      .maybeSingle();
 
     console.log('📱 Instância encontrada:', evolutionConfig ? 'Sim' : 'Não');
     console.log('❌ Erro instância:', configError);
@@ -208,31 +175,21 @@ serve(async (req) => {
     // Gerar token de assinatura se não existir
     let signatureToken = contract.signature_token;
     if (!signatureToken) {
-      // Gerar token único (32 caracteres hexadecimais)
       const tokenBytes = new Uint8Array(16);
       crypto.getRandomValues(tokenBytes);
       signatureToken = Array.from(tokenBytes)
         .map(b => b.toString(16).padStart(2, '0'))
         .join('');
-      
-      // Salvar token no contrato
-      await supabase
-        .from('contracts')
-        .update({ signature_token: signatureToken })
-        .eq('id', contract_id);
     }
 
     // Construir URL de assinatura
-    // Usar URL do frontend configurada ou usar URL padrão
     let frontendUrl = Deno.env.get('FRONTEND_URL');
     
-    // Se não foi configurado, usar URL padrão do frontend
     if (!frontendUrl) {
       frontendUrl = 'https://agilizeflow.com.br';
       console.log('⚠️ FRONTEND_URL não configurado, usando URL padrão:', frontendUrl);
     }
     
-    // Garantir que não termina com /
     frontendUrl = frontendUrl.replace(/\/$/, '');
     const signUrl = `${frontendUrl}/sign-contract/${contract_id}/${signatureToken}`;
     
@@ -250,7 +207,6 @@ serve(async (req) => {
     // Remover caracteres não numéricos
     let normalizedPhone = leadPhone.replace(/\D/g, '');
     
-    // Se já tem @, remover o sufixo antes de normalizar
     if (normalizedPhone.includes('@')) {
       normalizedPhone = normalizedPhone.split('@')[0];
     }
@@ -262,9 +218,7 @@ serve(async (req) => {
       );
     }
 
-    // Garantir que números brasileiros tenham código do país (55)
     if (!normalizedPhone.startsWith('55') && normalizedPhone.length >= 10) {
-      // Verificar se parece um número brasileiro (DDD válido: 11-99)
       const ddd = parseInt(normalizedPhone.substring(0, 2));
       if (ddd >= 11 && ddd <= 99) {
         normalizedPhone = '55' + normalizedPhone;
@@ -284,12 +238,10 @@ serve(async (req) => {
     const evolutionApiUrl = evolutionConfig.api_url.replace(/\/$/, '');
     const sendMediaUrl = `${evolutionApiUrl}/message/sendMedia/${evolutionConfig.instance_name}`;
 
-    // Mensagem com link de assinatura (usar template personalizado se existir)
     const leadName = contract.lead.name || 'Cliente';
     let caption: string;
     
     if (contract.whatsapp_message_template) {
-      // Usar template personalizado e substituir variáveis
       caption = contract.whatsapp_message_template
         .replace(/\{\{nome\}\}/g, leadName)
         .replace(/\{\{numero_contrato\}\}/g, contract.contract_number)
@@ -298,7 +250,6 @@ serve(async (req) => {
         .replace(/\{\{email\}\}/g, contract.lead.email || '')
         .replace(/\{\{empresa\}\}/g, contract.lead.company || '');
     } else {
-      // Usar template padrão
       caption = `📄 Contrato ${contract.contract_number}
 
 Olá ${leadName}, segue o contrato para sua análise.
@@ -309,6 +260,7 @@ ${signUrl}
 Ou você pode baixar o PDF anexado e assinar manualmente.`;
     }
 
+    const sendDelayMs = getContractSendDelayMs();
     const evolutionPayload = {
       number: whatsappNumber,
       mediatype: 'document',
@@ -316,25 +268,40 @@ Ou você pode baixar o PDF anexado e assinar manualmente.`;
       media: pdfUrl,
       fileName: `Contrato_${contract.contract_number}.pdf`,
       caption: caption,
-      delay: calculateTypingDelay(caption, 'document'),
+      delay: sendDelayMs,
     };
 
-    console.log('📤 Enviando contrato via Evolution API...');
-
-    console.log('📤 Enviando para Evolution API:', {
+    console.log('📤 Enviando contrato via Evolution API...', {
       url: sendMediaUrl,
       number: whatsappNumber,
-      fileName: evolutionPayload.fileName
+      fileName: evolutionPayload.fileName,
+      delayMs: sendDelayMs,
     });
 
-    const evolutionResponse = await fetch(sendMediaUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': evolutionConfig.api_key || '',
-      },
-      body: JSON.stringify(evolutionPayload),
-    });
+    // Persistência em paralelo com o envio (token + status) — só após sucesso do WhatsApp
+    // atualizamos status; token pode ir antes para o link já existir
+    const tokenUpdatePromise = !contract.signature_token
+      ? supabase
+          .from('contracts')
+          .update({ signature_token: signatureToken })
+          .eq('id', contract_id)
+      : Promise.resolve({ error: null });
+
+    const [tokenUpdateResult, evolutionResponse] = await Promise.all([
+      tokenUpdatePromise,
+      fetch(sendMediaUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': evolutionConfig.api_key || '',
+        },
+        body: JSON.stringify(evolutionPayload),
+      }),
+    ]);
+
+    if (tokenUpdateResult && 'error' in tokenUpdateResult && tokenUpdateResult.error) {
+      console.warn('⚠️ Falha ao salvar signature_token (não crítico):', tokenUpdateResult.error);
+    }
 
     console.log('📥 Resposta Evolution:', {
       status: evolutionResponse.status,
@@ -357,7 +324,6 @@ Ou você pode baixar o PDF anexado e assinar manualmente.`;
         error: errorText
       });
 
-      // Verificar se é erro de número não existe
       if (evolutionResponse.status === 400 && errorDetails.response?.message) {
         const messages = Array.isArray(errorDetails.response.message) 
           ? errorDetails.response.message 
@@ -386,43 +352,40 @@ Ou você pode baixar o PDF anexado e assinar manualmente.`;
       );
     }
 
-    const evolutionResult = await evolutionResponse.json();
-    console.log('✅ Contrato enviado via Evolution:', evolutionResult);
+    const evolutionSendResult = await evolutionResponse.json();
+    console.log('✅ Contrato enviado via Evolution:', evolutionSendResult);
 
-    // Atualizar status do contrato para 'sent'
-    await supabase
+    // Atualizar status + atividade em paralelo após sucesso
+    const sentAt = new Date().toISOString();
+    const statusUpdatePromise = supabase
       .from('contracts')
       .update({
         status: 'sent',
-        sent_at: new Date().toISOString(),
+        sent_at: sentAt,
+        signature_token: signatureToken,
       })
       .eq('id', contract_id);
 
-    // Registrar atividade no lead (se lead_id existir)
-    if (contract.lead_id) {
-      try {
-        const activityData: any = {
+    const activityPromise = contract.lead_id
+      ? supabase.from('activities').insert({
           lead_id: contract.lead_id,
           type: 'whatsapp',
           content: `Contrato ${contract.contract_number} enviado via WhatsApp`,
           user_name: 'Sistema',
           direction: 'outgoing',
-        };
-        
-        // Adicionar organization_id apenas se a coluna existir (pode não existir em alguns schemas)
-        // O Supabase vai ignorar se a coluna não existir
-        const { error: activityError } = await supabase.from('activities').insert(activityData);
-        
-        if (activityError) {
-          console.error('⚠️ Erro ao registrar atividade (não crítico):', activityError);
-          // Não falhar o envio se a atividade não for registrada
-        } else {
-          console.log('✅ Atividade registrada com sucesso');
-        }
-      } catch (err) {
-        console.error('⚠️ Erro ao registrar atividade (não crítico):', err);
-        // Não falhar o envio se a atividade não for registrada
-      }
+        })
+      : Promise.resolve({ error: null });
+
+    const [statusResult, activityResult] = await Promise.all([
+      statusUpdatePromise,
+      activityPromise,
+    ]);
+
+    if (statusResult.error) {
+      console.warn('⚠️ Erro ao atualizar status (envio já feito):', statusResult.error);
+    }
+    if (activityResult && 'error' in activityResult && activityResult.error) {
+      console.warn('⚠️ Erro ao registrar atividade (não crítico):', activityResult.error);
     }
 
     return new Response(
@@ -430,6 +393,7 @@ Ou você pode baixar o PDF anexado e assinar manualmente.`;
         success: true,
         message: 'Contrato enviado com sucesso',
         contract_id: contract_id,
+        delay_ms: sendDelayMs,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

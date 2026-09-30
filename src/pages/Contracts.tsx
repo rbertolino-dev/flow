@@ -421,8 +421,8 @@ export default function Contracts() {
 
       await updateContractStatus(selectedContract.id, 'sent');
 
-      // Atualizar lista de contratos
-      await refetch();
+      // Atualizar lista de contratos (não bloquear feedback de sucesso)
+      void refetch();
 
       toast({
         title: 'Contrato enviado',
