@@ -23,6 +23,8 @@ export interface Contract {
   lead_id: string;
   category_id?: string; // Nova: categoria do contrato
   contract_number: string;
+  /** Título editável exibido no PDF (fallback: nome do template) */
+  title?: string | null;
   content: string;
   pdf_url?: string;
   signed_pdf_url?: string;

@@ -6,7 +6,7 @@ import { Contract, ContractSignature, ContractTemplate } from '@/types/contract'
 import { format } from 'date-fns';
 import { ContractStatusBadge } from './ContractStatusBadge';
 import { useContractSignatures } from '@/hooks/useContractSignatures';
-import { Download, FileSignature, Send, X, MessageSquare, ChevronDown, ChevronUp, Shield, Globe, Monitor, Hash, FileText, Settings, Trash2, RefreshCw, Link2, Check } from 'lucide-react';
+import { Download, FileSignature, Send, X, MessageSquare, ChevronDown, ChevronUp, Shield, Globe, Monitor, Hash, FileText, Settings, Trash2, RefreshCw, Link2, Check, Copy, CalendarClock, Pencil } from 'lucide-react';
 import { GoogleDriveBackupButton } from './GoogleDriveBackupButton';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -14,6 +14,16 @@ import { ContractReminders } from './ContractReminders';
 import { ContractAuditLog } from './ContractAuditLog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 function generateSignatureToken(): string {
   const tokenBytes = new Uint8Array(16);
@@ -35,6 +45,9 @@ interface ContractViewerProps {
   onDelete?: (contract: Contract) => void;
   onReload?: (contract: Contract) => Promise<void>;
   onContractUpdated?: (contract: Contract) => void;
+  onDuplicate?: (contract: Contract) => Promise<void> | void;
+  onExtendExpires?: (contract: Contract, newExpiresAt: string) => Promise<void> | void;
+  onSaveTitle?: (contract: Contract, title: string) => Promise<void> | void;
 }
 
 export function ContractViewer({
@@ -49,15 +62,29 @@ export function ContractViewer({
   onDelete,
   onReload,
   onContractUpdated,
+  onDuplicate,
+  onExtendExpires,
+  onSaveTitle,
 }: ContractViewerProps) {
   const { signatures, loading: signaturesLoading } = useContractSignatures(contract.id);
   const [expandedSignatures, setExpandedSignatures] = useState<Set<string>>(new Set());
   const [reloading, setReloading] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [copyingLink, setCopyingLink] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+  const [showExtendDialog, setShowExtendDialog] = useState(false);
+  const [extendDate, setExtendDate] = useState('');
+  const [extending, setExtending] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+  const [savingTitle, setSavingTitle] = useState(false);
   const { toast } = useToast();
 
   const pdfUrl = contract.signed_pdf_url || contract.pdf_url;
+  const displayTitle = contract.title || contract.template?.name || 'CONTRATO';
+  const isExpired =
+    contract.status === 'expired' ||
+    (!!contract.expires_at && new Date(contract.expires_at) < new Date());
   
   const toggleSignatureAuth = (signatureId: string) => {
     setExpandedSignatures(prev => {
@@ -135,16 +162,120 @@ export function ContractViewer({
     }
   };
 
+  const handleDuplicate = async () => {
+    if (!onDuplicate) return;
+    try {
+      setDuplicating(true);
+      await onDuplicate(contract);
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
+  const openExtendDialog = () => {
+    const base = contract.expires_at ? new Date(contract.expires_at) : new Date();
+    if (base < new Date()) {
+      base.setTime(Date.now());
+    }
+    base.setDate(base.getDate() + 30);
+    setExtendDate(base.toISOString().slice(0, 10));
+    setShowExtendDialog(true);
+  };
+
+  const handleExtend = async () => {
+    if (!onExtendExpires || !extendDate) return;
+    try {
+      setExtending(true);
+      await onExtendExpires(contract, `${extendDate}T23:59:59`);
+      setShowExtendDialog(false);
+    } finally {
+      setExtending(false);
+    }
+  };
+
+  const startEditTitle = () => {
+    setTitleDraft(displayTitle);
+    setEditingTitle(true);
+  };
+
+  const handleSaveTitle = async () => {
+    if (!onSaveTitle) return;
+    const next = titleDraft.trim();
+    if (!next) {
+      toast({
+        title: 'Título obrigatório',
+        description: 'Informe um nome para o contrato',
+        variant: 'destructive',
+      });
+      return;
+    }
+    try {
+      setSavingTitle(true);
+      await onSaveTitle(contract, next);
+      setEditingTitle(false);
+    } finally {
+      setSavingTitle(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Informações do Contrato */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Contrato {contract.contract_number}</CardTitle>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="space-y-2 min-w-0 flex-1">
+              {editingTitle ? (
+                <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                  <Input
+                    value={titleDraft}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    placeholder="Nome do contrato"
+                    className="max-w-md"
+                    disabled={savingTitle}
+                  />
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleSaveTitle} disabled={savingTitle}>
+                      {savingTitle ? 'Salvando...' : 'Salvar'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditingTitle(false)}
+                      disabled={savingTitle}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 min-w-0">
+                  <CardTitle className="truncate">{displayTitle}</CardTitle>
+                  {onSaveTitle && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={startEditTitle}
+                      title="Editar título do contrato"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              )}
               <CardDescription>
-                Criado em {format(new Date(contract.created_at), 'dd/MM/yyyy HH:mm')}
+                Nº {contract.contract_number} · Criado em{' '}
+                {format(new Date(contract.created_at), 'dd/MM/yyyy HH:mm')}
+                {contract.expires_at && (
+                  <>
+                    {' '}
+                    · Vence em {format(new Date(contract.expires_at), 'dd/MM/yyyy')}
+                    {isExpired && (
+                      <span className="text-destructive font-medium"> (vencido)</span>
+                    )}
+                  </>
+                )}
               </CardDescription>
             </div>
             <ContractStatusBadge status={contract.status} />
@@ -316,6 +447,27 @@ export function ContractViewer({
                 </Button>
               </>
             )}
+            {onDuplicate && (
+              <Button
+                variant="outline"
+                onClick={handleDuplicate}
+                disabled={duplicating}
+                title="Criar uma cópia deste contrato"
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                {duplicating ? 'Duplicando...' : 'Duplicar'}
+              </Button>
+            )}
+            {onExtendExpires && (
+              <Button
+                variant="outline"
+                onClick={openExtendDialog}
+                title="Estender prazo de vencimento"
+              >
+                <CalendarClock className="w-4 h-4 mr-2" />
+                Estender Prazo
+              </Button>
+            )}
             {onCancel && contract.status !== 'cancelled' && (
               <Button variant="destructive" onClick={() => onCancel(contract)}>
                 <X className="w-4 h-4 mr-2" />
@@ -331,6 +483,36 @@ export function ContractViewer({
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={showExtendDialog} onOpenChange={setShowExtendDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Estender prazo do contrato</DialogTitle>
+            <DialogDescription>
+              Defina a nova data de vencimento
+              {isExpired ? ' (contrato vencido será reativado)' : ''}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="extend-expires">Nova data de vencimento</Label>
+            <Input
+              id="extend-expires"
+              type="date"
+              value={extendDate}
+              onChange={(e) => setExtendDate(e.target.value)}
+              min={new Date().toISOString().slice(0, 10)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExtendDialog(false)} disabled={extending}>
+              Cancelar
+            </Button>
+            <Button onClick={handleExtend} disabled={extending || !extendDate}>
+              {extending ? 'Salvando...' : 'Confirmar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Visualização do PDF */}
       {pdfUrl && (

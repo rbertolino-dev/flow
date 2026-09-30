@@ -13,6 +13,8 @@ export interface SignaturePosition {
 export interface ContractPdfOptions {
   content: string;
   contractNumber: string;
+  /** Título exibido no PDF (nome do contrato/template). Default: CONTRATATO */
+  title?: string;
   leadName?: string;
   fileName?: string;
   coverPageUrl?: string; // URL da folha de rosto (imagem de fundo)
@@ -164,45 +166,54 @@ export async function generateContractPDF(options: ContractPdfOptions): Promise<
 
   const organizationData = options.organizationData;
   const logoUrl = organizationData?.logo_url;
+  const contractTitle = (options.title || 'CONTRATO').trim() || 'CONTRATO';
 
-  // Adicionar folha de rosto como fundo (se fornecida)
+  // Folha de rosto: carregar uma vez e replicar em TODAS as páginas
+  let coverImageDataUrl: string | null = null;
   if (options.coverPageUrl) {
     try {
       console.log('🖼️ Carregando folha de rosto:', options.coverPageUrl);
-      
-      // Usar a função loadImage que já trata CORS
-      const imageDataUrl = await loadImage(options.coverPageUrl);
-      
-      if (imageDataUrl) {
-        console.log('✅ Imagem carregada com sucesso');
-        
-        // Adicionar imagem como fundo na primeira página
-        // A imagem será redimensionada para encaixar exatamente na página A4 (210x297mm)
-        doc.addImage(
-          imageDataUrl,
-          'PNG', // Usar PNG para suportar transparência
-          0, // x: começa no canto superior esquerdo
-          0, // y: começa no canto superior esquerdo
-          pageWidth, // largura: exatamente a largura da página
-          pageHeight, // altura: exatamente a altura da página
-          undefined, // alias (opcional)
-          'FAST' // compressão rápida
-        );
-        console.log('✅ Imagem adicionada ao PDF');
+      coverImageDataUrl = await loadImage(options.coverPageUrl);
+      if (coverImageDataUrl) {
+        console.log('✅ Imagem da folha de rosto carregada');
       } else {
         console.warn('⚠️ Não foi possível carregar a imagem da folha de rosto');
       }
     } catch (error) {
       console.error('❌ Erro ao carregar folha de rosto:', error);
-      // Continua sem a folha de rosto se houver erro
     }
   }
 
-  // Função para adicionar nova página se necessário
+  const applyCoverBackground = () => {
+    if (!coverImageDataUrl) return;
+    try {
+      doc.addImage(
+        coverImageDataUrl,
+        'PNG',
+        0,
+        0,
+        pageWidth,
+        pageHeight,
+        undefined,
+        'FAST'
+      );
+    } catch (error) {
+      console.warn('⚠️ Erro ao aplicar folha de rosto na página:', error);
+    }
+  };
+
+  applyCoverBackground();
+
+  const addPageWithCover = () => {
+    doc.addPage();
+    applyCoverBackground();
+    yPosition = margin;
+  };
+
+  // Função para adicionar nova página se necessário (com folha de rosto)
   const checkNewPage = (requiredHeight: number) => {
     if (yPosition + requiredHeight > pageHeight - margin) {
-      doc.addPage();
-      yPosition = margin;
+      addPageWithCover();
       return true;
     }
     return false;
@@ -269,12 +280,16 @@ export async function generateContractPDF(options: ContractPdfOptions): Promise<
     yPosition = Math.max(headerY + lineHeight, margin + 30);
   }
 
-  // Título do contrato
+  // Título do contrato (editável / nome do contrato)
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
-  doc.text('CONTRATO', pageWidth / 2, yPosition, { align: 'center' });
-  yPosition += lineHeight * 2;
+  const titleLines = doc.splitTextToSize(contractTitle.toUpperCase(), maxWidth);
+  titleLines.forEach((line: string) => {
+    doc.text(line, pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += lineHeight * 1.2;
+  });
+  yPosition += lineHeight * 0.5;
 
   // Número do contrato
   doc.setFontSize(10);
@@ -355,9 +370,9 @@ export async function generateContractPDF(options: ContractPdfOptions): Promise<
         const signature = signatureMap.get(position.signerType);
         if (!signature) continue;
 
-        // Garantir que a página existe
+        // Garantir que a página existe (com folha de rosto)
         while (doc.getNumberOfPages() < position.pageNumber) {
-          doc.addPage();
+          addPageWithCover();
         }
 
         // Ir para a página correta
@@ -404,9 +419,8 @@ export async function generateContractPDF(options: ContractPdfOptions): Promise<
     } else {
       // Comportamento padrão: adicionar assinaturas no final
       console.log('📝 Adicionando página de assinaturas com', options.signatures.length, 'assinatura(s)');
-      // Criar nova página dedicada para assinaturas
-      doc.addPage();
-      yPosition = margin;
+      // Criar nova página dedicada para assinaturas (com folha de rosto)
+      addPageWithCover();
 
     // Título da seção de assinaturas
     doc.setFontSize(14);
@@ -430,8 +444,7 @@ export async function generateContractPDF(options: ContractPdfOptions): Promise<
       if (yPosition + signatureHeight + lineHeight * 3 > pageHeight - margin - 10) {
         // Adicionar rodapé na página atual antes de criar nova
         addFooter(pageHeight - margin);
-        doc.addPage();
-        yPosition = margin;
+        addPageWithCover();
       }
 
       // Nome do signatário

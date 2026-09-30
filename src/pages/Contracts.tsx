@@ -98,7 +98,7 @@ export default function Contracts() {
     expires_to: expiresToFilter,
   }), [statusFilter, searchQuery, categoryFilter, dateFromFilter, dateToFilter, expiresFromFilter, expiresToFilter]);
   
-  const { contracts, loading, updateContractStatus, deleteContract, regenerateContractPDF, refetch } = useContracts(contractFilters);
+  const { contracts, loading, updateContractStatus, deleteContract, regenerateContractPDF, duplicateContract, extendContractExpires, updateContract, refetch } = useContracts(contractFilters);
   const { templates } = useContractTemplates();
   const { configs: evolutionConfigs, loading: configsLoading } = useEvolutionConfigs();
   const { toast } = useToast();
@@ -307,6 +307,73 @@ export default function Contracts() {
         description: error.message || 'Erro ao excluir contrato',
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleDuplicate = async (contract: Contract) => {
+    try {
+      const copy = await duplicateContract(contract);
+      await refetch();
+      if (copy) {
+        setSelectedContract(copy);
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao duplicar contrato',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleExtendExpires = async (contract: Contract, newExpiresAt: string) => {
+    try {
+      const updated = await extendContractExpires(contract.id, newExpiresAt);
+      await refetch();
+      if (updated) {
+        setSelectedContract(updated);
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao estender prazo',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSaveTitle = async (contract: Contract, title: string) => {
+    try {
+      const updated = await updateContract(contract.id, { title });
+      // Regenerar PDF com o novo título
+      try {
+        await regenerateContractPDF(contract.id);
+      } catch (pdfError) {
+        console.warn('Título salvo, mas falha ao regenerar PDF:', pdfError);
+      }
+      await refetch();
+      const refreshed = updated
+        ? { ...updated, title, pdf_url: undefined }
+        : { ...contract, title };
+      // Buscar contrato atualizado com novo PDF
+      const { data: latest } = await supabase
+        .from('contracts')
+        .select(`
+          *,
+          template:contract_templates(*),
+          category:contract_categories(*),
+          lead:leads(id, name, phone, email, company)
+        `)
+        .eq('id', contract.id)
+        .single();
+      setSelectedContract((latest as Contract) || refreshed);
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao salvar título',
+        variant: 'destructive',
+      });
+      throw error;
     }
   };
 
@@ -593,6 +660,9 @@ export default function Contracts() {
               onDelete={handleDelete}
               onReload={handleReloadContract}
               onContractUpdated={(updated) => setSelectedContract(updated)}
+              onDuplicate={handleDuplicate}
+              onExtendExpires={handleExtendExpires}
+              onSaveTitle={handleSaveTitle}
             />
           </div>
         ) : (

@@ -159,6 +159,7 @@ export function useContracts(filters?: ContractFilters) {
     contract_number?: string; // Opcional: se fornecido, usa esse; senão, gera automaticamente
     category_id?: string; // Nova: categoria do contrato
     expires_at?: string;
+    title?: string;
   }) => {
     if (!activeOrgId) throw new Error('Organização não encontrada');
 
@@ -182,16 +183,19 @@ export function useContracts(filters?: ContractFilters) {
         .eq('id', contractData.lead_id)
         .single();
 
-      // Buscar template para pegar a folha de rosto
-      let templateData = null;
+      // Buscar template para folha de rosto e nome (título padrão)
+      let templateData: { cover_page_url?: string | null; name?: string } | null = null;
       if (contractData.template_id) {
         const { data: template } = await supabase
           .from('contract_templates')
-          .select('cover_page_url')
+          .select('cover_page_url, name')
           .eq('id', contractData.template_id)
           .single();
         templateData = template;
       }
+
+      const contractTitle =
+        (contractData.title || templateData?.name || 'CONTRATO').trim() || 'CONTRATO';
 
       // Validar que content não está vazio
       if (!contractData.content || contractData.content.trim() === '') {
@@ -206,21 +210,23 @@ export function useContracts(filters?: ContractFilters) {
         content_preview: contractData.content.substring(0, 100) + '...',
       });
 
-      // Criar contrato primeiro (sem PDF ainda)
       // Token gerado já na criação para o link de assinatura funcionar sem enviar WhatsApp
       const signatureToken = Array.from(crypto.getRandomValues(new Uint8Array(16)))
         .map((b) => b.toString(16).padStart(2, '0'))
         .join('');
 
-      const { data: contract, error: insertError } = await supabase
+      const { title: _titleInput, ...restContractData } = contractData;
+
+      let { data: contract, error: insertError } = await supabase
         .from('contracts')
         .insert({
-          ...contractData,
+          ...restContractData,
           organization_id: activeOrgId,
           contract_number: contractNumber,
           status: 'draft',
-          content: contractData.content, // Garantir que content está presente
+          content: contractData.content,
           signature_token: signatureToken,
+          title: contractTitle,
         })
         .select(`
           *,
@@ -228,6 +234,29 @@ export function useContracts(filters?: ContractFilters) {
           lead:leads(id, name, phone, email, company)
         `)
         .single();
+
+      // Fallback se coluna title ainda não existir no banco
+      if (insertError && /title|column/i.test(insertError.message || '')) {
+        console.warn('Coluna title indisponível, criando sem título:', insertError.message);
+        const retry = await supabase
+          .from('contracts')
+          .insert({
+            ...restContractData,
+            organization_id: activeOrgId,
+            contract_number: contractNumber,
+            status: 'draft',
+            content: contractData.content,
+            signature_token: signatureToken,
+          })
+          .select(`
+            *,
+            template:contract_templates(*),
+            lead:leads(id, name, phone, email, company)
+          `)
+          .single();
+        contract = retry.data;
+        insertError = retry.error;
+      }
 
       if (insertError) {
         console.error('❌ Erro ao inserir contrato:', insertError);
@@ -249,8 +278,9 @@ export function useContracts(filters?: ContractFilters) {
         const pdfBlob = await generateContractPDF({
           content: contractData.content,
           contractNumber: contractNumber as string,
+          title: contractTitle,
           leadName: leadData?.name,
-          coverPageUrl: templateData?.cover_page_url,
+          coverPageUrl: templateData?.cover_page_url || undefined,
         });
 
       // Fazer upload do PDF usando StorageFactory
@@ -644,6 +674,7 @@ export function useContracts(filters?: ContractFilters) {
       const pdfBlob = await generateContractPDF({
         content: contractContent, // Usar conteúdo regenerado se for rascunho
         contractNumber: contract.contract_number,
+        title: contract.title || contract.template?.name || 'CONTRATO',
         leadName: contract.lead?.name,
         coverPageUrl: coverPageUrl,
         organizationData,
@@ -700,6 +731,65 @@ export function useContracts(filters?: ContractFilters) {
     }
   };
 
+  const duplicateContract = async (source: Contract): Promise<Contract> => {
+    if (!activeOrgId) throw new Error('Organização não encontrada');
+
+    try {
+      const duplicated = await createContract({
+        template_id: source.template_id,
+        lead_id: source.lead_id,
+        content: source.content,
+        category_id: source.category_id,
+        expires_at: source.expires_at,
+        title: `${source.title || source.template?.name || 'CONTRATO'} (cópia)`,
+      });
+
+      return duplicated;
+    } catch (error: any) {
+      console.error('Erro ao duplicar contrato:', error);
+      throw error;
+    }
+  };
+
+  const extendContractExpires = async (
+    id: string,
+    newExpiresAt: string
+  ): Promise<Contract> => {
+    if (!newExpiresAt) {
+      throw new Error('Informe a nova data de vencimento');
+    }
+
+    const expiresDate = new Date(newExpiresAt);
+    if (Number.isNaN(expiresDate.getTime())) {
+      throw new Error('Data de vencimento inválida');
+    }
+
+    // Buscar status atual para reabrir se estava expirado
+    const { data: current } = await supabase
+      .from('contracts')
+      .select('status')
+      .eq('id', id)
+      .single();
+
+    const updates: Partial<Contract> = {
+      expires_at: expiresDate.toISOString(),
+    };
+
+    // Se estava expirado (ou passado do prazo), voltar para enviado/rascunho
+    if (current?.status === 'expired') {
+      updates.status = 'sent';
+    }
+
+    const updated = await updateContract(id, updates);
+
+    toast({
+      title: 'Prazo estendido',
+      description: `Novo vencimento: ${expiresDate.toLocaleDateString('pt-BR')}`,
+    });
+
+    return updated;
+  };
+
   return {
     contracts,
     loading,
@@ -708,6 +798,8 @@ export function useContracts(filters?: ContractFilters) {
     updateContractStatus,
     deleteContract,
     regenerateContractPDF,
+    duplicateContract,
+    extendContractExpires,
     refetch: fetchContracts,
   };
 }

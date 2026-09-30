@@ -284,7 +284,7 @@ export default function SignContract() {
       // Buscar conteúdo do contrato
       const { data: contractData } = await supabase
         .from('contracts')
-        .select('content, contract_number, template_id')
+        .select('content, contract_number, template_id, title')
         .eq('id', contract.id)
         .single();
 
@@ -355,6 +355,7 @@ export default function SignContract() {
       const pdfBlob = await generateContractPDF({
         content: contractData.content,
         contractNumber: contractData.contract_number,
+        title: (contractData as any).title || 'CONTRATO',
         leadName: contract.lead.name,
         coverPageUrl: coverPageUrl,
         signatures: signaturesForPdf,
