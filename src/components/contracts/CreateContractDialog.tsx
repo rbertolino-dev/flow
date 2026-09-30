@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { useContractCategories } from '@/hooks/useContractCategories';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, X, FileText, Upload } from 'lucide-react';
+import { Loader2, X, FileText, Upload, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { TestVersionBadge, TestVersionBanner } from '@/components/shared/TestVersionBadge';
 
@@ -46,6 +46,10 @@ export function CreateContractDialog({
   const [submitting, setSubmitting] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [leadSearch, setLeadSearch] = useState('');
+  const [showLeadResults, setShowLeadResults] = useState(false);
+  const leadSearchRef = useRef<HTMLDivElement>(null);
+  const appliedDefaultLead = useRef(false);
 
   useEffect(() => {
     if (open) {
@@ -81,12 +85,38 @@ export function CreateContractDialog({
       setContractNumber('');
       setExpiresAt(format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'));
       setPdfFile(null);
+      setLeadSearch('');
+      setShowLeadResults(false);
       
       return () => {
         isMounted = false;
       };
     }
   }, [open, defaultLeadId]); // Removido refetchTemplates e fetchCategories das dependências para evitar loops
+
+  useEffect(() => {
+    if (!open) {
+      appliedDefaultLead.current = false;
+      return;
+    }
+    if (!defaultLeadId || appliedDefaultLead.current) return;
+    const lead = leads.find((item) => item.id === defaultLeadId);
+    if (!lead) return;
+    setSelectedLeadId(defaultLeadId);
+    setLeadSearch(lead.name || '');
+    appliedDefaultLead.current = true;
+  }, [open, defaultLeadId, leads]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (leadSearchRef.current && !leadSearchRef.current.contains(event.target as Node)) {
+        setShowLeadResults(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [open]);
 
   if (!open) return null;
 
@@ -341,6 +371,24 @@ export function CreateContractDialog({
   });
   const validLeads = leads.filter((l) => l.id && l.id.trim() !== '');
   const validCategories = (categories || []).filter((c) => c.id && c.id.trim() !== '');
+  const selectedLead = validLeads.find((lead) => lead.id === selectedLeadId) || null;
+  const leadQuery = leadSearch.trim().toLowerCase();
+  const leadQueryDigits = leadSearch.replace(/\D/g, '');
+  const filteredLeads = validLeads
+    .filter((lead) => {
+      if (!leadQuery) return false;
+      const name = (lead.name || '').toLowerCase();
+      const email = (lead.email || '').toLowerCase();
+      const phone = lead.phone || '';
+      const phoneDigits = phone.replace(/\D/g, '');
+      return (
+        name.includes(leadQuery) ||
+        email.includes(leadQuery) ||
+        phone.toLowerCase().includes(leadQuery) ||
+        (leadQueryDigits.length >= 2 && phoneDigits.includes(leadQueryDigits))
+      );
+    })
+    .slice(0, 30);
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
@@ -491,21 +539,69 @@ export function CreateContractDialog({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="lead">Lead/Cliente *</Label>
-              <select
-                id="lead"
-                value={selectedLeadId}
-                onChange={(e) => setSelectedLeadId(e.target.value)}
-                disabled={leadsLoading}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                required
-              >
-                <option value="">{leadsLoading ? 'Carregando...' : 'Selecione um lead'}</option>
-                {validLeads.map((lead) => (
-                  <option key={lead.id} value={lead.id}>
-                    {lead.name} - {lead.phone || 'Sem telefone'}
-                  </option>
-                ))}
-              </select>
+              <div className="relative" ref={leadSearchRef}>
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="lead"
+                  value={leadSearch}
+                  disabled={leadsLoading}
+                  placeholder={leadsLoading ? 'Carregando...' : 'Buscar por nome, telefone ou e-mail'}
+                  className="pl-9 pr-9"
+                  autoComplete="off"
+                  onFocus={() => setShowLeadResults(true)}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setLeadSearch(next);
+                    setShowLeadResults(true);
+                    if (selectedLead && next.trim() !== (selectedLead.name || '').trim()) {
+                      setSelectedLeadId('');
+                    }
+                  }}
+                />
+                {selectedLeadId ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+                    onClick={() => {
+                      setSelectedLeadId('');
+                      setLeadSearch('');
+                      setShowLeadResults(false);
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                ) : null}
+                {showLeadResults && leadQuery && !selectedLeadId ? (
+                  <div className="mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-background shadow-sm">
+                    {filteredLeads.length > 0 ? (
+                      filteredLeads.map((lead) => (
+                        <button
+                          key={lead.id}
+                          type="button"
+                          className="flex w-full flex-col border-b px-3 py-2 text-left last:border-b-0 hover:bg-muted"
+                          onClick={() => {
+                            setSelectedLeadId(lead.id);
+                            setLeadSearch(lead.name || '');
+                            setShowLeadResults(false);
+                          }}
+                        >
+                          <span className="text-sm font-medium">{lead.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {lead.phone || 'Sem telefone'}
+                            {lead.email ? ` · ${lead.email}` : ''}
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-3 text-sm text-muted-foreground">
+                        Nenhum cliente encontrado
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="contract-number">Número do Contrato</Label>
