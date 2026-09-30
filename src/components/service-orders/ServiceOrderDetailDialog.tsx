@@ -25,8 +25,11 @@ import {
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ServiceOrder, ServiceOrderLog } from '@/types/serviceOrder';
+import { Equipment, equipmentDisplayName } from '@/types/equipment';
 import { maintenanceMarkLabel } from '@/lib/serviceOrderMaintenance';
 import { supabase } from '@/integrations/supabase/client';
+import { fetchEquipmentsForOrder } from '@/hooks/useEquipments';
+import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { osDialogContentClass } from './osResponsive';
 
 interface ServiceOrderDetailDialogProps {
@@ -77,13 +80,21 @@ export function ServiceOrderDetailDialog({
   const [showLogs, setShowLogs] = useState(false);
   const [visits, setVisits] = useState<MaintenanceVisitRow[]>([]);
   const [cancelingVisits, setCancelingVisits] = useState(false);
+  const [equipments, setEquipments] = useState<Equipment[]>([]);
+  const { activeOrgId } = useActiveOrganization();
 
   useEffect(() => {
     if (!open || !order) {
       setLogs([]);
       setShowLogs(false);
       setVisits([]);
+      setEquipments([]);
       return;
+    }
+    if (activeOrgId) {
+      void fetchEquipmentsForOrder(activeOrgId, order.id)
+        .then(setEquipments)
+        .catch(() => setEquipments([]));
     }
     if (!order.maintenance_plan_id) {
       setVisits([]);
@@ -104,7 +115,7 @@ export function ServiceOrderDetailDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, order]);
+  }, [open, order, activeOrgId]);
 
   const loadLogs = async () => {
     if (!order) return;
@@ -210,6 +221,25 @@ export function ServiceOrderDetailDialog({
                 {order.collaborator_name || '—'}
               </span>
             </div>
+
+            {equipments.length > 0 && (
+              <div className="rounded-lg border p-3 space-y-2" data-testid="os-detail-equipments">
+                <p className="text-sm font-semibold">Equipamentos atendidos</p>
+                <ul className="space-y-1">
+                  {equipments.map((item) => (
+                    <li key={item.id} className="text-sm">
+                      {equipmentDisplayName(item)}
+                      {(item.brand || item.model) && (
+                        <span className="text-muted-foreground">
+                          {' '}
+                          · {[item.brand, item.model].filter(Boolean).join(' ')}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <p className="text-xs text-muted-foreground pt-1">
               Criado por {order.creator_name || 'Colaborador'} às{' '}

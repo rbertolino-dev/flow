@@ -218,6 +218,7 @@ export interface ServiceOrder {
     email?: string;
     company?: string;
   } | null;
+  equipment_ids?: string[];
 }
 
 export interface ServiceOrderLog {
@@ -278,6 +279,7 @@ export interface ServiceOrderFormData {
   reference_images?: string[];
   items?: ServiceOrderItem[];
   checklist?: ServiceOrderChecklistItem[];
+  equipment_ids?: string[];
 }
 
 /** Campos padrão do modelo (espelham o formulário clássico) */

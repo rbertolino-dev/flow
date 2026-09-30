@@ -13,6 +13,10 @@ import {
   clampMaintenanceVisitCount,
   resolveMaintenanceInterval,
 } from '@/lib/serviceOrderMaintenance';
+import {
+  fetchEquipmentIdsForOrder,
+  syncServiceOrderEquipments,
+} from '@/hooks/useEquipments';
 
 interface ServiceOrderFilters {
   search?: string;
@@ -196,6 +200,26 @@ export function useServiceOrders(
         );
       }
 
+      const orderIds = list.map((o) => o.id);
+      if (orderIds.length) {
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        const { data: links } = await supabase
+          .from('service_order_equipments')
+          .select('service_order_id, equipment_id')
+          .eq('organization_id', activeOrgId)
+          .in('service_order_id', orderIds);
+        const byOrder = new Map<string, string[]>();
+        ((links || []) as Array<{ service_order_id: string; equipment_id: string }>).forEach((link) => {
+          const current = byOrder.get(link.service_order_id) || [];
+          current.push(link.equipment_id);
+          byOrder.set(link.service_order_id, current);
+        });
+        list = list.map((order) => ({
+          ...order,
+          equipment_ids: byOrder.get(order.id) || [],
+        }));
+      }
+
       setOrders(list);
 
       // Contagens dos cards: sempre sobre todas as OS da org (sem filtro de status)
@@ -363,6 +387,10 @@ export function useServiceOrders(
           .from('service_order_checklist_items')
           .insert(checklistRows);
         if (clError) throw clError;
+      }
+
+      if (form.equipment_ids) {
+        await syncServiceOrderEquipments(activeOrgId, order.id, form.equipment_ids);
       }
 
       if (!options?.quiet) {
@@ -548,6 +576,10 @@ export function useServiceOrders(
             .insert(checklistRows);
           if (clError) throw clError;
         }
+      }
+
+      if (patch.equipment_ids) {
+        await syncServiceOrderEquipments(activeOrgId, id, patch.equipment_ids);
       }
 
       toast({ title: 'OS atualizada' });
@@ -964,7 +996,8 @@ export function useServiceOrders(
       .is('deleted_at', null)
       .maybeSingle();
     if (error || !data) return null;
-    return data as ServiceOrder;
+    const equipment_ids = await fetchEquipmentIdsForOrder(activeOrgId, id).catch(() => []);
+    return { ...(data as ServiceOrder), equipment_ids };
   };
 
   return {

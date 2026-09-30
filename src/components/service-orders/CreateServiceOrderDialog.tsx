@@ -30,6 +30,7 @@ import {
   normalizeTableConfig,
 } from '@/types/serviceOrder';
 import { ServiceOrderProductsStep } from './ServiceOrderProductsStep';
+import { ServiceOrderEquipmentPicker } from './ServiceOrderEquipmentPicker';
 import { osDialogContentClass } from './osResponsive';
 import { useServiceOrderChecklists } from '@/hooks/useServiceOrderChecklists';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
@@ -225,6 +226,7 @@ export function CreateServiceOrderDialog({
         warranty_terms: editingOrder.warranty_terms || undefined,
         custom_fields: editingOrder.custom_fields || {},
         label_tag: editingOrder.label_tag || undefined,
+        equipment_ids: editingOrder.equipment_ids || [],
       });
       setItems(editingOrder.items || []);
       setChecklist(editingOrder.checklist || []);
@@ -438,6 +440,7 @@ export function CreateServiceOrderDialog({
                     setField('client_name', lead.name, false);
                     setField('client_phone', lead.phone || '', false);
                     setField('address', formatLeadAddress(lead), false);
+                    setField('equipment_ids', [], false);
                     setLeadSearch(lead.name || '');
                   }}
                 >
@@ -772,6 +775,7 @@ export function CreateServiceOrderDialog({
       label_tag: labelTag || undefined,
       items,
       checklist,
+      equipment_ids: form.equipment_ids || [],
       maintenance_plan: planOn
         ? {
             interval: maintenanceInterval,
@@ -822,6 +826,12 @@ export function CreateServiceOrderDialog({
             <div className="grid md:grid-cols-2 gap-3">
               {visibleFields.map((f) => renderField(f))}
             </div>
+
+            <ServiceOrderEquipmentPicker
+              leadId={form.lead_id}
+              selectedIds={form.equipment_ids || []}
+              onChange={(ids) => setField('equipment_ids', ids, false)}
+            />
 
             {!isEditing && (
               <div className="space-y-3 rounded-xl border p-4" data-testid="os-maintenance-plan">

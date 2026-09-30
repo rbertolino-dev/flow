@@ -39,7 +39,9 @@ import {
   FileDown,
   ChevronDown,
   ChevronUp,
+  Wrench,
 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useServiceOrders } from '@/hooks/useServiceOrders';
 import { useServiceOrderStatuses, useServiceOrderTemplates } from '@/hooks/useServiceOrderTemplates';
 import { useProducts } from '@/hooks/useProducts';
@@ -49,6 +51,7 @@ import { ServiceOrderTemplatesDialog } from '@/components/service-orders/Service
 import { ServiceOrderStatusesDialog } from '@/components/service-orders/ServiceOrderStatusesDialog';
 import { ServiceOrderDetailDialog } from '@/components/service-orders/ServiceOrderDetailDialog';
 import { ServiceOrderCloseDialog } from '@/components/service-orders/ServiceOrderCloseDialog';
+import { EquipmentsTab } from '@/components/service-orders/EquipmentsTab';
 import { ServiceOrderFormData, ServiceOrder, ServiceOrderCloseData } from '@/types/serviceOrder';
 import { maintenanceMarkLabel } from '@/lib/serviceOrderMaintenance';
 import { format } from 'date-fns';
@@ -120,6 +123,7 @@ export default function ServiceOrders() {
   const [editingOrder, setEditingOrder] = useState<ServiceOrder | null>(null);
   const [nextCode, setNextCode] = useState('-----');
   const [exportingId, setExportingId] = useState<string | null>(null);
+  const [moduleTab, setModuleTab] = useState<'orders' | 'equipments'>('orders');
 
   const { toast } = useToast();
   const { activeOrganization, activeOrgId } = useActiveOrganization();
@@ -494,6 +498,28 @@ export default function ServiceOrders() {
           </Button>
         </div>
 
+        <Tabs
+          value={moduleTab}
+          onValueChange={(value) => setModuleTab(value as 'orders' | 'equipments')}
+          className="space-y-4"
+        >
+          <TabsList className="h-auto w-full justify-start gap-1 rounded-lg bg-slate-100 p-1" data-testid="os-module-tabs">
+            <TabsTrigger value="orders" className="gap-1.5" data-testid="os-tab-orders">
+              <ClipboardList className="h-4 w-4" />
+              Ordens
+            </TabsTrigger>
+            <TabsTrigger value="equipments" className="gap-1.5" data-testid="os-tab-equipments">
+              <Wrench className="h-4 w-4" />
+              Equipamentos
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="equipments" className="mt-0">
+            <EquipmentsTab />
+          </TabsContent>
+
+          <TabsContent value="orders" className="mt-0 space-y-6">
+
         {/* Status cards — etapas da organização */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3" data-testid="os-status-cards">
           {statuses.map((s) => {
@@ -798,6 +824,8 @@ export default function ServiceOrders() {
             </>
           )}
         </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <CreateServiceOrderDialog

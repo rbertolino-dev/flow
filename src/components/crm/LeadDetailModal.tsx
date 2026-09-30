@@ -59,6 +59,7 @@ import { EnhancedActivityHistory } from "./EnhancedActivityHistory";
 import { LeadAssigneesPopover } from "./LeadAssigneesPopover";
 import { LeadCardBudgetsSection } from "./LeadCardBudgetsSection";
 import { LeadAttachmentsSection } from "./LeadAttachmentsSection";
+import { LeadEquipmentsSection } from "./LeadEquipmentsSection";
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -1803,6 +1804,13 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
             <Separator />
 
             <LeadAttachmentsSection
+              leadId={currentLead.id}
+              onChanged={() => onUpdated?.()}
+            />
+
+            <Separator />
+
+            <LeadEquipmentsSection
               leadId={currentLead.id}
               onChanged={() => onUpdated?.()}
             />
