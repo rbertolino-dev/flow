@@ -113,6 +113,24 @@ async function countExact(path: string): Promise<number> {
   return Number.isFinite(n) ? n : 0;
 }
 
+function bubbleToken(): string {
+  const token = Deno.env.get("BUBBLE_AGILIZE_KEY");
+  if (!token) throw new Error("BUBBLE_AGILIZE_KEY não configurada");
+  return token;
+}
+
+async function bubbleObj(path: string, options: RequestInit = {}) {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${bubbleToken()}`,
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string> | undefined),
+  };
+  return fetch(`https://app.agilizetotal.com.br/api/1.1/obj/${path}`, {
+    ...options,
+    headers,
+  });
+}
+
 async function bubbleEmpresaNome(id: string): Promise<string | null> {
   const token = Deno.env.get("BUBBLE_AGILIZE_KEY");
   if (!token) return null;
@@ -480,6 +498,157 @@ async function dryRun(
   };
 }
 
+async function createBubbleServico(
+  empresaId: string,
+  data: Record<string, unknown>
+): Promise<string> {
+  const body: Record<string, unknown> = {
+    nome: data.nome,
+    empresa: empresaId,
+    cod_import: "agilize-import",
+  };
+  if (typeof data["preço"] === "number") body["preço"] = data["preço"];
+  if (typeof data["custo unit"] === "number") body["custo unit"] = data["custo unit"];
+  if (data.codigo) body.codigo = data.codigo;
+  if (data.descricao) body.descricao = data.descricao;
+  if (data.categoria) body.categoria = data.categoria;
+
+  const tipo = encodeURIComponent("serviço");
+  let res = await bubbleObj(tipo, { method: "POST", body: JSON.stringify(body) });
+  if (!res.ok && body.categoria) {
+    delete body.categoria;
+    res = await bubbleObj(tipo, { method: "POST", body: JSON.stringify(body) });
+  }
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`Bubble serviço HTTP ${res.status}: ${text.slice(0, 180)}`);
+  }
+  const parsed = JSON.parse(text);
+  const id = String(parsed.id || parsed.response?._id || "");
+  if (!id) throw new Error("Bubble não devolveu o id do serviço");
+  return id;
+}
+
+async function updateBubbleServico(id: string, data: Record<string, unknown>) {
+  const body: Record<string, unknown> = { nome: data.nome };
+  if (typeof data["preço"] === "number") body["preço"] = data["preço"];
+  if (typeof data["custo unit"] === "number") body["custo unit"] = data["custo unit"];
+  if (data.codigo) body.codigo = data.codigo;
+  if (data.descricao) body.descricao = data.descricao;
+  if (data.categoria) body.categoria = data.categoria;
+  const res = await bubbleObj(
+    `${encodeURIComponent("serviço")}/${encodeURIComponent(id)}`,
+    { method: "PATCH", body: JSON.stringify(body) }
+  );
+  if (!res.ok && body.categoria) {
+    delete body.categoria;
+    const retry = await bubbleObj(
+      `${encodeURIComponent("serviço")}/${encodeURIComponent(id)}`,
+      { method: "PATCH", body: JSON.stringify(body) }
+    );
+    if (!retry.ok) {
+      throw new Error(`Bubble não atualizou o serviço (HTTP ${retry.status})`);
+    }
+    return;
+  }
+  if (!res.ok) {
+    throw new Error(`Bubble não atualizou o serviço (HTTP ${res.status})`);
+  }
+}
+
+async function loadCadServicos(empresaId: string): Promise<string[]> {
+  const res = await bubbleObj(`empresa_principal/${encodeURIComponent(empresaId)}`);
+  if (!res.ok) {
+    throw new Error(`Não foi possível ler a empresa no Bubble (HTTP ${res.status})`);
+  }
+  const data = await res.json();
+  const row = (data.response || data) as Record<string, unknown>;
+  const list = row["cad_serviços"];
+  return Array.isArray(list) ? list.map((item) => String(item)) : [];
+}
+
+async function appendCadServicos(empresaId: string, ids: string[]) {
+  const fresh = ids.filter(Boolean);
+  if (!fresh.length) return;
+  const current = await loadCadServicos(empresaId);
+  const merged = [...current];
+  for (const id of fresh) {
+    if (!merged.includes(id)) merged.push(id);
+  }
+  if (merged.length === current.length) return;
+  const res = await bubbleObj(`empresa_principal/${encodeURIComponent(empresaId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ "cad_serviços": merged }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Não foi possível ligar os serviços na empresa (HTTP ${res.status}): ${(await res.text()).slice(0, 180)}`
+    );
+  }
+}
+
+async function bubbleServicoExiste(id: string): Promise<boolean> {
+  const res = await bubbleObj(`${encodeURIComponent("serviço")}/${encodeURIComponent(id)}`);
+  if (!res.ok) return false;
+  const data = await res.json();
+  const row = (data.response || data) as Record<string, unknown>;
+  return Boolean(String(row.nome ?? "").trim() || row["preço"] != null);
+}
+
+async function syncMirrorToBubble(empresaId: string) {
+  const publicados: string[] = [];
+  let created = 0;
+  let linked = 0;
+  const errors: Array<{ nome: string; error: string }> = [];
+  for (let offset = 0; offset < 200000; offset += PAGE_SIZE) {
+    const res = await agilizeFetch(
+      `servicos?select=id,nome,codigo,descricao,pre%C3%A7o,custo%20unit,categoria,unique%20id&empresa=eq.${encodeURIComponent(empresaId)}&order=id.asc&limit=${PAGE_SIZE}&offset=${offset}`
+    );
+    if (!res.ok) throw new Error("Não foi possível ler os serviços do espelho");
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    if (!rows.length) break;
+    for (const row of rows) {
+      const nome = String(row.nome ?? "");
+      let uniqueid = String(row["unique id"] ?? "");
+      try {
+        const jaExiste = uniqueid ? await bubbleServicoExiste(uniqueid) : false;
+        if (!jaExiste) {
+          uniqueid = await createBubbleServico(empresaId, {
+            nome: row.nome,
+            preço: row["preço"],
+            "custo unit": row["custo unit"],
+            codigo: row.codigo,
+            descricao: row.descricao,
+            categoria: row.categoria,
+          });
+          const patch = await agilizeFetch(
+            `servicos?id=eq.${row.id}&empresa=eq.${encodeURIComponent(empresaId)}`,
+            {
+              method: "PATCH",
+              headers: { Prefer: "return=minimal" },
+              body: JSON.stringify({ "unique id": uniqueid }),
+            }
+          );
+          if (!patch.ok) {
+            throw new Error(`Espelho não guardou o id do Bubble (HTTP ${patch.status})`);
+          }
+          created++;
+        }
+        publicados.push(uniqueid);
+        linked++;
+      } catch (error) {
+        errors.push({
+          nome,
+          error: error instanceof Error ? error.message : "Falha ao publicar no Bubble",
+        });
+      }
+    }
+    if (rows.length < PAGE_SIZE) break;
+  }
+  if (publicados.length) await appendCadServicos(empresaId, publicados);
+  return { ok: errors.length === 0, created, linked, errors };
+}
+
 function insertPayload(empresaId: string, data: Record<string, unknown>, uniqueid: string) {
   return {
     ...data,
@@ -504,6 +673,7 @@ async function importBatch(
   if (!trusted) {
     throw new Error("Sessão de validação expirada. Rode a validação de novo.");
   }
+  await syncMirrorToBubble(empresaId);
 
   const index = await loadExisting(empresaId);
   const categorias = await loadCategoriaIndex(empresaId);
@@ -513,6 +683,7 @@ async function importBatch(
   const insertedRows: Array<{ row: number; nome: string; id: number }> = [];
   const errors: Array<{ row: number; error: string }> = [];
   const warnings: Array<{ row: number; warning: string }> = [];
+  const publicados: string[] = [];
 
   for (const raw of rows) {
     const rowNum = Number(raw._row) || 0;
@@ -563,11 +734,35 @@ async function importBatch(
         });
         continue;
       }
+      let bubbleId = hit.ex.uniqueid;
+      if (!(await bubbleServicoExiste(bubbleId))) {
+        bubbleId = await createBubbleServico(empresaId, data);
+        await agilizeFetch(
+          `servicos?id=eq.${hit.ex.id}&empresa=eq.${encodeURIComponent(empresaId)}`,
+          {
+            method: "PATCH",
+            headers: { Prefer: "return=minimal" },
+            body: JSON.stringify({ "unique id": bubbleId }),
+          }
+        );
+      } else {
+        await updateBubbleServico(bubbleId, data);
+      }
+      publicados.push(bubbleId);
       updated++;
       continue;
     }
 
-    const uniqueid = bubbleUniqueId();
+    let uniqueid = "";
+    try {
+      uniqueid = await createBubbleServico(empresaId, data);
+    } catch (error) {
+      errors.push({
+        row: rowNum,
+        error: error instanceof Error ? error.message : "Falha ao criar o serviço no Bubble",
+      });
+      continue;
+    }
     const res = await agilizeFetch("servicos", {
       method: "POST",
       headers: { Prefer: "return=representation" },
@@ -584,8 +779,11 @@ async function importBatch(
     const id = Number(created?.[0]?.id);
     remember(index, data, id, uniqueid);
     insertedRows.push({ row: rowNum, nome: String(data.nome ?? ""), id });
+    publicados.push(uniqueid);
     inserted++;
   }
+
+  if (publicados.length) await appendCadServicos(empresaId, publicados);
 
   return {
     ok: true,
@@ -608,21 +806,24 @@ serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return jsonResponse({ error: "Authorization obrigatório" }, 401);
     const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
-    const supabase = createClient(supabaseUrl, supabaseAnon, {
-      global: { headers: { Authorization: `Bearer ${jwt}` } },
-    });
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser(jwt);
-    if (userError || !user) {
-      return jsonResponse({ error: "Não autenticado. Faça login novamente." }, 401);
-    }
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (serviceKey) {
-      await assertSuperAdmin(createClient(supabaseUrl, serviceKey), user.id);
-    } else {
-      await assertSuperAdmin(supabase, user.id);
+    const internal = Boolean(serviceKey && jwt === serviceKey);
+    if (!internal) {
+      const supabase = createClient(supabaseUrl, supabaseAnon, {
+        global: { headers: { Authorization: `Bearer ${jwt}` } },
+      });
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser(jwt);
+      if (userError || !user) {
+        return jsonResponse({ error: "Não autenticado. Faça login novamente." }, 401);
+      }
+      if (serviceKey) {
+        await assertSuperAdmin(createClient(supabaseUrl, serviceKey), user.id);
+      } else {
+        await assertSuperAdmin(supabase, user.id);
+      }
     }
 
     const body = await req.json();
@@ -639,6 +840,11 @@ serve(async (req) => {
     if (action === "dry_run") {
       if (!empresaId) return jsonResponse({ error: "empresaId obrigatório" }, 400);
       return jsonResponse(await dryRun(empresaId, rows, duplicateMode));
+    }
+    if (action === "sync_bubble") {
+      if (!internal) return jsonResponse({ error: "Acesso negado" }, 403);
+      if (!empresaId) return jsonResponse({ error: "empresaId obrigatório" }, 400);
+      return jsonResponse(await syncMirrorToBubble(empresaId));
     }
     if (action === "import_batch") {
       if (!empresaId) return jsonResponse({ error: "empresaId obrigatório" }, 400);
