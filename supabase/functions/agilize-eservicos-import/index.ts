@@ -341,7 +341,7 @@ async function ensureCategoria(
   const key = norm(nome);
   const existing = categorias.get(key);
   if (existing) return existing;
-  const uniqueid = bubbleUniqueId();
+  const uniqueid = await createBubbleLista(empresaId, nome.trim());
   const res = await agilizeFetch("Listas-CRM", {
     method: "POST",
     headers: { Prefer: "return=representation" },
@@ -514,11 +514,7 @@ async function createBubbleServico(
   if (data.categoria) body.categoria = data.categoria;
 
   const tipo = encodeURIComponent("serviço");
-  let res = await bubbleObj(tipo, { method: "POST", body: JSON.stringify(body) });
-  if (!res.ok && body.categoria) {
-    delete body.categoria;
-    res = await bubbleObj(tipo, { method: "POST", body: JSON.stringify(body) });
-  }
+  const res = await bubbleObj(tipo, { method: "POST", body: JSON.stringify(body) });
   const text = await res.text();
   if (!res.ok) {
     throw new Error(`Bubble serviço HTTP ${res.status}: ${text.slice(0, 180)}`);
@@ -540,19 +536,10 @@ async function updateBubbleServico(id: string, data: Record<string, unknown>) {
     `${encodeURIComponent("serviço")}/${encodeURIComponent(id)}`,
     { method: "PATCH", body: JSON.stringify(body) }
   );
-  if (!res.ok && body.categoria) {
-    delete body.categoria;
-    const retry = await bubbleObj(
-      `${encodeURIComponent("serviço")}/${encodeURIComponent(id)}`,
-      { method: "PATCH", body: JSON.stringify(body) }
-    );
-    if (!retry.ok) {
-      throw new Error(`Bubble não atualizou o serviço (HTTP ${retry.status})`);
-    }
-    return;
-  }
   if (!res.ok) {
-    throw new Error(`Bubble não atualizou o serviço (HTTP ${res.status})`);
+    throw new Error(
+      `Bubble não atualizou o serviço (HTTP ${res.status}): ${(await res.text()).slice(0, 180)}`
+    );
   }
 }
 
@@ -595,11 +582,142 @@ async function bubbleServicoExiste(id: string): Promise<boolean> {
   return Boolean(String(row.nome ?? "").trim() || row["preço"] != null);
 }
 
+async function createBubbleLista(empresaId: string, nome: string): Promise<string> {
+  const attempts: Record<string, unknown>[] = [
+    { nome, categoria: "Serviço", empresa: empresaId },
+    { nome, empresa: empresaId },
+  ];
+  let last = "";
+  for (const body of attempts) {
+    const res = await bubbleObj(encodeURIComponent("listacrm"), {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    if (res.ok) {
+      const parsed = JSON.parse(text);
+      const id = String(parsed.id || parsed.response?._id || "");
+      if (!id) throw new Error(`Bubble não devolveu o id da categoria "${nome}"`);
+      return id;
+    }
+    last = `HTTP ${res.status}: ${text.slice(0, 220)}`;
+    if (res.status === 404) break;
+  }
+  throw new Error(`Não foi possível criar a categoria "${nome}" no Bubble (${last})`);
+}
+
+async function bubbleListaExiste(id: string): Promise<boolean> {
+  const res = await bubbleObj(
+    `${encodeURIComponent("listacrm")}/${encodeURIComponent(id)}`
+  );
+  if (!res.ok) return false;
+  const data = await res.json();
+  const row = (data.response || data) as Record<string, unknown>;
+  return Boolean(String(row.nome ?? "").trim());
+}
+
+async function apontarCategoria(
+  rowId: number,
+  oldId: string,
+  bubbleId: string,
+  empresaId: string,
+  nome: string
+) {
+  if (!bubbleId || bubbleId === oldId) return;
+  const insert = await agilizeFetch("Listas-CRM", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      nome,
+      categoria: "Serviço",
+      empresa: empresaId,
+      "unique id": bubbleId,
+      "Creation Date": new Date().toISOString(),
+    }),
+  });
+  if (!insert.ok) {
+    throw new Error(
+      `Espelho não guardou a categoria "${nome}" (HTTP ${insert.status}): ${(await insert.text()).slice(0, 180)}`
+    );
+  }
+  const move = await agilizeFetch(
+    `servicos?empresa=eq.${encodeURIComponent(empresaId)}&categoria=eq.${encodeURIComponent(oldId)}`,
+    {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ categoria: bubbleId }),
+    }
+  );
+  if (!move.ok) {
+    throw new Error(
+      `Serviços não apontaram para a categoria "${nome}" (HTTP ${move.status}): ${(await move.text()).slice(0, 180)}`
+    );
+  }
+  const del = await agilizeFetch(
+    `Listas-CRM?ID=eq.${rowId}&empresa=eq.${encodeURIComponent(empresaId)}`,
+    { method: "DELETE", headers: { Prefer: "return=minimal" } }
+  );
+  if (!del.ok) {
+    throw new Error(
+      `Categoria antiga "${nome}" ficou duplicada no espelho (HTTP ${del.status})`
+    );
+  }
+}
+
+async function publishCategorias(empresaId: string) {
+  const map = new Map<string, string>();
+  let created = 0;
+  const res = await agilizeFetch(
+    `Listas-CRM?select=ID,nome,unique%20id&empresa=eq.${encodeURIComponent(empresaId)}&categoria=eq.Servi%C3%A7o&order=ID.asc&limit=${PAGE_SIZE}`
+  );
+  if (!res.ok) throw new Error("Não foi possível ler as categorias do espelho");
+  const rows = (await res.json()) as Array<Record<string, unknown>>;
+  for (const row of rows) {
+    const oldId = String(row["unique id"] ?? "");
+    const nome = String(row.nome ?? "").trim();
+    if (!nome) continue;
+    let bubbleId = oldId;
+    if (!(await bubbleListaExiste(bubbleId))) {
+      bubbleId = await createBubbleLista(empresaId, nome);
+      await apontarCategoria(Number(row.ID), oldId, bubbleId, empresaId, nome);
+      created++;
+    }
+    if (oldId) map.set(oldId, bubbleId);
+    map.set(bubbleId, bubbleId);
+  }
+  return { map, created };
+}
+
+async function patchServicoCategoria(servicoId: string, categoriaId: string) {
+  const res = await bubbleObj(
+    `${encodeURIComponent("serviço")}/${encodeURIComponent(servicoId)}`,
+    { method: "PATCH", body: JSON.stringify({ categoria: categoriaId }) }
+  );
+  if (!res.ok) {
+    throw new Error(
+      `Bubble não gravou a categoria do serviço (HTTP ${res.status}): ${(await res.text()).slice(0, 180)}`
+    );
+  }
+}
+
 async function syncMirrorToBubble(empresaId: string) {
   const publicados: string[] = [];
   let created = 0;
   let linked = 0;
+  let categoriasCriadas = 0;
+  let categoriasLigadas = 0;
   const errors: Array<{ nome: string; error: string }> = [];
+  let catMap = new Map<string, string>();
+  try {
+    const published = await publishCategorias(empresaId);
+    catMap = published.map;
+    categoriasCriadas = published.created;
+  } catch (error) {
+    errors.push({
+      nome: "(categorias)",
+      error: error instanceof Error ? error.message : "Falha ao publicar categorias",
+    });
+  }
   for (let offset = 0; offset < 200000; offset += PAGE_SIZE) {
     const res = await agilizeFetch(
       `servicos?select=id,nome,codigo,descricao,pre%C3%A7o,custo%20unit,categoria,unique%20id&empresa=eq.${encodeURIComponent(empresaId)}&order=id.asc&limit=${PAGE_SIZE}&offset=${offset}`
@@ -612,6 +730,7 @@ async function syncMirrorToBubble(empresaId: string) {
       let uniqueid = String(row["unique id"] ?? "");
       try {
         const jaExiste = uniqueid ? await bubbleServicoExiste(uniqueid) : false;
+        const categoriaId = catMap.get(String(row.categoria ?? "")) || "";
         if (!jaExiste) {
           uniqueid = await createBubbleServico(empresaId, {
             nome: row.nome,
@@ -619,7 +738,7 @@ async function syncMirrorToBubble(empresaId: string) {
             "custo unit": row["custo unit"],
             codigo: row.codigo,
             descricao: row.descricao,
-            categoria: row.categoria,
+            categoria: categoriaId || undefined,
           });
           const patch = await agilizeFetch(
             `servicos?id=eq.${row.id}&empresa=eq.${encodeURIComponent(empresaId)}`,
@@ -633,6 +752,9 @@ async function syncMirrorToBubble(empresaId: string) {
             throw new Error(`Espelho não guardou o id do Bubble (HTTP ${patch.status})`);
           }
           created++;
+        } else if (categoriaId) {
+          await patchServicoCategoria(uniqueid, categoriaId);
+          categoriasLigadas++;
         }
         publicados.push(uniqueid);
         linked++;
@@ -646,7 +768,14 @@ async function syncMirrorToBubble(empresaId: string) {
     if (rows.length < PAGE_SIZE) break;
   }
   if (publicados.length) await appendCadServicos(empresaId, publicados);
-  return { ok: errors.length === 0, created, linked, errors };
+  return {
+    ok: errors.length === 0,
+    created,
+    linked,
+    categoriasCriadas,
+    categoriasLigadas,
+    errors,
+  };
 }
 
 function insertPayload(empresaId: string, data: Record<string, unknown>, uniqueid: string) {
