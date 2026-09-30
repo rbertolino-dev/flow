@@ -12,11 +12,14 @@ import {
   Loader2,
   Ban,
   RotateCcw,
+  Tag,
+  ArrowDownAZ,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -57,6 +60,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatBRL, getStockStatus, stockNumbers, StockStatus } from "@/lib/stockStatus";
+import { productHasWholesalePrice } from "@/lib/productPricing";
 import { useWholesalePriceEnabled } from "@/hooks/useWholesalePriceEnabled";
 import { todayIsoDate } from "@/lib/finance";
 import { formatNfeDate, NfeInvoice } from "@/lib/nfeXml";
@@ -65,6 +69,26 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
 type StockTab = "cadastro" | "lancamentos" | "categorias" | "marcas" | "compras";
+type QuantityFilter = "all" | "zero" | "positive" | "below_min";
+type EtiquetaFilter = "all" | "product" | "supply" | "with_barcode";
+
+type StockListFilters = {
+  category: string;
+  brand: string;
+  status: string;
+  quantity: QuantityFilter;
+  etiqueta: EtiquetaFilter;
+  wholesaleOnly: boolean;
+};
+
+const EMPTY_STOCK_FILTERS: StockListFilters = {
+  category: "all",
+  brand: "all",
+  status: "all",
+  quantity: "all",
+  etiqueta: "all",
+  wholesaleOnly: false,
+};
 
 interface StockMovement {
   id: string;
@@ -151,11 +175,10 @@ export function StockModule() {
   const [nameQuery, setNameQuery] = useState("");
   const [codeQuery, setCodeQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [supplyFilter, setSupplyFilter] = useState<"all" | "supply">("all");
+  const [listFilters, setListFilters] = useState<StockListFilters>(EMPTY_STOCK_FILTERS);
+  const [draftFilters, setDraftFilters] = useState<StockListFilters>(EMPTY_STOCK_FILTERS);
+  const [sortAlpha, setSortAlpha] = useState(false);
   const [activeFilter, setActiveFilter] = useState<"active" | "inactive" | "all">("active");
-  const [brandFilter, setBrandFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -229,7 +252,7 @@ export function StockModule() {
   const filtered = useMemo(() => {
     const name = nameQuery.trim().toLowerCase();
     const code = codeQuery.trim().toLowerCase();
-    return products.filter((product) => {
+    const rows = products.filter((product) => {
       if (activeFilter === "active" && product.is_active === false) return false;
       if (activeFilter === "inactive" && product.is_active !== false) return false;
       if (name && !product.name.toLowerCase().includes(name)) return false;
@@ -238,21 +261,63 @@ export function StockModule() {
         const barcode = (product.barcode || "").toLowerCase();
         if (!sku.includes(code) && !barcode.includes(code)) return false;
       }
-      if (categoryFilter !== "all" && (product.category || "").trim() !== categoryFilter) return false;
-      if (brandFilter !== "all" && (product.brand || "").trim() !== brandFilter) return false;
-      if (statusFilter !== "all" && getStockStatus(product) !== statusFilter) return false;
-      if (supplyFilter === "supply" && !product.is_supply) return false;
+      if (listFilters.category !== "all" && (product.category || "").trim() !== listFilters.category) return false;
+      if (listFilters.brand !== "all" && (product.brand || "").trim() !== listFilters.brand) return false;
+      if (listFilters.status !== "all" && getStockStatus(product) !== listFilters.status) return false;
+      if (listFilters.etiqueta === "supply" && !product.is_supply) return false;
+      if (listFilters.etiqueta === "product" && product.is_supply) return false;
+      if (listFilters.etiqueta === "with_barcode" && !(product.barcode || "").trim()) return false;
+      if (listFilters.wholesaleOnly && !productHasWholesalePrice(product)) return false;
+      const { qty, min } = stockNumbers(product);
+      if (listFilters.quantity === "zero" && qty !== 0) return false;
+      if (listFilters.quantity === "positive" && qty <= 0) return false;
+      if (listFilters.quantity === "below_min" && !(min > 0 && qty < min)) return false;
       return true;
     });
-  }, [products, nameQuery, codeQuery, categoryFilter, brandFilter, statusFilter, supplyFilter, activeFilter]);
+    if (!sortAlpha) return rows;
+    return [...rows].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+  }, [products, nameQuery, codeQuery, listFilters, activeFilter, sortAlpha]);
 
   const productPageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safeProductPage = Math.min(productPage, productPageCount - 1);
   const visibleProducts = filtered.slice(safeProductPage * PAGE_SIZE, (safeProductPage + 1) * PAGE_SIZE);
 
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (listFilters.category !== "all") count += 1;
+    if (listFilters.brand !== "all") count += 1;
+    if (listFilters.status !== "all") count += 1;
+    if (listFilters.quantity !== "all") count += 1;
+    if (listFilters.etiqueta !== "all") count += 1;
+    if (listFilters.wholesaleOnly) count += 1;
+    if (sortAlpha) count += 1;
+    return count;
+  }, [listFilters, sortAlpha]);
+
   useEffect(() => {
     setProductPage(0);
-  }, [nameQuery, codeQuery, categoryFilter, brandFilter, statusFilter, supplyFilter, activeFilter]);
+  }, [nameQuery, codeQuery, listFilters, activeFilter, sortAlpha]);
+
+  const openFilters = () => {
+    setDraftFilters(listFilters);
+    setShowFilters(true);
+  };
+
+  const applyFilters = () => {
+    setListFilters(draftFilters);
+    setShowFilters(false);
+  };
+
+  const clearFilters = () => {
+    setDraftFilters(EMPTY_STOCK_FILTERS);
+    setListFilters(EMPTY_STOCK_FILTERS);
+    setSortAlpha(false);
+    setShowFilters(false);
+  };
+
+  const patchDraft = <K extends keyof StockListFilters>(key: K, value: StockListFilters[K]) => {
+    setDraftFilters((prev) => ({ ...prev, [key]: value }));
+  };
 
   const shoppingList = useMemo(() => {
     return products
@@ -808,53 +873,138 @@ export function StockModule() {
                   Reativar ({selectedInactiveCount})
                 </Button>
               )}
-              <Button variant={showFilters ? "default" : "secondary"} className="rounded-full" onClick={() => setShowFilters((v) => !v)}>
+              <Button
+                variant={showFilters || activeFilterCount > 0 ? "default" : "secondary"}
+                className="rounded-full"
+                onClick={openFilters}
+              >
                 <Filter className="mr-2 h-4 w-4" /> Filtros
+                {activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
               </Button>
               <Button variant="ghost" size="icon" onClick={() => window.print()} title="Imprimir">
                 <Printer className="h-4 w-4" />
               </Button>
             </div>
 
-            {showFilters && (
-              <div className="grid gap-3 rounded-md border p-3 md:grid-cols-5">
-                <FilterSelect label="Categoria" value={categoryFilter} onChange={setCategoryFilter} options={categories} />
-                <FilterSelect label="Marca" value={brandFilter} onChange={setBrandFilter} options={brands} />
-                <div className="space-y-1">
-                  <Label>Uso</Label>
-                  <Select value={supplyFilter} onValueChange={(value) => setSupplyFilter(value as "all" | "supply")}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="supply">Insumos</SelectItem>
-                    </SelectContent>
-                  </Select>
+            <Dialog open={showFilters} onOpenChange={setShowFilters}>
+              <DialogContent className="max-w-md gap-0 overflow-hidden p-0 sm:rounded-2xl [&>button]:right-5 [&>button]:top-5 [&>button]:text-red-500 [&>button]:opacity-100">
+                <div className="border-b border-slate-100 px-5 py-4 pr-12">
+                  <DialogTitle className="text-2xl font-semibold text-slate-600">Filtros</DialogTitle>
                 </div>
-                <div className="space-y-1">
-                  <Label>Cadastro</Label>
-                  <Select value={activeFilter} onValueChange={(value) => setActiveFilter(value as "active" | "inactive" | "all")}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Ativos</SelectItem>
-                      <SelectItem value="inactive">Inativos</SelectItem>
-                      <SelectItem value="all">Todos</SelectItem>
-                    </SelectContent>
-                  </Select>
+
+                <div className="space-y-3 px-5 py-4">
+                  <StockFilterField
+                    placeholder="Filtrar por categoria"
+                    value={draftFilters.category}
+                    onChange={(value) => patchDraft("category", value)}
+                    options={categories}
+                    allLabel="Todas as categorias"
+                  />
+                  <StockFilterField
+                    placeholder="Filtrar por marca"
+                    value={draftFilters.brand}
+                    onChange={(value) => patchDraft("brand", value)}
+                    options={brands}
+                    allLabel="Todas as marcas"
+                  />
+                  <div className="relative">
+                    <Select value={draftFilters.status} onValueChange={(value) => patchDraft("status", value)}>
+                      <SelectTrigger className="h-12 rounded-xl border-slate-200 pr-10 text-left text-slate-600 [&>svg]:hidden">
+                        <SelectValue placeholder="Filtrar por status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os status</SelectItem>
+                        <SelectItem value="ideal">Ideal</SelectItem>
+                        <SelectItem value="baixa">Em baixa</SelectItem>
+                        <SelectItem value="falta">Em falta</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Filter className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  </div>
+                  <div className="relative">
+                    <Select
+                      value={draftFilters.quantity}
+                      onValueChange={(value) => patchDraft("quantity", value as QuantityFilter)}
+                    >
+                      <SelectTrigger className="h-12 rounded-xl border-slate-200 pr-10 text-left text-slate-600 [&>svg]:hidden">
+                        <SelectValue placeholder="Filtrar por quantidade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Qualquer quantidade</SelectItem>
+                        <SelectItem value="zero">Zerados (0)</SelectItem>
+                        <SelectItem value="positive">Com estoque (&gt; 0)</SelectItem>
+                        <SelectItem value="below_min">Abaixo do mínimo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Filter className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  </div>
+                  <div className="relative">
+                    <Select
+                      value={draftFilters.etiqueta}
+                      onValueChange={(value) => patchDraft("etiqueta", value as EtiquetaFilter)}
+                    >
+                      <SelectTrigger className="h-12 rounded-xl border-slate-200 pr-10 text-left text-slate-600 [&>svg]:hidden">
+                        <SelectValue placeholder="Filtrar por etiqueta" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas as etiquetas</SelectItem>
+                        <SelectItem value="product">Produto</SelectItem>
+                        <SelectItem value="supply">Insumo</SelectItem>
+                        <SelectItem value="with_barcode">Com código de barras</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Tag className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  </div>
+
+                  {wholesaleEnabled && (
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-3">
+                      <Label htmlFor="wholesale-only-filter" className="cursor-pointer text-sm font-medium text-slate-700">
+                        Mostrar apenas produtos com preço atacado
+                      </Label>
+                      <Switch
+                        id="wholesale-only-filter"
+                        checked={draftFilters.wholesaleOnly}
+                        onCheckedChange={(checked) => patchDraft("wholesaleOnly", checked)}
+                      />
+                    </div>
+                  )}
+
+                  <Button
+                    type="button"
+                    className="h-12 w-full rounded-xl bg-blue-600 text-base font-semibold uppercase tracking-wide hover:bg-blue-700"
+                    onClick={applyFilters}
+                  >
+                    Filtrar
+                  </Button>
+
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className={cn(
+                        "h-11 rounded-xl bg-slate-200 text-xs text-slate-700 hover:bg-slate-300 sm:text-sm",
+                        sortAlpha && "ring-2 ring-blue-500 ring-offset-1"
+                      )}
+                      onClick={() => setSortAlpha((value) => !value)}
+                    >
+                      <ArrowDownAZ className="mr-1.5 h-4 w-4 shrink-0" />
+                      Ordenar Alfabeticamente
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="h-11 rounded-xl bg-slate-500 text-white hover:bg-slate-600"
+                      onClick={clearFilters}
+                    >
+                      Limpar Filtros
+                    </Button>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <Label>Status</Label>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="ideal">Ideal</SelectItem>
-                      <SelectItem value="baixa">Em baixa</SelectItem>
-                      <SelectItem value="falta">Em falta</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            )}
+                <DialogDescription className="sr-only">
+                  Filtre produtos por categoria, marca, status, quantidade e etiqueta.
+                </DialogDescription>
+              </DialogContent>
+            </Dialog>
 
             <p className="text-sm text-slate-500">
               {activeFilter === "inactive"
@@ -1628,6 +1778,37 @@ function FilterSelect({ label, value, onChange, options }: { label: string; valu
           ))}
         </SelectContent>
       </Select>
+    </div>
+  );
+}
+
+function StockFilterField({
+  placeholder,
+  value,
+  onChange,
+  options,
+  allLabel,
+}: {
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  allLabel: string;
+}) {
+  return (
+    <div className="relative">
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="h-12 rounded-xl border-slate-200 pr-10 text-left text-slate-600 [&>svg]:hidden">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">{allLabel}</SelectItem>
+          {options.map((option) => (
+            <SelectItem key={option} value={option}>{option}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Filter className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
     </div>
   );
 }
