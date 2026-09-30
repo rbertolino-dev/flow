@@ -341,3 +341,6 @@ verify_jwt = true
 
 [functions.agilize-eclientes-import]
 verify_jwt = true
+
+[functions.agilize-eservicos-import]
+verify_jwt = true

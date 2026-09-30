@@ -432,6 +432,14 @@ export function SuperAdminDashboard() {
                 <span className="truncate">Import clientes Agilize</span>
               </Button>
               <Button
+                onClick={() => navigate('/superadmin/agilize-servicos')}
+                variant="secondary"
+                className="w-full justify-start"
+              >
+                <FileSpreadsheet className="h-4 w-4 mr-2 shrink-0" />
+                <span className="truncate">Import serviços Agilize</span>
+              </Button>
+              <Button
                 onClick={() => navigate('/superadmin/chatwoot')}
                 variant="secondary"
                 className="w-full justify-start"
