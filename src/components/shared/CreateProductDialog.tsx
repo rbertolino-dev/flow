@@ -29,7 +29,8 @@ import { getStockStatus } from "@/lib/stockStatus";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { useWholesalePriceEnabled } from "@/hooks/useWholesalePriceEnabled";
-import { ImagePlus, Loader2, X } from "lucide-react";
+import { generateEan13Barcode } from "@/lib/productBarcode";
+import { ImagePlus, Loader2, X, Dices } from "lucide-react";
 
 const BUCKET_ID = "whatsapp-workflow-media";
 
@@ -168,6 +169,19 @@ export function CreateProductDialog({
       setUploadingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  const generateBarcode = () => {
+    const existing = products
+      .filter((item) => !product || item.id !== product.id)
+      .map((item) => item.barcode || "")
+      .filter(Boolean);
+    const code = generateEan13Barcode(existing);
+    setForm((prev) => ({ ...prev, barcode: code }));
+    toast({
+      title: "Código de barras gerado",
+      description: `EAN-13 ${code} — válido para leitores de código de barras.`,
+    });
   };
 
   const saveProduct = async () => {
@@ -376,7 +390,32 @@ export function CreateProductDialog({
           <section className="grid gap-3 border-t bg-white pt-4 md:grid-cols-2">
             <p className="text-xs font-medium uppercase tracking-wider text-slate-400 md:col-span-2">Complemento</p>
             <Field label="Código / SKU" value={form.sku} onChange={(value) => setForm({ ...form, sku: value })} />
-            <Field label="Código de barras" value={form.barcode} onChange={(value) => setForm({ ...form, barcode: value })} />
+            <div className="space-y-1.5">
+              <Label htmlFor="product-barcode">Código de barras</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="product-barcode"
+                  value={form.barcode}
+                  inputMode="numeric"
+                  placeholder="EAN-13 (13 dígitos)"
+                  className="h-10 bg-white"
+                  onChange={(event) => setForm({ ...form, barcode: event.target.value.replace(/\D/g, "").slice(0, 13) })}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 shrink-0 gap-1.5"
+                  title="Gerar código EAN-13 aleatório para leitor"
+                  onClick={generateBarcode}
+                >
+                  <Dices className="h-4 w-4" />
+                  Gerar
+                </Button>
+              </div>
+              <p className="text-xs text-slate-500">
+                Use Gerar para criar um EAN-13 interno com dígito verificador (lê em qualquer leitor).
+              </p>
+            </div>
             <Field label="Unidade" placeholder="un, kg, cx" value={form.unit} onChange={(value) => setForm({ ...form, unit: value })} />
             <CatalogField
               label="Categoria"
