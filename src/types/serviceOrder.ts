@@ -219,6 +219,16 @@ export interface ServiceOrder {
     company?: string;
   } | null;
   equipment_ids?: string[];
+  /** Preenchido na geração do PDF / detalhe quando há vínculo */
+  equipments?: Array<{
+    id: string;
+    name?: string | null;
+    equipment_type?: string | null;
+    brand?: string | null;
+    model?: string | null;
+    serial_number?: string | null;
+    sector?: string | null;
+  }>;
 }
 
 export interface ServiceOrderLog {

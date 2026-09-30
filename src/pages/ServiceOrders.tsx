@@ -62,6 +62,7 @@ import {
   downloadServiceOrderPDF,
   openServiceOrderPDF,
 } from '@/lib/serviceOrderPdfGenerator';
+import { fetchEquipmentsForOrder } from '@/hooks/useEquipments';
 import { supabase } from '@/integrations/supabase/client';
 import {
   AlertDialog,
@@ -258,8 +259,16 @@ export default function ServiceOrders() {
         if (data) orgData = data as typeof orgData;
       }
 
+      let orderForPdf = order;
+      if (activeOrgId && (!order.equipments || order.equipments.length === 0)) {
+        const equipments = await fetchEquipmentsForOrder(activeOrgId, order.id).catch(() => []);
+        if (equipments.length > 0) {
+          orderForPdf = { ...order, equipments, equipment_ids: equipments.map((item) => item.id) };
+        }
+      }
+
       const blob = await generateServiceOrderPDF({
-        order,
+        order: orderForPdf,
         mode,
         organizationName: orgData?.name || activeOrganization?.name,
         organizationData: orgData,
@@ -379,7 +388,18 @@ export default function ServiceOrders() {
           .maybeSingle();
 
         if (full) {
-          await exportOrderPdf(full as ServiceOrder, { open: true, mode: 'full' });
+          const equipments =
+            activeOrgId
+              ? await fetchEquipmentsForOrder(activeOrgId, created.id).catch(() => [])
+              : [];
+          await exportOrderPdf(
+            {
+              ...(full as ServiceOrder),
+              equipments,
+              equipment_ids: equipments.map((item) => item.id),
+            },
+            { open: true, mode: 'full' }
+          );
         }
       } catch (err) {
         console.error('PDF automático falhou:', err);

@@ -6,6 +6,7 @@ import { organizationNameForDocuments } from '@/lib/organizationDisplayName';
 import { fitImageInBox, loadImageForBudgetPdf } from '@/lib/budgetPdfImage';
 import { generateThreeSlipPDF } from '@/lib/serviceOrderThreeSlipPdf';
 import { maintenancePdfLine } from '@/lib/serviceOrderMaintenance';
+import { equipmentDisplayName } from '@/types/equipment';
 
 export interface ServiceOrderPdfOptions {
   order: ServiceOrder;
@@ -357,6 +358,43 @@ export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): 
       }
     }
   }
+  }
+
+  const linkedEquipments = order.equipments || [];
+  if (linkedEquipments.length > 0) {
+    sectionTitle('Equipamentos atendidos');
+    const clientLabel =
+      order.client_name || order.lead?.name || order.lead?.company || '—';
+    const hClient = field('Cliente', clientLabel, true);
+    y += hClient;
+    for (const equipment of linkedEquipments) {
+      ensureSpace(18);
+      const title = equipmentDisplayName(equipment);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(30, 41, 59);
+      doc.text(title, margin, y);
+      y += 4.5;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      const details = [
+        equipment.equipment_type ? `Tipo: ${equipment.equipment_type}` : null,
+        equipment.brand ? `Marca: ${equipment.brand}` : null,
+        equipment.model ? `Modelo: ${equipment.model}` : null,
+        equipment.serial_number ? `Série: ${equipment.serial_number}` : null,
+        equipment.sector ? `Setor: ${equipment.sector}` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      if (details) {
+        const lines = doc.splitTextToSize(details, maxWidth);
+        doc.text(lines, margin, y);
+        y += lines.length * 3.8;
+      }
+      y += 2;
+    }
+    doc.setTextColor(0, 0, 0);
   }
 
   const items = order.items || [];
