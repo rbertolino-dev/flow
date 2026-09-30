@@ -775,6 +775,21 @@ export function useServiceOrders(
   };
 
   const duplicateOrder = async (source: ServiceOrder): Promise<ServiceOrder | null> => {
+    let equipmentIds = source.equipment_ids || [];
+    if ((!equipmentIds.length) && activeOrgId) {
+      equipmentIds = await fetchEquipmentIdsForOrder(activeOrgId, source.id).catch(() => []);
+    }
+    if (activeOrgId && equipmentIds.length) {
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { data: alive } = await supabase
+        .from('equipments')
+        .select('id')
+        .eq('organization_id', activeOrgId)
+        .is('deleted_at', null)
+        .in('id', equipmentIds);
+      equipmentIds = ((alive || []) as Array<{ id: string }>).map((row) => row.id);
+    }
+
     return createOrder({
       template_id: source.template_id || undefined,
       status_id: source.status_id || undefined,
@@ -803,6 +818,7 @@ export function useServiceOrders(
         id: undefined,
         is_done: false,
       })),
+      equipment_ids: equipmentIds,
     });
   };
 

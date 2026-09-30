@@ -24,6 +24,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Loader2, MoreHorizontal, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -72,6 +82,7 @@ export function EquipmentsTab() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Equipment | null>(null);
   const [detail, setDetail] = useState<Equipment | null>(null);
+  const [deleting, setDeleting] = useState<Equipment | null>(null);
 
   const applyFilters = () => {
     setFilters({
@@ -232,6 +243,7 @@ export function EquipmentsTab() {
                 <TableHead>Marca</TableHead>
                 <TableHead>Modelo</TableHead>
                 <TableHead>Série</TableHead>
+                <TableHead>Setor</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Último atendimento</TableHead>
                 <TableHead className="w-12" />
@@ -251,6 +263,7 @@ export function EquipmentsTab() {
                   <TableCell>{item.brand || '—'}</TableCell>
                   <TableCell>{item.model || '—'}</TableCell>
                   <TableCell>{item.serial_number || '—'}</TableCell>
+                  <TableCell>{item.sector || '—'}</TableCell>
                   <TableCell>
                     <Badge variant={item.status === 'active' ? 'default' : 'secondary'}>
                       {item.status === 'active' ? 'Ativo' : 'Inativo'}
@@ -280,7 +293,7 @@ export function EquipmentsTab() {
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive"
-                          onClick={() => void deleteEquipment(item.id)}
+                          onClick={() => setDeleting(item)}
                         >
                           Excluir
                         </DropdownMenuItem>
@@ -318,6 +331,38 @@ export function EquipmentsTab() {
           setShowForm(true);
         }}
       />
+
+      <AlertDialog
+        open={!!deleting}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir equipamento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O equipamento {deleting ? equipmentDisplayName(deleting) : ''} será excluído e
+              deixará de aparecer em novas ordens de serviço. O histórico em OS já vinculadas
+              permanece.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (!deleting) return;
+                const id = deleting.id;
+                setDeleting(null);
+                void deleteEquipment(id);
+              }}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -113,6 +113,7 @@ export async function fetchEquipmentsForOrder(
     .from('equipments')
     .select(EQUIPMENT_SELECT)
     .eq('organization_id', activeOrgId)
+    .is('deleted_at', null)
     .in('id', ids);
   if (eqError) throw eqError;
   return (data || []) as Equipment[];

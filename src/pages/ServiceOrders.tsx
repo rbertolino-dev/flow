@@ -260,11 +260,13 @@ export default function ServiceOrders() {
       }
 
       let orderForPdf = order;
-      if (activeOrgId && (!order.equipments || order.equipments.length === 0)) {
+      if (activeOrgId) {
         const equipments = await fetchEquipmentsForOrder(activeOrgId, order.id).catch(() => []);
-        if (equipments.length > 0) {
-          orderForPdf = { ...order, equipments, equipment_ids: equipments.map((item) => item.id) };
-        }
+        orderForPdf = {
+          ...order,
+          equipments,
+          equipment_ids: equipments.map((item) => item.id),
+        };
       }
 
       const blob = await generateServiceOrderPDF({

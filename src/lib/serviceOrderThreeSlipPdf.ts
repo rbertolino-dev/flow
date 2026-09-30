@@ -10,6 +10,7 @@ import {
   sectionTitleForSlip,
 } from '@/types/serviceOrder';
 import { organizationNameForDocuments } from '@/lib/organizationDisplayName';
+import { equipmentDisplayName } from '@/types/equipment';
 
 export interface ThreeSlipPdfOptions {
   order: ServiceOrder;
@@ -111,6 +112,31 @@ export async function generateThreeSlipPDF(options: ThreeSlipPdfOptions): Promis
       doc.setFontSize(7.5);
       doc.text(orgName, margin, y);
       y += 4;
+    }
+
+    const linkedEquipments = order.equipments || [];
+    if (linkedEquipments.length > 0 && y <= maxY - 6) {
+      const clientLabel =
+        order.client_name || order.lead?.name || order.lead?.company || '—';
+      const names = linkedEquipments.map((item) => equipmentDisplayName(item)).join(', ');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text('Cliente:', margin, y);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(clientLabel, margin + 22, y, { maxWidth: contentWidth - 24 });
+      y += 3.8;
+      if (y <= maxY - 4) {
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(71, 85, 105);
+        doc.text('Equip.:', margin, y);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(15, 23, 42);
+        const equipLines = doc.splitTextToSize(names, contentWidth - 24);
+        doc.text(equipLines.slice(0, 2), margin + 22, y);
+        y += Math.min(equipLines.length, 2) * 3.5 + 1;
+      }
     }
 
     const fields = template ? fieldsForSlip(template, slipNumber) : [];
