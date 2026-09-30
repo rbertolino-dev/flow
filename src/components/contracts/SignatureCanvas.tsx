@@ -19,6 +19,20 @@ export function SignatureCanvas({ onConfirm, onCancel, width = 600, height = 200
   const [hasSignature, setHasSignature] = useState(false);
   const [mode, setMode] = useState<SignatureMode>('draw');
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [canvasWidth, setCanvasWidth] = useState(width);
+  const [canvasHeight, setCanvasHeight] = useState(height);
+
+  useEffect(() => {
+    const updateSize = () => {
+      const maxW = Math.min(width, Math.max(280, window.innerWidth - 48));
+      const ratio = height / width;
+      setCanvasWidth(maxW);
+      setCanvasHeight(Math.round(maxW * ratio));
+    };
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, [width, height]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -33,11 +47,21 @@ export function SignatureCanvas({ onConfirm, onCancel, width = 600, height = 200
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
+    const getPos = (e: MouseEvent | TouchEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY,
+      };
+    };
+
     const startDrawing = (e: MouseEvent | TouchEvent) => {
       setIsDrawing(true);
-      const rect = canvas.getBoundingClientRect();
-      const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-      const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+      const { x, y } = getPos(e);
       ctx.beginPath();
       ctx.moveTo(x, y);
     };
@@ -45,9 +69,7 @@ export function SignatureCanvas({ onConfirm, onCancel, width = 600, height = 200
     const draw = (e: MouseEvent | TouchEvent) => {
       if (!isDrawing) return;
       e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-      const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+      const { x, y } = getPos(e);
       ctx.lineTo(x, y);
       ctx.stroke();
       setHasSignature(true);
@@ -64,8 +86,8 @@ export function SignatureCanvas({ onConfirm, onCancel, width = 600, height = 200
     canvas.addEventListener('mouseout', stopDrawing);
 
     // Event listeners para touch
-    canvas.addEventListener('touchstart', startDrawing);
-    canvas.addEventListener('touchmove', draw);
+    canvas.addEventListener('touchstart', startDrawing, { passive: false });
+    canvas.addEventListener('touchmove', draw, { passive: false });
     canvas.addEventListener('touchend', stopDrawing);
 
     return () => {
@@ -77,7 +99,7 @@ export function SignatureCanvas({ onConfirm, onCancel, width = 600, height = 200
       canvas.removeEventListener('touchmove', draw);
       canvas.removeEventListener('touchend', stopDrawing);
     };
-  }, [isDrawing]);
+  }, [isDrawing, canvasWidth, canvasHeight]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -171,32 +193,34 @@ export function SignatureCanvas({ onConfirm, onCancel, width = 600, height = 200
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-full max-w-full overflow-hidden">
       {/* Toggle entre desenho e upload */}
-      <div className="flex gap-2 border-b pb-2">
+      <div className="flex flex-wrap gap-2 border-b pb-2">
         <Button
           type="button"
           variant={mode === 'draw' ? 'default' : 'outline'}
           size="sm"
+          className="flex-1 min-w-[120px] sm:flex-none"
           onClick={() => {
             setMode('draw');
             clear();
           }}
         >
-          <PenTool className="w-4 h-4 mr-2" />
+          <PenTool className="w-4 h-4 mr-2 shrink-0" />
           Desenhar
         </Button>
         <Button
           type="button"
           variant={mode === 'upload' ? 'default' : 'outline'}
           size="sm"
+          className="flex-1 min-w-[120px] sm:flex-none"
           onClick={() => {
             setMode('upload');
             clear();
             fileInputRef.current?.click();
           }}
         >
-          <Upload className="w-4 h-4 mr-2" />
+          <Upload className="w-4 h-4 mr-2 shrink-0" />
           Upload Imagem
         </Button>
       </div>
@@ -212,19 +236,19 @@ export function SignatureCanvas({ onConfirm, onCancel, width = 600, height = 200
 
       {/* Área de desenho ou preview de imagem */}
       {mode === 'draw' ? (
-        <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 bg-white">
+        <div className="border-2 border-dashed border-gray-300 rounded-lg p-2 sm:p-4 bg-white overflow-hidden">
           <canvas
             ref={canvasRef}
-            width={width}
-            height={height}
-            className="cursor-crosshair w-full h-full touch-none"
-            style={{ maxWidth: '100%' }}
+            width={canvasWidth}
+            height={canvasHeight}
+            className="cursor-crosshair w-full touch-none block mx-auto"
+            style={{ maxWidth: '100%', height: 'auto' }}
           />
         </div>
       ) : (
-        <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 bg-white min-h-[200px] flex items-center justify-center">
+        <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 bg-white min-h-[160px] sm:min-h-[200px] flex items-center justify-center">
           {uploadedImage ? (
-            <div className="space-y-2">
+            <div className="space-y-2 w-full">
               <img
                 src={uploadedImage}
                 alt="Assinatura carregada"
@@ -235,7 +259,7 @@ export function SignatureCanvas({ onConfirm, onCancel, width = 600, height = 200
               </p>
             </div>
           ) : (
-            <div className="text-center space-y-2">
+            <div className="text-center space-y-2 px-2">
               <Upload className="w-12 h-12 mx-auto text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
                 Clique em "Upload Imagem" para selecionar uma imagem (PNG ou JPG)
@@ -245,14 +269,16 @@ export function SignatureCanvas({ onConfirm, onCancel, width = 600, height = 200
         </div>
       )}
 
-      <div className="flex gap-2 justify-end">
+      {/* Ações: empilha no mobile para Limpar não sumir */}
+      <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end w-full">
         <Button
           type="button"
           variant="outline"
           onClick={clear}
           disabled={!hasSignature}
+          className="w-full sm:w-auto"
         >
-          <Trash2 className="w-4 h-4 mr-2" />
+          <Trash2 className="w-4 h-4 mr-2 shrink-0" />
           Limpar
         </Button>
         {onCancel && (
@@ -260,6 +286,7 @@ export function SignatureCanvas({ onConfirm, onCancel, width = 600, height = 200
             type="button"
             variant="outline"
             onClick={onCancel}
+            className="w-full sm:w-auto"
           >
             Cancelar
           </Button>
@@ -268,8 +295,9 @@ export function SignatureCanvas({ onConfirm, onCancel, width = 600, height = 200
           type="button"
           onClick={confirm}
           disabled={!hasSignature}
+          className="w-full sm:w-auto"
         >
-          <Check className="w-4 h-4 mr-2" />
+          <Check className="w-4 h-4 mr-2 shrink-0" />
           Confirmar Assinatura
         </Button>
       </div>

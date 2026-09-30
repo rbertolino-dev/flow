@@ -362,12 +362,19 @@ export default function SignContract() {
 
       console.log('✅ PDF gerado com sucesso, tamanho:', pdfBlob.size, 'bytes');
 
-      // 3. Fazer upload do PDF assinado usando StorageFactory
-      const { createStorageService } = await import('@/services/contractStorage/StorageFactory');
-      const storageService = await createStorageService(contract.organization_id);
-      const signedPdfUrl = await storageService.uploadPDF(pdfBlob, `${contract.id}-signed`);
+      if (!token) {
+        throw new Error('Token de assinatura não encontrado no link');
+      }
 
-      // 4. Verificar se ambas as partes já assinaram antes de atualizar status
+      // 3. Upload do PDF assinado via edge function (service role)
+      // Cliente assina sem login; storage RLS bloqueia upload anônimo direto
+      const pdfBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Falha ao ler PDF gerado'));
+        reader.readAsDataURL(pdfBlob);
+      });
+
       const { data: signaturesCheck } = await supabase
         .from('contract_signatures')
         .select('signer_type')
@@ -375,40 +382,70 @@ export default function SignContract() {
 
       const hasUserSignature = signaturesCheck?.some(sig => sig.signer_type === 'user') || false;
       const hasClientSignature = signaturesCheck?.some(sig => sig.signer_type === 'client') || false;
+      const bothSigned = hasUserSignature && hasClientSignature;
 
-      // Só atualizar status para 'signed' se ambas as partes assinaram
-      // Se apenas o cliente assinou, manter status atual (pode ser 'draft' ou 'sent')
-      // O usuário ainda pode assinar depois
-      const updateData: any = {
-        signed_pdf_url: signedPdfUrl,
-      };
+      const { data: uploadResult, error: uploadFnError } = await supabase.functions.invoke(
+        'upload-signed-contract-pdf',
+        {
+          body: {
+            contract_id: contract.id,
+            signature_token: token,
+            pdf_base64: pdfBase64,
+            update_status: bothSigned,
+            signed_at: bothSigned ? new Date().toISOString() : undefined,
+          },
+        }
+      );
 
-      if (hasUserSignature && hasClientSignature) {
-        // Ambas as partes assinaram - contrato está completamente assinado
-        updateData.status = 'signed';
-        updateData.signed_at = new Date().toISOString();
-        console.log('✅ Ambas as partes assinaram - status atualizado para signed');
-      } else {
-        // Apenas cliente assinou - manter status atual para permitir assinatura do usuário
-        console.log('✅ Cliente assinou, mas usuário ainda não. Status mantido para permitir assinatura do usuário.');
+      if (uploadFnError) {
+        console.error('❌ Erro na edge function de upload:', uploadFnError);
+        // Tentar extrair mensagem do body da resposta
+        let detail = uploadFnError.message || 'Erro ao fazer upload do PDF assinado';
+        try {
+          const ctx = (uploadFnError as any)?.context;
+          if (ctx && typeof ctx.json === 'function') {
+            const errBody = await ctx.json();
+            if (errBody?.error) detail = errBody.error;
+          }
+        } catch {
+          /* ignore */
+        }
+        throw new Error(detail);
       }
 
-      // Atualizar contrato
-      const { error: updateError } = await supabase
-        .from('contracts')
-        .update(updateData)
-        .eq('id', contract.id);
+      if (uploadResult?.error) {
+        console.error('❌ Upload rejeitado:', uploadResult.error);
+        throw new Error(uploadResult.error);
+      }
 
-      if (updateError) throw updateError;
+      const signedPdfUrl = uploadResult?.signed_pdf_url as string | undefined;
+      if (!signedPdfUrl) {
+        throw new Error('Upload do PDF assinado não retornou URL');
+      }
 
-      // 5. Registrar atividade
-      await supabase.from('activities').insert({
-        lead_id: contract.lead.id,
-        type: 'contract_signed',
-        content: `Contrato ${contract.contract_number} assinado por ${signerName.trim()}`,
-        user_name: signerName.trim(),
-        direction: 'incoming',
-      });
+      console.log('✅ PDF assinado enviado:', signedPdfUrl);
+
+      if (bothSigned) {
+        console.log('✅ Ambas as partes assinaram - status atualizado para signed');
+      } else {
+        console.log('✅ Cliente assinou, mas usuário ainda não. Status mantido.');
+      }
+
+      // 5. Registrar atividade (não bloqueia assinatura se falhar por RLS)
+      try {
+        const { error: activityError } = await supabase.from('activities').insert({
+          lead_id: contract.lead.id,
+          type: 'contract_signed',
+          content: `Contrato ${contract.contract_number} assinado por ${signerName.trim()}`,
+          user_name: signerName.trim(),
+          direction: 'incoming',
+        });
+        if (activityError) {
+          console.warn('Atividade não registrada (não crítico):', activityError);
+        }
+      } catch (activityError) {
+        console.warn('Atividade não registrada (não crítico):', activityError);
+      }
 
       setSigned(true);
       toast({
@@ -486,16 +523,16 @@ export default function SignContract() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Assinar Contrato</CardTitle>
-            <CardDescription>
+      <div className="min-h-screen bg-background p-3 sm:p-6 overflow-x-hidden">
+      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 w-full">
+        <Card className="overflow-hidden">
+          <CardHeader className="px-4 sm:px-6">
+            <CardTitle className="text-lg sm:text-xl">Assinar Contrato</CardTitle>
+            <CardDescription className="break-words">
               Contrato: {contract.contract_number} | Cliente: {contract.lead.name}
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 sm:px-6">
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Visualização do PDF */}
               {contract.pdf_url ? (
@@ -504,7 +541,7 @@ export default function SignContract() {
                   <div className="border rounded-lg overflow-hidden bg-muted/50">
                     <iframe
                       src={contract.pdf_url}
-                      className="w-full h-96"
+                      className="w-full h-64 sm:h-96"
                       title="Contrato PDF"
                       onError={() => {
                         console.error('Erro ao carregar PDF no iframe');
@@ -516,10 +553,11 @@ export default function SignContract() {
                       }}
                     />
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Button
                       type="button"
                       variant="outline"
+                      className="w-full sm:w-auto"
                       onClick={() => window.open(contract.pdf_url!, '_blank')}
                     >
                       Abrir PDF em Nova Aba
@@ -527,6 +565,7 @@ export default function SignContract() {
                     <Button
                       type="button"
                       variant="outline"
+                      className="w-full sm:w-auto"
                       onClick={() => {
                         const link = document.createElement('a');
                         link.href = contract.pdf_url!;
@@ -561,7 +600,7 @@ export default function SignContract() {
               </div>
 
               {/* Assinatura */}
-              <div className="space-y-2">
+              <div className="space-y-2 w-full overflow-hidden">
                 <Label>Assinatura Digital *</Label>
                 <SignatureCanvas
                   onConfirm={handleSignatureConfirm}
