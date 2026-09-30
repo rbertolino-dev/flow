@@ -144,12 +144,6 @@ async function validateEmpresa(empresaId: string, empresaNome?: string) {
       };
     }
   }
-  if (!empresaCadastro.found) {
-    throw new Error(
-      "Empresa não encontrada no Agilize Total. Confira o unique ID — sem esse cadastro o serviço não grava."
-    );
-  }
-
   const serviceCount = await countExact(
     `servicos?select=id&empresa=eq.${encodeURIComponent(id)}&limit=1`
   );
@@ -157,6 +151,9 @@ async function validateEmpresa(empresaId: string, empresaNome?: string) {
     `servicos?select=id,nome,codigo,pre%C3%A7o&empresa=eq.${encodeURIComponent(id)}&order=id.desc&limit=3`
   );
   const sample = sampleRes.ok ? await sampleRes.json() : [];
+  const productCount = await countExact(
+    `eprodutos?select=id&empresa=eq.${encodeURIComponent(id)}&limit=1`
+  );
 
   const nomeBubble = await bubbleEmpresaNome(id);
   if (nomeBubble) {
@@ -174,6 +171,11 @@ async function validateEmpresa(empresaId: string, empresaNome?: string) {
   ) {
     nameWarning = `Nome informado ("${nameHint}") difere do cadastro ("${empresaCadastro.nome}")`;
   }
+  if (!empresaCadastro.found) {
+    nameWarning = productCount
+      ? `Este ID não está na lista espelhada de empresas, mas já tem ${productCount} produto(s). A importação cria o cadastro mínimo para os serviços gravarem.`
+      : "Este ID não está na lista espelhada de empresas. Se ele for o unique ID certo, a importação cria o cadastro mínimo antes de gravar os serviços.";
+  }
 
   return {
     ok: true,
@@ -181,6 +183,7 @@ async function validateEmpresa(empresaId: string, empresaNome?: string) {
     empresaNomeInformado: nameHint,
     empresaCadastro,
     serviceCount,
+    productCount,
     sample,
     nameWarning,
   };
@@ -350,15 +353,28 @@ async function verifySessionToken(token: string, empresaId: string, rows: Row[])
   }
 }
 
-async function assertEmpresaExists(empresaId: string) {
+async function ensureEmpresaRow(empresaId: string, nome?: string) {
   const res = await agilizeFetch(
     `empresas?select=id&unique%20id%20empresa=eq.${encodeURIComponent(empresaId)}&limit=1`
   );
   if (!res.ok) throw new Error("Não foi possível conferir a empresa");
   const rows = await res.json();
-  if (!rows?.[0]) {
+  if (rows?.[0]) return;
+
+  const bubbleNome = await bubbleEmpresaNome(empresaId);
+  const payload = {
+    "unique id empresa": empresaId,
+    "nome da empresa": (nome || bubbleNome || "Empresa").trim(),
+    created_at: new Date().toISOString(),
+  };
+  const ins = await agilizeFetch("empresas", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify(payload),
+  });
+  if (!ins.ok) {
     throw new Error(
-      "Empresa não encontrada no Agilize Total. Confira o unique ID — sem esse cadastro o serviço não grava."
+      `Não foi possível registrar a empresa no espelho (HTTP ${ins.status}): ${(await ins.text()).slice(0, 180)}`
     );
   }
 }
@@ -368,7 +384,6 @@ async function dryRun(
   rows: Row[],
   duplicateMode: "skip" | "overwrite"
 ) {
-  await assertEmpresaExists(empresaId);
   if (!rows.length) throw new Error("Nenhuma linha para validar");
   if (rows.length > 5000) throw new Error("Máximo de 5000 linhas por validação");
 
@@ -444,12 +459,13 @@ async function importBatch(
   empresaId: string,
   rows: Row[],
   sessionToken: string,
-  duplicateMode: "skip" | "overwrite"
+  duplicateMode: "skip" | "overwrite",
+  empresaNome?: string
 ) {
   if (rows.length > MAX_BATCH) {
     throw new Error(`Máximo de ${MAX_BATCH} linhas por lote`);
   }
-  await assertEmpresaExists(empresaId);
+  await ensureEmpresaRow(empresaId, empresaNome);
   const trusted = await verifySessionToken(sessionToken, empresaId, rows);
   if (!trusted) {
     throw new Error("Sessão de validação expirada. Rode a validação de novo.");
@@ -581,7 +597,13 @@ serve(async (req) => {
     if (action === "import_batch") {
       if (!empresaId) return jsonResponse({ error: "empresaId obrigatório" }, 400);
       return jsonResponse(
-        await importBatch(empresaId, rows, String(body?.sessionToken || ""), duplicateMode)
+        await importBatch(
+          empresaId,
+          rows,
+          String(body?.sessionToken || ""),
+          duplicateMode,
+          body?.empresaNome ? String(body.empresaNome) : undefined
+        )
       );
     }
     return jsonResponse(

@@ -116,7 +116,13 @@ export function AgilizeServicosImportWizard() {
     if (!validated || !dry) return;
     setBusy(true);
     try {
-      await runImport(validated.empresaId, mappedRows, dry.sessionToken, duplicateMode);
+      await runImport(
+        validated.empresaId,
+        mappedRows,
+        dry.sessionToken,
+        duplicateMode,
+        empresaNome.trim() || validated.empresaCadastro.nome
+      );
       toast({ title: "Importação concluída" });
     } catch (error) {
       toast({
@@ -176,11 +182,11 @@ export function AgilizeServicosImportWizard() {
                 <div className="text-lg font-semibold">
                   {validated.empresaCadastro.found
                     ? validated.empresaCadastro.nome
-                    : "Nome não encontrado para este ID"}
+                    : "ID aceito. O nome ainda não está na lista espelhada de empresas."}
                 </div>
                 <div className="mt-1 text-xs break-all text-muted-foreground">{validated.empresaId}</div>
                 <div className="mt-1 text-sm">
-                  {validated.serviceCount} serviço(s) já cadastrado(s) nesta empresa.
+                  {validated.serviceCount} serviço(s) e {validated.productCount} produto(s) desta empresa.
                 </div>
                 {validated.nameWarning ? <div className="mt-1">{validated.nameWarning}</div> : null}
               </AlertDescription>

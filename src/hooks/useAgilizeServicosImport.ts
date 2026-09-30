@@ -14,6 +14,7 @@ export interface ValidateServicoEmpresaResult {
   empresaId: string;
   empresaCadastro: { found: boolean; nome?: string };
   serviceCount: number;
+  productCount: number;
   sample: Array<{ id: number; nome: string; codigo?: string; preço?: number }>;
   nameWarning: string | null;
 }
@@ -164,7 +165,8 @@ export function useAgilizeServicosImport() {
       empresaId: string,
       rows: Record<string, unknown>[],
       sessionToken: string,
-      duplicateMode: "skip" | "overwrite"
+      duplicateMode: "skip" | "overwrite",
+      empresaNome?: string
     ) => {
       setProgress({
         ...EMPTY,
@@ -198,6 +200,7 @@ export function useAgilizeServicosImport() {
             rows: batch,
             sessionToken,
             duplicateMode,
+            empresaNome,
           });
           inserted += result.inserted;
           updated += result.updated;
