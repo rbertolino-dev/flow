@@ -207,6 +207,11 @@ export function useContracts(filters?: ContractFilters) {
       });
 
       // Criar contrato primeiro (sem PDF ainda)
+      // Token gerado já na criação para o link de assinatura funcionar sem enviar WhatsApp
+      const signatureToken = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+
       const { data: contract, error: insertError } = await supabase
         .from('contracts')
         .insert({
@@ -215,6 +220,7 @@ export function useContracts(filters?: ContractFilters) {
           contract_number: contractNumber,
           status: 'draft',
           content: contractData.content, // Garantir que content está presente
+          signature_token: signatureToken,
         })
         .select(`
           *,

@@ -592,6 +592,7 @@ export default function Contracts() {
               onConfigureSignatures={handleConfigureSignatures}
               onDelete={handleDelete}
               onReload={handleReloadContract}
+              onContractUpdated={(updated) => setSelectedContract(updated)}
             />
           </div>
         ) : (

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Contract, ContractSignature } from '@/types/contract';
+import { Contract, ContractSignature, ContractTemplate } from '@/types/contract';
 import { format } from 'date-fns';
 import { ContractStatusBadge } from './ContractStatusBadge';
 import { useContractSignatures } from '@/hooks/useContractSignatures';
@@ -13,6 +13,15 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { ContractReminders } from './ContractReminders';
 import { ContractAuditLog } from './ContractAuditLog';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+
+function generateSignatureToken(): string {
+  const tokenBytes = new Uint8Array(16);
+  crypto.getRandomValues(tokenBytes);
+  return Array.from(tokenBytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
 
 interface ContractViewerProps {
   contract: Contract;
@@ -25,6 +34,7 @@ interface ContractViewerProps {
   onConfigureSignatures?: (contract: Contract) => void;
   onDelete?: (contract: Contract) => void;
   onReload?: (contract: Contract) => Promise<void>;
+  onContractUpdated?: (contract: Contract) => void;
 }
 
 export function ContractViewer({
@@ -38,11 +48,13 @@ export function ContractViewer({
   onConfigureSignatures,
   onDelete,
   onReload,
+  onContractUpdated,
 }: ContractViewerProps) {
   const { signatures, loading: signaturesLoading } = useContractSignatures(contract.id);
   const [expandedSignatures, setExpandedSignatures] = useState<Set<string>>(new Set());
   const [reloading, setReloading] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [copyingLink, setCopyingLink] = useState(false);
   const { toast } = useToast();
 
   const pdfUrl = contract.signed_pdf_url || contract.pdf_url;
@@ -72,24 +84,42 @@ export function ContractViewer({
     }
   };
 
+  const ensureSignatureToken = async (): Promise<string> => {
+    if (contract.signature_token) {
+      return contract.signature_token;
+    }
+
+    const token = generateSignatureToken();
+    const { error } = await supabase
+      .from('contracts')
+      .update({ signature_token: token })
+      .eq('id', contract.id);
+
+    if (error) {
+      throw error;
+    }
+
+    const updated = { ...contract, signature_token: token };
+    onContractUpdated?.(updated);
+    return token;
+  };
+
   const handleCopyLink = async () => {
     try {
-      // Gerar link do contrato para assinatura
-      const contractLink = contract.signature_token
-        ? `${window.location.origin}/sign-contract/${contract.id}/${contract.signature_token}`
-        : `${window.location.origin}/sign-contract/${contract.id}`;
-      
-      // Copiar para clipboard
+      setCopyingLink(true);
+
+      // Garante token antes de copiar (link sem token falha na página pública)
+      const token = await ensureSignatureToken();
+      const contractLink = `${window.location.origin}/sign-contract/${contract.id}/${token}`;
+
       await navigator.clipboard.writeText(contractLink);
-      
-      // Feedback visual
+
       setLinkCopied(true);
       toast({
         title: 'Link copiado!',
-        description: 'O link do contrato foi copiado para a área de transferência.',
+        description: 'O link de assinatura foi copiado para a área de transferência.',
       });
-      
-      // Resetar estado após 2 segundos
+
       setTimeout(() => {
         setLinkCopied(false);
       }, 2000);
@@ -97,9 +127,11 @@ export function ContractViewer({
       console.error('Erro ao copiar link:', error);
       toast({
         title: 'Erro ao copiar link',
-        description: 'Não foi possível copiar o link. Tente novamente.',
+        description: 'Não foi possível gerar/copiar o link. Tente novamente.',
         variant: 'destructive',
       });
+    } finally {
+      setCopyingLink(false);
     }
   };
 
@@ -262,9 +294,15 @@ export function ContractViewer({
                 <Button 
                   variant="outline" 
                   onClick={handleCopyLink}
+                  disabled={copyingLink}
                   title="Copiar link do contrato para enviar por outras formas"
                 >
-                  {linkCopied ? (
+                  {copyingLink ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Gerando link...
+                    </>
+                  ) : linkCopied ? (
                     <>
                       <Check className="w-4 h-4 mr-2" />
                       Link Copiado!
