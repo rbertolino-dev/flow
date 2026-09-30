@@ -220,7 +220,7 @@ async function loadCategoriaIndex(empresaId: string): Promise<Map<string, string
   const map = new Map<string, string>();
   for (let offset = 0; offset < 200000; offset += PAGE_SIZE) {
     const res = await agilizeFetch(
-      `Listas-CRM?select=nome,unique%20id&empresa=eq.${encodeURIComponent(empresaId)}&order=ID.asc&limit=${PAGE_SIZE}&offset=${offset}`
+      `Listas-CRM?select=nome,unique%20id&empresa=eq.${encodeURIComponent(empresaId)}&categoria=eq.Servi%C3%A7o&order=ID.asc&limit=${PAGE_SIZE}&offset=${offset}`
     );
     if (!res.ok) break;
     const rows = (await res.json()) as Array<Record<string, unknown>>;
@@ -289,11 +289,16 @@ function sanitize(raw: Row): { ok: true; data: Record<string, unknown> } | { ok:
   return { ok: true, data: out };
 }
 
+function categoriaNome(data: Record<string, unknown>): string {
+  return String(data.categoria ?? "").trim();
+}
+
 function applyCategoria(
   data: Record<string, unknown>,
-  categorias: Map<string, string>
+  categorias: Map<string, string>,
+  createMissing: boolean
 ): string | null {
-  const raw = String(data.categoria ?? "").trim();
+  const raw = categoriaNome(data);
   if (!raw) {
     delete data.categoria;
     return null;
@@ -304,7 +309,41 @@ function applyCategoria(
     return null;
   }
   delete data.categoria;
-  return `Categoria "${raw}" não existe nas listas desta empresa e ficará vazia.`;
+  if (!createMissing) {
+    return `Categoria "${raw}" será criada nesta empresa.`;
+  }
+  return `Categoria "${raw}" não pôde ser criada.`;
+}
+
+async function ensureCategoria(
+  empresaId: string,
+  nome: string,
+  categorias: Map<string, string>
+): Promise<string> {
+  const key = norm(nome);
+  const existing = categorias.get(key);
+  if (existing) return existing;
+  const uniqueid = bubbleUniqueId();
+  const res = await agilizeFetch("Listas-CRM", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({
+      nome: nome.trim(),
+      categoria: "Serviço",
+      empresa: empresaId,
+      "unique id": uniqueid,
+      "Creation Date": new Date().toISOString(),
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Falha ao criar categoria "${nome.trim()}" (HTTP ${res.status}): ${(await res.text()).slice(0, 180)}`
+    );
+  }
+  const created = await res.json();
+  const id = String(created?.[0]?.["unique id"] || uniqueid);
+  categorias.set(key, id);
+  return id;
 }
 
 function fingerprint(empresaId: string, rows: Row[]): string {
@@ -397,7 +436,7 @@ async function dryRun(
       invalid.push({ row: rowNum, error: parsed.error });
       continue;
     }
-    const warning = applyCategoria(parsed.data, categorias);
+    const warning = applyCategoria(parsed.data, categorias, false);
     if (warning) warnings.push({ row: rowNum, warning });
 
     const hit = matchExisting(parsed.data, index);
@@ -483,7 +522,19 @@ async function importBatch(
       continue;
     }
     const data = { ...parsed.data };
-    const warning = applyCategoria(data, categorias);
+    const nomeCategoria = categoriaNome(data);
+    if (nomeCategoria && !categorias.get(norm(nomeCategoria))) {
+      try {
+        await ensureCategoria(empresaId, nomeCategoria, categorias);
+      } catch (error) {
+        errors.push({
+          row: rowNum,
+          error: error instanceof Error ? error.message : "Falha ao criar categoria",
+        });
+        continue;
+      }
+    }
+    const warning = applyCategoria(data, categorias, true);
     if (warning) warnings.push({ row: rowNum, warning });
 
     const hit = matchExisting(data, index);

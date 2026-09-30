@@ -199,7 +199,7 @@ export function AgilizeServicosImportWizard() {
         <CardHeader>
           <CardTitle>2. Envie a lista</CardTitle>
           <CardDescription>
-            Nome é obrigatório. Com código, a duplicata é nome e código. Sem código, basta o nome igual nesta empresa.
+            Nome é obrigatório. Com código, a duplicata é nome e código. Sem código, basta o nome igual nesta empresa. Categoria nova da planilha é criada nesta empresa.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -350,7 +350,7 @@ export function AgilizeServicosImportWizard() {
 
           {dry && dry.warnings.length > 0 && (
             <div>
-              <p className="mb-1 text-sm font-medium">Avisos de categoria</p>
+              <p className="mb-1 text-sm font-medium">Categorias</p>
               <ul className="max-h-48 overflow-auto text-sm text-muted-foreground">
                 {dry.warnings.map((item) => (
                   <li key={`${item.row}-${item.warning}`}>Linha {item.row}: {item.warning}</li>

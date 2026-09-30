@@ -16,7 +16,7 @@ export const SERVICO_FIELD_LABELS: Record<AgilizeServicoField, string> = {
   preço: "Preço",
   "custo unit": "Custo unitário",
   codigo: "Código",
-  categoria: "Categoria (nome da lista)",
+  categoria: "Categoria",
 };
 
 export const SERVICO_BATCH_SIZE = 20;
