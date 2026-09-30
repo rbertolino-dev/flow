@@ -186,7 +186,7 @@ export function AgilizeServicosImportWizard() {
                 </div>
                 <div className="mt-1 text-xs break-all text-muted-foreground">{validated.empresaId}</div>
                 <div className="mt-1 text-sm">
-                  {validated.serviceCount} serviço(s) e {validated.productCount} produto(s) desta empresa.
+                  {validated.serviceCount} serviço(s) já cadastrado(s) nesta empresa.
                 </div>
                 {validated.nameWarning ? <div className="mt-1">{validated.nameWarning}</div> : null}
               </AlertDescription>

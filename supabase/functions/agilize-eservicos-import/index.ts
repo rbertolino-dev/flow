@@ -151,9 +151,6 @@ async function validateEmpresa(empresaId: string, empresaNome?: string) {
     `servicos?select=id,nome,codigo,pre%C3%A7o&empresa=eq.${encodeURIComponent(id)}&order=id.desc&limit=3`
   );
   const sample = sampleRes.ok ? await sampleRes.json() : [];
-  const productCount = await countExact(
-    `eprodutos?select=id&empresa=eq.${encodeURIComponent(id)}&limit=1`
-  );
 
   const nomeBubble = await bubbleEmpresaNome(id);
   if (nomeBubble) {
@@ -172,9 +169,8 @@ async function validateEmpresa(empresaId: string, empresaNome?: string) {
     nameWarning = `Nome informado ("${nameHint}") difere do cadastro ("${empresaCadastro.nome}")`;
   }
   if (!empresaCadastro.found) {
-    nameWarning = productCount
-      ? `Este ID não está na lista espelhada de empresas, mas já tem ${productCount} produto(s). A importação cria o cadastro mínimo para os serviços gravarem.`
-      : "Este ID não está na lista espelhada de empresas. Se ele for o unique ID certo, a importação cria o cadastro mínimo antes de gravar os serviços.";
+    nameWarning =
+      "Este ID ainda não está na lista espelhada de empresas. Na importação o cadastro mínimo é criado só para os serviços gravarem.";
   }
 
   return {
@@ -183,7 +179,6 @@ async function validateEmpresa(empresaId: string, empresaNome?: string) {
     empresaNomeInformado: nameHint,
     empresaCadastro,
     serviceCount,
-    productCount,
     sample,
     nameWarning,
   };

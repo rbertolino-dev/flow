@@ -14,7 +14,6 @@ export interface ValidateServicoEmpresaResult {
   empresaId: string;
   empresaCadastro: { found: boolean; nome?: string };
   serviceCount: number;
-  productCount: number;
   sample: Array<{ id: number; nome: string; codigo?: string; preço?: number }>;
   nameWarning: string | null;
 }
