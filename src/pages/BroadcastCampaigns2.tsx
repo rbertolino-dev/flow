@@ -1135,9 +1135,15 @@ export default function BroadcastCampaigns2() {
   // Abertura: o auto-sync de instâncias (1 fetchInstances por Evo) cobre a 1ª visita da sessão.
   // O batch pesado de status fica no botão manual e no intervalo de orgs grandes.
 
-  // Orgs grandes: sync periódico em lote (sem health check por chip)
+  // Orgs grandes: confere na hora e depois a cada ciclo, inclusive chips marcados conectados.
+  // syncAll: true só reconsulta os já marcados offline — não corrige status fantasma.
+  const didInitialStatusSyncRef = useRef(false);
   useEffect(() => {
     if (!activeOrgId || !isLargeInstanceOrg(allowedInstances.length)) return;
+    if (!didInitialStatusSyncRef.current) {
+      didInitialStatusSyncRef.current = true;
+      void syncEvolutionStatusForOrg(false, { syncAll: false });
+    }
     const intervalId = window.setInterval(() => {
       void syncEvolutionStatusForOrg(false, { syncAll: false });
     }, LARGE_ORG_BATCH_SYNC_INTERVAL_MS);
@@ -3194,7 +3200,7 @@ export default function BroadcastCampaigns2() {
               variant="outline"
               size="sm"
               disabled={syncingEvolutionStatus || !activeOrgId}
-              onClick={() => void syncEvolutionStatusForOrg(true, { syncAll: true })}
+              onClick={() => void syncEvolutionStatusForOrg(true, { syncAll: false })}
             >
               {syncingEvolutionStatus ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -3676,7 +3682,7 @@ export default function BroadcastCampaigns2() {
                           <SelectItem key={instance.id} value={instance.id}>
                             {instance.instance_name}
                             {` · ${evolutionProviderLabel(instance.api_url, providers, null, instance.evolution_provider_id)}`}
-                            {instance.is_connected === false ? " — desconectada" : ""}
+                            {instance.is_connected === true ? " — conectada" : " — desconectada"}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -3738,13 +3744,14 @@ export default function BroadcastCampaigns2() {
                       {providers.length > 1 && (
                         <div className="flex flex-wrap gap-2">
                           {providers.map((provider) => {
-                            const ids = instancesSortedAlphabetically
-                              .filter((inst) =>
-                                urlsMatchEvolution(inst.api_url, provider.api_url) ||
-                                inst.evolution_provider_id === provider.provider_id
-                              )
+                            const ofProvider = instancesSortedAlphabetically.filter((inst) =>
+                              urlsMatchEvolution(inst.api_url, provider.api_url) ||
+                              inst.evolution_provider_id === provider.provider_id
+                            );
+                            const ids = ofProvider
+                              .filter((inst) => inst.is_connected === true)
                               .map((inst) => inst.id);
-                            if (ids.length === 0) return null;
+                            if (ofProvider.length === 0) return null;
                             return (
                               <Button
                                 key={provider.provider_id}
@@ -3760,7 +3767,7 @@ export default function BroadcastCampaigns2() {
                                   }));
                                 }}
                               >
-                                Marcar todas · {provider.provider_name} ({ids.length})
+                                Marcar conectadas · {provider.provider_name} ({ids.length}/{ofProvider.length})
                               </Button>
                             );
                           })}
@@ -3799,14 +3806,20 @@ export default function BroadcastCampaigns2() {
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                 <span className="text-[10px]">Verificando…</span>
                               </span>
-                            ) : instance.is_connected === false ? (
+                            ) : instance.is_connected === true ? (
+                              <span className="flex items-center gap-1 shrink-0 text-emerald-700 dark:text-emerald-400" title="Conectada na Evolution">
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-emerald-600/50 text-emerald-800 dark:text-emerald-300">
+                                  Conectada
+                                </Badge>
+                              </span>
+                            ) : (
                               <span className="flex items-center gap-1 shrink-0 text-amber-700 dark:text-amber-400" title="Não conectada à Evolution API">
                                 <WifiOff className="h-3.5 w-3.5" />
                                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-600/50 text-amber-800 dark:text-amber-300">
                                   Desconectada
                                 </Badge>
                               </span>
-                            ) : null}
+                            )}
                           </label>
                         ))}
                       </div>

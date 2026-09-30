@@ -90,6 +90,14 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
       const next = normalizeConnectionBool(raw);
       if (next === null) return;
 
+      if (next === false) {
+        initializedStableRef.current.add(id);
+        delete pendingStableRef.current[id];
+        applyDisplayedStatus(id, false);
+        lastKnownRealtimeStatusRef.current[id] = false;
+        return;
+      }
+
       if (!initializedStableRef.current.has(id)) {
         initializedStableRef.current.add(id);
         applyDisplayedStatus(id, next);
@@ -338,12 +346,16 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   );
   
   const connectedInstances = useMemo(() => 
-    instances.filter(inst => statusMap[inst.id]?.isConnected === true),
+    instances.filter(
+      (inst) => inst.is_connected !== false && statusMap[inst.id]?.isConnected === true,
+    ),
     [instances, statusKeys]
   );
   
   const disconnectedInstances = useMemo(() => 
-    instances.filter(inst => statusMap[inst.id]?.isConnected === false),
+    instances.filter(
+      (inst) => inst.is_connected === false || statusMap[inst.id]?.isConnected === false,
+    ),
     [instances, statusKeys]
   );
 
@@ -1215,7 +1227,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
                       <TableBody>
                         {segmentInstances.map(instance => {
                           const status = statusMap[instance.id];
-                          const isConnected = status?.isConnected === true;
+                          const isConnected = instance.is_connected !== false && status?.isConnected === true;
                           const dispatchCount = dispatchesByInstance[instance.id] || 0;
                           const limit = instance.daily_dispatch_limit || instance.total_dispatch_limit || 0;
                           

@@ -44,6 +44,19 @@ export function useStableInstanceConnections<T extends RowWithConnection>(
       const next = normalizeConnectionBool(inst.is_connected);
       if (next === null) continue;
 
+      // Desconexão já confirmada no banco aparece na hora.
+      // O atraso de 30s só valia para não piscar; ele deixava chip offline na coluna "Conectadas".
+      if (next === false) {
+        initializedRef.current.add(inst.id);
+        displayedRef.current[inst.id] = false;
+        if (pendingRef.current[inst.id]) {
+          const nextPending = { ...pendingRef.current };
+          delete nextPending[inst.id];
+          pendingRef.current = nextPending;
+        }
+        continue;
+      }
+
       if (!initializedRef.current.has(inst.id)) {
         initializedRef.current.add(inst.id);
         displayedRef.current[inst.id] = next;
