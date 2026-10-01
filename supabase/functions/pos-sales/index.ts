@@ -318,6 +318,72 @@ serve(async (req) => {
 
     if (authError || !user) return json({ error: "Token inválido" }, 401);
 
+    const url = new URL(req.url);
+    const earlyAction = url.searchParams.get("action") || "";
+    if (earlyAction === "admin_month_invoices" || earlyAction === "admin_delete_org_sales") {
+      const [{ data: roleData }, { data: isPub }] = await Promise.all([
+        supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle(),
+        supabase.rpc("is_pubdigital_user", { _user_id: user.id }),
+      ]);
+      if (!roleData && !isPub) return json({ error: "Acesso negado" }, 403);
+
+      pg = await getPostgresClient();
+      await pg.queryArray`ALTER TABLE pos_sales ADD COLUMN IF NOT EXISTS invoice_number TEXT`;
+
+      if (earlyAction === "admin_month_invoices") {
+        const result = await pg.queryObject<{ total: number }>`
+          SELECT count(*)::int AS total
+          FROM pos_sales
+          WHERE invoice_number IS NOT NULL
+            AND btrim(invoice_number) <> ''
+            AND created_at >= date_trunc('month', now())
+        `;
+        return json({ total: Number(result.rows[0]?.total ?? 0) });
+      }
+
+      const body = await req.json().catch(() => ({}));
+      const targetOrg = String(body.organization_id || "");
+      if (!targetOrg) return json({ error: "organization_id obrigatório" }, 400);
+
+      await pg.queryArray`BEGIN`;
+      try {
+        await pg.queryArray`
+          WITH nets AS (
+            SELECT product_id, COALESCE(SUM(quantity_delta), 0) AS net
+            FROM pos_stock_movements
+            WHERE organization_id = ${targetOrg}
+              AND sale_id IS NOT NULL
+              AND movement_type IN ('sale', 'sale_cancel', 'adjustment', 'return')
+            GROUP BY product_id
+          )
+          UPDATE products p
+          SET stock_quantity = COALESCE(p.stock_quantity, 0) - n.net
+          FROM nets n
+          WHERE p.id = n.product_id
+            AND p.organization_id = ${targetOrg}
+            AND n.net <> 0
+        `;
+        await pg.queryArray`
+          DELETE FROM pos_stock_movements
+          WHERE organization_id = ${targetOrg}
+            AND sale_id IS NOT NULL
+        `;
+        const deleted = await pg.queryObject<{ count: number }>`
+          WITH removed AS (
+            DELETE FROM pos_sales
+            WHERE organization_id = ${targetOrg}
+            RETURNING id
+          )
+          SELECT count(*)::int AS count FROM removed
+        `;
+        await pg.queryArray`COMMIT`;
+        return json({ deleted: Number(deleted.rows[0]?.count ?? 0) });
+      } catch (deleteError) {
+        await pg.queryArray`ROLLBACK`;
+        throw deleteError;
+      }
+    }
+
     const organizationId = await resolveOrganization(
       supabase,
       user.id,
@@ -332,7 +398,6 @@ serve(async (req) => {
       console.warn("[pos-sales] schema de integridade não ajustado:", schemaError);
     }
 
-    const url = new URL(req.url);
     const action = url.searchParams.get("action") || "list_sales";
 
     // ---- GET: list sales / get sale / open cash session ----

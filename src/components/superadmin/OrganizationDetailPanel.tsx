@@ -1,27 +1,22 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useMemo, useState } from "react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { UserPlus, Building2, Calendar, Users, Mail, Shield, X, UserCheck, Trash2, Settings, Package, Sparkles, Pencil, Key } from "lucide-react";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CreateUserDialog } from "./CreateUserDialog";
 import { AddExistingUserDialog } from "./AddExistingUserDialog";
-import { DeleteUserDialog } from "./DeleteUserDialog";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
+import { OrganizationModulesPanel } from "./OrganizationModulesPanel";
 import { OrganizationLimitsPanel } from "./OrganizationLimitsPanel";
-import { OrganizationPermissionsPanel } from "./OrganizationPermissionsPanel";
-import { AssistantConfigPanel } from "./AssistantConfigPanel";
-import { EditOrganizationDialog } from "@/components/crm/EditOrganizationDialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { format } from "date-fns";
+import { FeaturePermissionGrid } from "@/components/users/FeaturePermissionGrid";
+import { AVAILABLE_FEATURES } from "@/hooks/useOrganizationFeatures";
+import { deleteAllOrgSales, purgeFinancialEntries, suggestVigencia, updateOrgAdminMeta } from "@/lib/superadminOrg";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { differenceInCalendarDays, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Loader2, UserPlus } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,8 +27,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 
 interface Member {
   user_id: string;
@@ -43,441 +36,482 @@ interface Member {
     email: string;
     full_name: string | null;
   };
-  user_roles: Array<{
-    role: string;
-  }>;
+  user_roles: Array<{ role: string }>;
 }
 
-interface Organization {
+export interface OrganizationDetailData {
   id: string;
   name: string;
   created_at: string;
+  updated_at: string;
+  is_active: boolean;
+  admin_notes: string | null;
+  vigencia_ends_at: string | null;
+  plan_id?: string | null;
+  plan_billing_period?: string | null;
   organization_members: Member[];
 }
 
 interface Plan {
   id: string;
   name: string;
-  description: string | null;
+  billing_period: string | null;
 }
 
 interface OrganizationDetailPanelProps {
-  organization: Organization;
+  organization: OrganizationDetailData;
+  open: boolean;
   onClose: () => void;
   onUpdate: () => void;
 }
 
-export function OrganizationDetailPanel({ organization, onClose, onUpdate }: OrganizationDetailPanelProps) {
+function permissionLabels(permissions: string[]): string {
+  const labels = AVAILABLE_FEATURES.filter((feature) =>
+    permissions.some((permission) => permission.includes(feature.value)),
+  ).map((feature) => feature.label.toLowerCase());
+  return labels.join(", ");
+}
+
+function daysLabel(isoDate: string | null): string | null {
+  if (!isoDate) return null;
+  const target = new Date(isoDate.includes("T") ? isoDate : `${isoDate}T12:00:00`);
+  const days = differenceInCalendarDays(target, new Date());
+  if (days > 1) return `${days} dias para a renovação`;
+  if (days === 1) return "1 dia para a renovação";
+  if (days === 0) return "Renova hoje";
+  return `Vencido há ${Math.abs(days)} dias`;
+}
+
+export function OrganizationDetailPanel({ organization, open, onClose, onUpdate }: OrganizationDetailPanelProps) {
+  const { toast } = useToast();
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [planQuery, setPlanQuery] = useState("");
+  const [currentPlanId, setCurrentPlanId] = useState<string | null>(organization.plan_id ?? null);
+  const [notes, setNotes] = useState(organization.admin_notes ?? "");
+  const [vigencia, setVigencia] = useState(organization.vigencia_ends_at ?? "");
+  const [editingName, setEditingName] = useState(false);
+  const [name, setName] = useState(organization.name);
+  const [saving, setSaving] = useState(false);
+  const [permissionsByUser, setPermissionsByUser] = useState<Record<string, string[]>>({});
   const [createUserOpen, setCreateUserOpen] = useState(false);
   const [addExistingUserOpen, setAddExistingUserOpen] = useState(false);
-  const [memberToRemove, setMemberToRemove] = useState<Member | null>(null);
-  const [removing, setRemoving] = useState(false);
-  const [deleteUserOpen, setDeleteUserOpen] = useState(false);
-  const [userToDelete, setUserToDelete] = useState<{ id: string; name: string } | null>(null);
-  const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
-  const [userToResetPassword, setUserToResetPassword] = useState<{ id: string; email: string; name: string | null } | null>(null);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
-  const [updatingPlan, setUpdatingPlan] = useState(false);
-  const [editOrgDialogOpen, setEditOrgDialogOpen] = useState(false);
-  const { toast } = useToast();
+  const [resetTarget, setResetTarget] = useState<Member | null>(null);
+  const [permissionUser, setPermissionUser] = useState<Member | null>(null);
+  const [confirm, setConfirm] = useState<null | "deactivate" | "sales" | "receber" | "pagar">(null);
+  const [showLimits, setShowLimits] = useState(false);
 
   useEffect(() => {
-    fetchPlans();
-    fetchCurrentPlan();
-    // fetchPlans/fetchCurrentPlan são estáveis o suficiente para esta tela de detalhe
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organization.id]);
+    setNotes(organization.admin_notes ?? "");
+    setVigencia(organization.vigencia_ends_at ?? "");
+    setName(organization.name);
+    setCurrentPlanId(organization.plan_id ?? null);
+    setEditingName(false);
+  }, [organization]);
 
-  const fetchPlans = async () => {
-    try {
+  useEffect(() => {
+    const loadPlans = async () => {
+      const { data } = await supabase.from("plans").select("id, name, billing_period").eq("is_active", true).order("name");
+      setPlans(data ?? []);
+    };
+    void loadPlans();
+  }, []);
+
+  useEffect(() => {
+    const loadPermissions = async () => {
+      const ids = organization.organization_members.map((member) => member.user_id);
+      if (ids.length === 0) {
+        setPermissionsByUser({});
+        return;
+      }
       const { data, error } = await supabase
-        .from('plans')
-        .select('id, name, description')
-        .eq('is_active', true)
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-      setPlans(data || []);
-    } catch (error: unknown) {
-      console.error('Erro ao carregar planos:', error);
-    }
-  };
-
-  const fetchCurrentPlan = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('organization_limits')
-        .select('plan_id')
-        .eq('organization_id', organization.id)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') throw error;
-      setCurrentPlanId(data?.plan_id || null);
-    } catch (error: unknown) {
-      console.error('Erro ao carregar plano atual:', error);
-    }
-  };
-
-  const handlePlanChange = async (planId: string) => {
-    try {
-      setUpdatingPlan(true);
-      
-      // Upsert organization_limits with the plan_id
-      const { error } = await supabase
-        .from('organization_limits')
-        .upsert({
-          organization_id: organization.id,
-          plan_id: planId === 'none' ? null : planId,
-        }, {
-          onConflict: 'organization_id',
-        });
-
-      if (error) throw error;
-
-      setCurrentPlanId(planId === 'none' ? null : planId);
-      toast({
-        title: "Sucesso!",
-        description: "Plano atualizado com sucesso",
-      });
-      onUpdate();
-    } catch (error: unknown) {
-      console.error('Erro ao atualizar plano:', error);
-      toast({
-        title: "Erro ao atualizar plano",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
-        variant: "destructive",
-      });
-    } finally {
-      setUpdatingPlan(false);
-    }
-  };
-
-  const getRoleBadgeColor = (roles: Array<{ role: string }>) => {
-    if (roles.some(r => r.role === 'admin')) return "destructive";
-    return "secondary";
-  };
-
-  const getRoleLabel = (roles: Array<{ role: string }>) => {
-    if (roles.some(r => r.role === 'admin')) return "Admin";
-    return "Usuário";
-  };
-
-  const handleRemoveMember = async () => {
-    if (!memberToRemove) return;
-    
-    setRemoving(true);
-    try {
-      const { error } = await supabase
-        .from("organization_members")
-        .delete()
+        .from("user_permissions")
+        .select("user_id, permission")
         .eq("organization_id", organization.id)
-        .eq("user_id", memberToRemove.user_id);
+        .in("user_id", ids);
+      if (error) return;
+      const grouped: Record<string, string[]> = {};
+      for (const row of data ?? []) {
+        grouped[row.user_id] = [...(grouped[row.user_id] ?? []), row.permission];
+      }
+      setPermissionsByUser(grouped);
+    };
+    void loadPermissions();
+  }, [organization.id, organization.organization_members]);
 
-      if (error) throw error;
+  const currentPlan = plans.find((plan) => plan.id === currentPlanId) ?? null;
+  const visiblePlans = useMemo(() => {
+    const query = planQuery.trim().toLowerCase();
+    if (!query) return plans;
+    return plans.filter((plan) => plan.name.toLowerCase().includes(query));
+  }, [planQuery, plans]);
 
-      toast({
-        title: "Sucesso!",
-        description: "Membro removido da organização",
-      });
+  const renewal = daysLabel(vigencia || null);
+  const modifiedDays = differenceInCalendarDays(new Date(), new Date(organization.updated_at));
+  const modifiedLabel = modifiedDays <= 0 ? "hoje" : modifiedDays === 1 ? "1 dia atrás" : `${modifiedDays} dias atrás`;
 
-      setMemberToRemove(null);
+  const saveMeta = async (patch: Omit<Parameters<typeof updateOrgAdminMeta>[0], "orgId">) => {
+    setSaving(true);
+    try {
+      await updateOrgAdminMeta({ orgId: organization.id, ...patch });
       onUpdate();
     } catch (error: unknown) {
-      console.error("Erro ao remover membro:", error);
       toast({
-        title: "Erro ao remover membro",
+        title: "Não foi possível salvar",
         description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
-      setRemoving(false);
+      setSaving(false);
+    }
+  };
+
+  const handlePlanChange = async (planId: string | null) => {
+    setSaving(true);
+    try {
+      const { error } = await supabase.from("organization_limits").upsert(
+        { organization_id: organization.id, plan_id: planId },
+        { onConflict: "organization_id" },
+      );
+      if (error) throw error;
+      setCurrentPlanId(planId);
+      setPlanQuery("");
+      toast({ title: "Plano atualizado" });
+      onUpdate();
+    } catch (error: unknown) {
+      toast({
+        title: "Erro ao atualizar o plano",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const forcePlanRefresh = async () => {
+    if (!currentPlanId) {
+      toast({ title: "Selecione um plano antes de atualizar", variant: "destructive" });
+      return;
+    }
+    const { data: planRow } = await supabase.from("plans").select("features").eq("id", currentPlanId).maybeSingle();
+    const planFeatures = Array.isArray(planRow?.features)
+      ? planRow.features.filter((item): item is string => typeof item === "string")
+      : [];
+    setSaving(true);
+    try {
+      const { error } = await supabase.from("organization_limits").upsert(
+        {
+          organization_id: organization.id,
+          plan_id: currentPlanId,
+          features_override_mode: "inherit",
+          enabled_features: planFeatures,
+          disabled_features: [],
+        },
+        { onConflict: "organization_id" },
+      );
+      if (error) throw error;
+      toast({ title: "Plano reaplicado na empresa" });
+      onUpdate();
+    } catch (error: unknown) {
+      toast({
+        title: "Erro ao reaplicar o plano",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleAdmin = async (member: Member) => {
+    const isAdmin = member.role === "admin" || member.role === "owner";
+    const nextRole = isAdmin ? "member" : "admin";
+    const { error } = await supabase
+      .from("organization_members")
+      .update({ role: nextRole })
+      .eq("organization_id", organization.id)
+      .eq("user_id", member.user_id);
+    if (error) {
+      toast({ title: "Erro ao alterar administrador", description: error.message, variant: "destructive" });
+      return;
+    }
+    onUpdate();
+  };
+
+  const runConfirmed = async () => {
+    const action = confirm;
+    setConfirm(null);
+    if (!action) return;
+    setSaving(true);
+    try {
+      if (action === "deactivate") {
+        await updateOrgAdminMeta({ orgId: organization.id, isActive: !organization.is_active });
+        toast({ title: organization.is_active ? "Empresa desativada" : "Empresa reativada" });
+      } else if (action === "sales") {
+        const deleted = await deleteAllOrgSales(organization.id);
+        toast({ title: "Vendas removidas", description: `${deleted} venda(s) excluída(s). O estoque das vendas foi devolvido.` });
+      } else {
+        const deleted = await purgeFinancialEntries(organization.id, action);
+        toast({
+          title: action === "receber" ? "Entradas removidas" : "Saídas removidas",
+          description: `${deleted} lançamento(s) excluído(s).`,
+        });
+      }
+      onUpdate();
+    } catch (error: unknown) {
+      toast({
+        title: "Ação não concluída",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
     <>
-      <Card className="max-w-5xl mx-auto shadow-lg">
-        <CardHeader className="p-4 sm:p-6 border-b border-border bg-gradient-to-r from-primary/5 to-primary/10">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-start gap-3 flex-1 min-w-0">
-              <div className="p-2 sm:p-3 bg-primary/10 rounded-lg shrink-0">
-                <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-xl sm:text-2xl truncate">{organization.name}</CardTitle>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 shrink-0"
-                    onClick={() => setEditOrgDialogOpen(true)}
-                    title="Editar organização"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                </div>
-                <CardDescription className="flex items-center gap-2 mt-1 text-xs sm:text-sm">
-                  <Calendar className="h-3 w-3 shrink-0" />
-                  <span className="truncate">
-                    Criada em {format(new Date(organization.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+      <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                {currentPlan && (
+                  <span className="inline-block rounded-full bg-cyan-100 text-cyan-900 text-xs font-semibold px-3 py-1 mb-2">
+                    {currentPlan.name}
                   </span>
-                </CardDescription>
-                <div className="mt-2">
-                  <Label className="text-xs text-muted-foreground flex items-center gap-2">
-                    <Package className="h-3 w-3" />
-                    Plano:
-                  </Label>
-                  <Select
-                    value={currentPlanId || 'none'}
-                    onValueChange={handlePlanChange}
-                    disabled={updatingPlan}
-                  >
-                    <SelectTrigger className="w-full sm:w-[200px] mt-1">
-                      <SelectValue placeholder="Selecione um plano" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Sem plano (Ilimitado)</SelectItem>
-                      {plans.map((plan) => (
-                        <SelectItem key={plan.id} value={plan.id}>
-                          {plan.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                )}
+                <p className="text-xs text-muted-foreground">Última modificação: {modifiedLabel}</p>
+                {editingName ? (
+                  <div className="flex gap-2 mt-1">
+                    <Input value={name} onChange={(event) => setName(event.target.value)} />
+                    <Button
+                      type="button"
+                      disabled={saving || !name.trim()}
+                      onClick={() => {
+                        setEditingName(false);
+                        void saveMeta({ name: name.trim() });
+                      }}
+                    >
+                      Salvar
+                    </Button>
+                  </div>
+                ) : (
+                  <h2 className="text-3xl font-semibold mt-1">
+                    {organization.name}
+                    {!organization.is_active ? " - DESATIVADO" : ""}
+                  </h2>
+                )}
+                <Button type="button" className="mt-2" size="sm" onClick={() => setEditingName(true)}>
+                  Editar nome
+                </Button>
               </div>
+              {renewal && (
+                <span className={`rounded-md px-3 py-1 text-sm font-medium ${renewal.startsWith("Vencido") ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}`}>
+                  {renewal}
+                </span>
+              )}
             </div>
-            <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 self-start sm:self-center">
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
-        </CardHeader>
 
-        <CardContent className="p-4 sm:p-6">
-          <Tabs defaultValue="members" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="members">
-                <Users className="h-4 w-4 mr-2" />
-                Membros
-              </TabsTrigger>
-              <TabsTrigger value="permissions">
-                <Shield className="h-4 w-4 mr-2" />
-                Permissões
-              </TabsTrigger>
-              <TabsTrigger value="limits">
-                <Settings className="h-4 w-4 mr-2" />
-                Limites
-              </TabsTrigger>
-              <TabsTrigger value="assistant">
-                <Sparkles className="h-4 w-4 mr-2" />
-                Assistente IA
-              </TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="members" className="space-y-6 mt-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 sm:p-6 bg-muted/50 rounded-lg border border-border">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <Users className="h-5 w-5 text-primary" />
+            <Tabs defaultValue="geral">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="geral">Geral</TabsTrigger>
+                <TabsTrigger value="usuarios">Usuários</TabsTrigger>
+                <TabsTrigger value="funcoes">Funções</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="geral" className="mt-4 space-y-4 rounded-xl bg-muted/40 p-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-sm mb-1">Plano</p>
+                    <Input value={planQuery} onChange={(event) => setPlanQuery(event.target.value)} placeholder="Buscar plano" />
+                    <div className="mt-1 max-h-40 overflow-auto rounded-md border bg-background">
+                      <button type="button" className="block w-full text-left px-3 py-2 text-sm hover:bg-muted" onClick={() => void handlePlanChange(null)}>
+                        Sem plano
+                      </button>
+                      {visiblePlans.map((plan) => (
+                        <button
+                          key={plan.id}
+                          type="button"
+                          className="block w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                          onClick={() => void handlePlanChange(plan.id)}
+                        >
+                          {plan.name}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div>
-                    <h3 className="text-base sm:text-lg font-semibold">
-                      Membros da Organização
-                    </h3>
-                    <p className="text-xs sm:text-sm text-muted-foreground">
-                      {organization.organization_members.length} {organization.organization_members.length === 1 ? 'membro' : 'membros'}
-                    </p>
+                    <p className="text-sm mb-1">Vigência</p>
+                    <Input
+                      type="date"
+                      value={vigencia ? vigencia.slice(0, 10) : ""}
+                      onChange={(event) => {
+                        setVigencia(event.target.value);
+                        void saveMeta({ vigencia: event.target.value || null, setVigencia: true });
+                      }}
+                    />
+                    {!vigencia && (
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="px-0"
+                        onClick={() => {
+                          const next = suggestVigencia(organization.created_at, currentPlan?.billing_period ?? organization.plan_billing_period ?? null);
+                          setVigencia(next);
+                          void saveMeta({ vigencia: next, setVigencia: true });
+                        }}
+                      >
+                        Calcular renovação pelo plano
+                      </Button>
+                    )}
                   </div>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                  <Button onClick={() => setAddExistingUserOpen(true)} size="default" variant="outline" className="w-full sm:w-auto">
-                    <UserCheck className="h-4 w-4 mr-2" />
-                    Adicionar Existente
-                  </Button>
-                  <Button onClick={() => setCreateUserOpen(true)} size="default" className="w-full sm:w-auto">
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Criar Novo
+                <div>
+                  <p className="text-sm mb-1">Observações</p>
+                  <Textarea
+                    value={notes}
+                    placeholder="Observações"
+                    onChange={(event) => setNotes(event.target.value)}
+                    onBlur={() => {
+                      if (notes !== (organization.admin_notes ?? "")) {
+                        void saveMeta({ notes, setNotes: true });
+                      }
+                    }}
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <Button type="button" variant="secondary" disabled={saving} onClick={() => void forcePlanRefresh()}>
+                    Não está atualizando o plano? Clique aqui
                   </Button>
                 </div>
-              </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Button type="button" className="bg-red-600 hover:bg-red-700" disabled={saving} onClick={() => setConfirm("deactivate")}>
+                    {organization.is_active ? "Desativar Empresa" : "Reativar Empresa"}
+                  </Button>
+                  <Button type="button" className="bg-blue-700 hover:bg-blue-800" disabled={saving} onClick={() => setConfirm("sales")}>
+                    Deletar TODAS Vendas
+                  </Button>
+                  <Button type="button" className="bg-blue-700 hover:bg-blue-800" disabled={saving} onClick={() => setConfirm("receber")}>
+                    Deletar TODAS as Entradas Financeiras
+                  </Button>
+                  <Button type="button" className="bg-blue-700 hover:bg-blue-800" disabled={saving} onClick={() => setConfirm("pagar")}>
+                    Deletar TODAS as Saídas Financeiras
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Criada em {format(new Date(organization.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                  {saving ? " · Salvando..." : ""}
+                </p>
+              </TabsContent>
 
-              <div className="space-y-3">
-                {organization.organization_members.length === 0 ? (
-                  <Card className="border-dashed">
-                    <CardContent className="flex flex-col items-center justify-center py-12">
-                      <div className="p-4 rounded-full bg-muted mb-3">
-                        <Users className="h-10 w-10 text-muted-foreground" />
+              <TabsContent value="usuarios" className="mt-4 space-y-3">
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setAddExistingUserOpen(true)}>
+                    Adicionar existente
+                  </Button>
+                  <Button type="button" size="sm" onClick={() => setCreateUserOpen(true)}>
+                    <UserPlus className="h-4 w-4 mr-1" /> Criar usuário
+                  </Button>
+                </div>
+                <div className="rounded-xl border bg-muted/30 divide-y">
+                  {organization.organization_members.length === 0 && (
+                    <p className="p-6 text-sm text-muted-foreground">Nenhum usuário nesta empresa.</p>
+                  )}
+                  {organization.organization_members.map((member) => {
+                    const isAdmin = member.role === "admin" || member.role === "owner";
+                    return (
+                      <div key={member.user_id} className="grid gap-3 p-3 md:grid-cols-[140px_1fr_1.2fr_90px_1.4fr_90px] md:items-center">
+                        <Button
+                          type="button"
+                          size="sm"
+                          className={isAdmin ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}
+                          onClick={() => void toggleAdmin(member)}
+                        >
+                          {isAdmin ? "Tirar ADM" : "Tornar ADM"}
+                        </Button>
+                        <p className="font-medium text-sm">{member.profiles.full_name || "Sem nome"}</p>
+                        <p className="text-sm break-all">{member.profiles.email}</p>
+                        <p className="text-sm">{isAdmin ? "ADM" : "Normal"}</p>
+                        <button type="button" className="text-left text-xs text-muted-foreground" onClick={() => setPermissionUser(member)}>
+                          {permissionLabels(permissionsByUser[member.user_id] ?? []) || "Sem módulos liberados"}
+                        </button>
+                        <Button type="button" size="sm" className="bg-blue-700 hover:bg-blue-800" onClick={() => setResetTarget(member)}>
+                          Senha
+                        </Button>
                       </div>
-                      <p className="text-sm text-muted-foreground mb-4">Nenhum membro nesta organização</p>
-                      <Button onClick={() => setCreateUserOpen(true)} variant="outline" size="sm">
-                        <UserPlus className="h-4 w-4 mr-2" />
-                        Adicionar primeiro membro
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  organization.organization_members.map((member) => (
-                    <Card key={member.user_id} className="hover:shadow-md transition-shadow">
-                      <div className="p-4 sm:p-5">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                          <div className="flex items-start gap-3 flex-1 min-w-0">
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center shrink-0">
-                              <span className="text-sm sm:text-base font-semibold text-primary">
-                                {(member.profiles.full_name || member.profiles.email).slice(0, 2).toUpperCase()}
-                              </span>
-                            </div>
-                            <div className="flex-1 min-w-0 space-y-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="font-medium text-sm sm:text-base truncate">
-                                  {member.profiles.full_name || member.profiles.email}
-                                </p>
-                                <Badge variant={getRoleBadgeColor(member.user_roles)} className="text-xs">
-                                  <Shield className="h-3 w-3 mr-1" />
-                                  {getRoleLabel(member.user_roles)}
-                                </Badge>
-                                <Badge variant="outline" className="text-xs">
-                                  {member.role}
-                                </Badge>
-                              </div>
-                              <div className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground">
-                                <Mail className="h-3 w-3 shrink-0" />
-                                <span className="truncate">{member.profiles.email}</span>
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                Membro desde {format(new Date(member.created_at), "dd/MM/yyyy")}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setUserToResetPassword({
-                                  id: member.user_id,
-                                  email: member.profiles.email,
-                                  name: member.profiles.full_name,
-                                });
-                                setResetPasswordOpen(true);
-                              }}
-                              className="text-primary hover:text-primary hover:bg-primary/10 w-full sm:w-auto"
-                            >
-                              <Key className="h-4 w-4 sm:mr-2" />
-                              <span className="hidden sm:inline">Definir senha</span>
-                              <span className="sm:hidden">Senha</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setUserToDelete({
-                                  id: member.user_id,
-                                  name: member.profiles.full_name || member.profiles.email,
-                                });
-                                setDeleteUserOpen(true);
-                              }}
-                              className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto"
-                            >
-                              <Trash2 className="h-4 w-4 sm:mr-2" />
-                              <span className="hidden sm:inline">Excluir</span>
-                              <span className="sm:hidden">Excluir</span>
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  ))
+                    );
+                  })}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="funcoes" className="mt-4 space-y-4">
+                <OrganizationModulesPanel organizationId={organization.id} onUpdate={onUpdate} />
+                <Button type="button" variant="outline" onClick={() => setShowLimits((value) => !value)}>
+                  {showLimits ? "Ocultar limites numéricos" : "Limites numéricos e providers"}
+                </Button>
+                {showLimits && (
+                  <OrganizationLimitsPanel
+                    organizationId={organization.id}
+                    organizationName={organization.name}
+                    onUpdate={onUpdate}
+                  />
                 )}
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="permissions" className="mt-6">
-              <OrganizationPermissionsPanel
-                organizationId={organization.id}
-                organizationName={organization.name}
-                members={organization.organization_members}
-                onUpdate={onUpdate}
-              />
-            </TabsContent>
-            
-            <TabsContent value="limits" className="mt-6">
-              <OrganizationLimitsPanel
-                organizationId={organization.id}
-                organizationName={organization.name}
-                onUpdate={onUpdate}
-              />
-            </TabsContent>
-            
-            <TabsContent value="assistant" className="mt-6">
-              <AssistantConfigPanel
-                organizationId={organization.id}
-                organizationName={organization.name}
-              />
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-      <CreateUserDialog
-        open={createUserOpen}
-        onOpenChange={setCreateUserOpen}
-        onSuccess={onUpdate}
-        preselectedOrgId={organization.id}
-      />
-
-      <AddExistingUserDialog
-        open={addExistingUserOpen}
-        onOpenChange={setAddExistingUserOpen}
-        onSuccess={onUpdate}
-        organizationId={organization.id}
-      />
-
-      {userToDelete && (
-        <DeleteUserDialog
-          open={deleteUserOpen}
-          onOpenChange={setDeleteUserOpen}
-          onSuccess={onUpdate}
-          userId={userToDelete.id}
-          userName={userToDelete.name}
-          organizationId={organization.id}
-        />
-      )}
-
-      {userToResetPassword && (
+      <CreateUserDialog open={createUserOpen} onOpenChange={setCreateUserOpen} onSuccess={onUpdate} preselectedOrgId={organization.id} />
+      <AddExistingUserDialog open={addExistingUserOpen} onOpenChange={setAddExistingUserOpen} onSuccess={onUpdate} organizationId={organization.id} />
+      {resetTarget && (
         <ResetPasswordDialog
-          open={resetPasswordOpen}
-          onOpenChange={setResetPasswordOpen}
-          userId={userToResetPassword.id}
-          userEmail={userToResetPassword.email}
-          userName={userToResetPassword.name}
+          open={!!resetTarget}
+          onOpenChange={(next) => { if (!next) setResetTarget(null); }}
+          userId={resetTarget.user_id}
+          userEmail={resetTarget.profiles.email}
+          userName={resetTarget.profiles.full_name}
         />
       )}
+      {permissionUser && (
+        <Dialog open onOpenChange={(next) => { if (!next) setPermissionUser(null); }}>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold">{permissionUser.profiles.full_name || permissionUser.profiles.email}</h3>
+            <p className="text-sm text-muted-foreground">Módulos que este usuário pode ler, editar e excluir dentro do que a empresa já tem liberado.</p>
+            <FeaturePermissionGrid
+              organizationId={organization.id}
+              userId={permissionUser.user_id}
+              onSaved={onUpdate}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
 
-      <AlertDialog open={!!memberToRemove} onOpenChange={() => setMemberToRemove(null)}>
+      <AlertDialog open={!!confirm} onOpenChange={(next) => { if (!next) setConfirm(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remover membro?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {confirm === "deactivate" && (organization.is_active ? "Desativar esta empresa?" : "Reativar esta empresa?")}
+              {confirm === "sales" && "Excluir todas as vendas?"}
+              {confirm === "receber" && "Excluir todas as entradas financeiras?"}
+              {confirm === "pagar" && "Excluir todas as saídas financeiras?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja remover <strong>{memberToRemove?.profiles.email}</strong> desta organização?
-              Esta ação não pode ser desfeita.
+              {confirm === "deactivate" && "A empresa continua no cadastro e aparece marcada como desativada."}
+              {confirm === "sales" && `Isso apaga as vendas de ${organization.name} e devolve o estoque movimentado por elas.`}
+              {confirm === "receber" && `Isso apaga as contas a receber de ${organization.name}.`}
+              {confirm === "pagar" && `Isso apaga as contas a pagar de ${organization.name}.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={removing}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRemoveMember} disabled={removing}>
-              {removing ? "Removendo..." : "Remover"}
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void runConfirmed()}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirmar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <EditOrganizationDialog
-        open={editOrgDialogOpen}
-        onOpenChange={setEditOrgDialogOpen}
-        organizationId={organization.id}
-        onSuccess={onUpdate}
-      />
     </>
   );
 }

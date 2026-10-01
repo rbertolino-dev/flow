@@ -1,12 +1,12 @@
 import { useState, useEffect, lazy, Suspense } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye, TrendingUp, Trash2, Package, Sparkles, MessageSquare, GitBranch, Database, Image, FileSpreadsheet, Link2 } from "lucide-react";
+import { Loader2, ShieldAlert, Crown, Plus, TrendingUp, Package, Sparkles, MessageSquare, GitBranch, Database, Image, FileSpreadsheet, Link2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useNavigate } from "react-router-dom";
+import { OrganizationDirectory } from "./OrganizationDirectory";
+import { fetchMonthInvoiceCount, fetchOrgAdminMeta, suggestVigencia, updateOrgAdminMeta } from "@/lib/superadminOrg";
 
 const CreateOrganizationDialog = lazy(() =>
   import("./CreateOrganizationDialog").then((m) => ({ default: m.CreateOrganizationDialog }))
@@ -64,7 +64,13 @@ interface OrganizationWithMembers {
   id: string;
   name: string;
   created_at: string;
+  updated_at: string;
+  is_active: boolean;
+  admin_notes: string | null;
+  vigencia_ends_at: string | null;
   plan_id?: string | null;
+  plan_name?: string | null;
+  plan_billing_period?: string | null;
   organization_members: Array<{
     user_id: string;
     role: string;
@@ -102,6 +108,9 @@ export function SuperAdminDashboard() {
   const [showEvolutionProviders, setShowEvolutionProviders] = useState(false);
   const [showContractStorage, setShowContractStorage] = useState(false);
   const [showLogoUploader, setShowLogoUploader] = useState(false);
+  const [newUsersCount, setNewUsersCount] = useState(0);
+  const [invoiceCount, setInvoiceCount] = useState<number | null>(null);
+  const [planOptions, setPlanOptions] = useState<Array<{ id: string; name: string }>>([]);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -151,10 +160,10 @@ export function SuperAdminDashboard() {
     try {
       setLoading(true);
 
-      const orgsData = await selectAllPages<{ id: string; name: string | null; created_at: string }>((from, to) =>
+      const orgsData = await selectAllPages<{ id: string; name: string | null; created_at: string; updated_at: string }>((from, to) =>
         supabase
           .from('organizations')
-          .select('id, name, created_at')
+          .select('id, name, created_at, updated_at')
           .order('created_at', { ascending: false })
           .order('id', { ascending: true })
           .range(from, to)
@@ -162,6 +171,8 @@ export function SuperAdminDashboard() {
 
       if (orgsData.length === 0) {
         setOrganizations([]);
+        setNewUsersCount(0);
+        setPlanOptions([]);
         return [];
       }
 
@@ -235,15 +246,49 @@ export function SuperAdminDashboard() {
         membersByOrg.set(member.organization_id, list);
       }
 
-      const orgsWithMembers: OrganizationWithMembers[] = orgsData.map((org) => ({
-        id: org.id,
-        name: org.name || 'Sem nome',
-        created_at: org.created_at,
-        plan_id: null,
-        organization_members: membersByOrg.get(org.id) ?? [],
-      }));
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+      const newUserIds = new Set<string>();
+      for (const member of memberRows) {
+        if (new Date(member.created_at) >= monthStart) newUserIds.add(member.user_id);
+      }
+      setNewUsersCount(newUserIds.size);
+
+      const [metaRows, plansResult, limitsRows] = await Promise.all([
+        fetchOrgAdminMeta(),
+        supabase.from("plans").select("id, name, billing_period").order("name"),
+        selectAllPages<{ organization_id: string; plan_id: string | null }>((from, to) =>
+          supabase.from("organization_limits").select("organization_id, plan_id").range(from, to)
+        ),
+      ]);
+      const metaById = new Map(metaRows.map((row) => [row.id, row]));
+      const plans = plansResult.data ?? [];
+      setPlanOptions(plans.map((plan) => ({ id: plan.id, name: plan.name })));
+      const planById = new Map(plans.map((plan) => [plan.id, plan]));
+      const planByOrg = new Map(limitsRows.map((row) => [row.organization_id, row.plan_id]));
+
+      const orgsWithMembers: OrganizationWithMembers[] = orgsData.map((org) => {
+        const meta = metaById.get(org.id);
+        const planId = planByOrg.get(org.id) ?? null;
+        const plan = planId ? planById.get(planId) : null;
+        return {
+          id: org.id,
+          name: org.name || "Sem nome",
+          created_at: org.created_at,
+          updated_at: meta?.updated_at || org.updated_at,
+          is_active: meta?.is_active ?? true,
+          admin_notes: meta?.admin_notes ?? null,
+          vigencia_ends_at: meta?.vigencia_ends_at ?? null,
+          plan_id: planId,
+          plan_name: plan?.name ?? null,
+          plan_billing_period: plan?.billing_period ?? null,
+          organization_members: membersByOrg.get(org.id) ?? [],
+        };
+      });
 
       setOrganizations(orgsWithMembers);
+      void fetchMonthInvoiceCount().then(setInvoiceCount);
       return orgsWithMembers;
     } catch (error: unknown) {
       console.error('Erro ao carregar organizações:', error);
@@ -357,27 +402,29 @@ export function SuperAdminDashboard() {
     );
   }
 
-  if (selectedOrg) {
-    return (
-      <div className="h-full overflow-auto bg-background p-6">
-        <Suspense fallback={<PanelSpinner />}>
-        <OrganizationDetailPanel
-          organization={selectedOrg}
-          onClose={() => setSelectedOrg(null)}
-          onUpdate={async () => {
-            const updated = await fetchAllOrganizations();
-            const updatedOrg = updated?.find((org) => org.id === selectedOrg.id);
-            if (updatedOrg) {
-              setSelectedOrg(updatedOrg);
-            }
-          }}
-        />
-        </Suspense>
-      </div>
-    );
-  }
+  const refreshSelected = async () => {
+    if (!selectedOrg) return;
+    const updated = await fetchAllOrganizations();
+    const updatedOrg = updated?.find((org) => org.id === selectedOrg.id);
+    if (updatedOrg) setSelectedOrg(updatedOrg);
+  };
 
-  const totalMembers = organizations.reduce((sum, org) => sum + org.organization_members.length, 0);
+  const calculateVigencia = async (organizationId: string) => {
+    const org = organizations.find((item) => item.id === organizationId);
+    if (!org) return;
+    try {
+      const next = suggestVigencia(org.created_at, org.plan_billing_period ?? null);
+      await updateOrgAdminMeta({ orgId: org.id, vigencia: next, setVigencia: true });
+      await fetchAllOrganizations();
+      toast({ title: "Renovação calculada", description: `Vigência definida para ${next.split("-").reverse().join("/")}.` });
+    } catch (error: unknown) {
+      toast({
+        title: "Não foi possível calcular a vigência",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="h-full bg-background overflow-y-auto">
@@ -507,134 +554,56 @@ export function SuperAdminDashboard() {
         </div>
       </div>
 
-      {/* Content com padding responsivo - sem max-width para usar toda largura */}
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
-        {/* Stats Cards */}
-        <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Empresas</CardTitle>
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Building2 className="h-4 w-4 text-primary" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl sm:text-3xl font-bold">{organizations.length}</div>
-              <p className="text-xs text-muted-foreground mt-1">Organizações cadastradas</p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Usuários</CardTitle>
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Users className="h-4 w-4 text-primary" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl sm:text-3xl font-bold">{totalMembers}</div>
-              <p className="text-xs text-muted-foreground mt-1">Membros ativos</p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow sm:col-span-2 lg:col-span-1">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Média Usuários/Empresa</CardTitle>
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Users className="h-4 w-4 text-primary" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl sm:text-3xl font-bold">
-                {organizations.length > 0 ? (totalMembers / organizations.length).toFixed(1) : '0'}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Por organização</p>
-            </CardContent>
-          </Card>
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-4">
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button type="button" className="bg-fuchsia-700 hover:bg-fuchsia-800" onClick={() => setShowPlansManagement(true)}>
+            Perfis das Empresas
+          </Button>
+          <Button type="button" className="bg-green-600 hover:bg-green-700" onClick={() => setShowEvolutionProviders(true)}>
+            Criar Grupo WhatsApp
+          </Button>
+          <Button type="button" className="bg-blue-700 hover:bg-blue-800" onClick={() => navigate("/broadcast")}>
+            Comunicados
+          </Button>
         </div>
-
-        {/* Organizations List */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl sm:text-2xl font-semibold">Organizações Cadastradas</h2>
-            <Badge variant="outline" className="text-sm">
-              {organizations.length} {organizations.length === 1 ? 'organização' : 'organizações'}
-            </Badge>
-          </div>
-          
-          <div className="space-y-3 sm:space-y-4">
-            {organizations.map((org) => (
-              <Card key={org.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="p-4 sm:p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className="p-2 bg-primary/10 rounded-lg shrink-0">
-                        <Building2 className="h-5 w-5 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="text-base sm:text-lg truncate">{org.name}</CardTitle>
-                        <CardDescription className="text-xs sm:text-sm mt-1">
-                          Criada em {new Date(org.created_at).toLocaleDateString('pt-BR')}
-                        </CardDescription>
-                      </div>
-                    </div>
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 sm:shrink-0">
-                      <Badge variant="secondary" className="w-fit">
-                        <Users className="h-3 w-3 mr-1" />
-                        {org.organization_members.length} {org.organization_members.length === 1 ? 'membro' : 'membros'}
-                      </Badge>
-                      <div className="flex gap-2 w-full sm:w-auto">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSelectedOrg(org)}
-                          className="flex-1 sm:flex-initial"
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          Ver Detalhes
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => {
-                            setOrgToDelete({ id: org.id, name: org.name });
-                            setDeleteOrgOpen(true);
-                          }}
-                          className="flex-1 sm:flex-initial"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-            ))}
-
-            {organizations.length === 0 && (
-              <Card className="border-dashed">
-                <CardContent className="flex flex-col items-center justify-center py-12 sm:py-16">
-                  <div className="p-4 rounded-full bg-muted mb-4">
-                    <Building2 className="h-8 w-8 sm:h-12 sm:w-12 text-muted-foreground" />
-                  </div>
-                  <p className="text-sm sm:text-base text-muted-foreground text-center">
-                    Nenhuma organização cadastrada ainda
-                  </p>
-                  <Button 
-                    onClick={() => setCreateOrgOpen(true)} 
-                    variant="outline" 
-                    className="mt-4"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Criar primeira organização
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </div>
+        <OrganizationDirectory
+          organizations={organizations.map((org) => ({
+            id: org.id,
+            name: org.name,
+            created_at: org.created_at,
+            updated_at: org.updated_at,
+            is_active: org.is_active,
+            admin_notes: org.admin_notes,
+            vigencia_ends_at: org.vigencia_ends_at,
+            plan_id: org.plan_id ?? null,
+            plan_name: org.plan_name ?? null,
+            memberCount: org.organization_members.length,
+          }))}
+          plans={planOptions}
+          invoiceCount={invoiceCount}
+          newUsersCount={newUsersCount}
+          onOpen={(organizationId) => {
+            const org = organizations.find((item) => item.id === organizationId);
+            if (org) setSelectedOrg(org);
+          }}
+          onDelete={(organization) => {
+            setOrgToDelete(organization);
+            setDeleteOrgOpen(true);
+          }}
+          onCalculateVigencia={(organizationId) => { void calculateVigencia(organizationId); }}
+        />
       </div>
+
+      {selectedOrg && (
+        <Suspense fallback={null}>
+          <OrganizationDetailPanel
+            organization={selectedOrg}
+            open
+            onClose={() => setSelectedOrg(null)}
+            onUpdate={() => { void refreshSelected(); }}
+          />
+        </Suspense>
+      )}
 
       {createOrgOpen && (
         <Suspense fallback={null}>
