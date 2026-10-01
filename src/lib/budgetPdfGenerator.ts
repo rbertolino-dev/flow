@@ -105,40 +105,46 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     striped: boolean
   ) => {
     const thumb = 10;
-    let imageDrawnH = 0;
-    let nameX = leftColumnX + 2;
+    const imageGap = 3;
     const loadedImage = item.image_url ? await loadImageForBudgetPdf(item.image_url) : null;
-    if (loadedImage) {
-      const fitted = fitImageInBox(loadedImage.naturalW, loadedImage.naturalH, thumb, thumb);
-      imageDrawnH = fitted.h;
-      nameX = leftColumnX + thumb + 4;
-    }
-    const nameWidth = Math.max(36, leftColumnX + 108 - nameX);
+    const fitted = loadedImage
+      ? fitImageInBox(loadedImage.naturalW, loadedImage.naturalH, thumb, thumb)
+      : null;
+    const imageColW = fitted ? thumb + imageGap : 0;
+    const textX = leftColumnX + 2 + imageColW;
+    const priceAnchor = leftColumnX + 112;
+    const textWidth = Math.max(36, priceAnchor - textX - 4);
+
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    const nameLines = doc.splitTextToSize(item.name || '', nameWidth);
+    const nameLines = doc.splitTextToSize(item.name || '', textWidth);
     const detail = (item.description || '').trim();
     doc.setFontSize(7);
-    const detailLines = detail ? doc.splitTextToSize(detail, nameWidth) : [];
-    const textBlockH =
-      lineHeight * 0.85 +
-      Math.max(0, nameLines.length - 1) * lineHeight * 0.7 +
-      detailLines.length * lineHeight * 0.7;
-    const rowH = Math.max(lineHeight * 0.95, imageDrawnH + 1.5, textBlockH);
+    const detailLines = detail ? doc.splitTextToSize(detail, textWidth) : [];
+
+    const nameLineH = 3.6;
+    const detailLineH = 3.2;
+    const textH = nameLines.length * nameLineH + (detailLines.length > 0 ? 0.6 : 0) + detailLines.length * detailLineH;
+    const blockH = Math.max(fitted ? thumb : nameLineH, textH);
+    const rowPadTop = 1.4;
+    const rowPadBottom = 1.6;
+    const rowH = blockH + rowPadTop + rowPadBottom;
 
     if (striped) {
       doc.setFillColor(250, 250, 250);
-      doc.rect(leftColumnX, yPosition - 3, maxWidth, rowH, 'F');
+      doc.rect(leftColumnX, yPosition, maxWidth, rowH, 'F');
     }
 
-    if (loadedImage) {
-      const fitted = fitImageInBox(loadedImage.naturalW, loadedImage.naturalH, thumb, thumb);
+    const contentTop = yPosition + rowPadTop;
+
+    if (loadedImage && fitted) {
+      const imgY = contentTop + Math.max(0, (blockH - fitted.h) / 2);
       try {
         doc.addImage(
           loadedImage.dataUrl,
           loadedImage.format,
-          leftColumnX + 1,
-          yPosition - 2.5,
+          leftColumnX + 1.2,
+          imgY,
           fitted.w,
           fitted.h
         );
@@ -147,31 +153,35 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
       }
     }
 
+    const textTop = contentTop + 2.6;
     doc.setFontSize(8);
     doc.setTextColor(30, 30, 30);
-    doc.text(nameLines[0] || '', nameX, yPosition);
-    doc.text(formatCurrency(item.price || 0), leftColumnX + 120, yPosition, { align: 'right' });
-    doc.text(String(item.quantity || 1), leftColumnX + 150, yPosition, { align: 'right' });
+    nameLines.forEach((line: string, index: number) => {
+      doc.text(line, textX, textTop + index * nameLineH);
+    });
+
+    if (detailLines.length > 0) {
+      const detailTop = textTop + nameLines.length * nameLineH + 0.6;
+      doc.setFontSize(7);
+      doc.setTextColor(90, 90, 90);
+      detailLines.forEach((line: string, index: number) => {
+        doc.text(line, textX, detailTop + index * detailLineH);
+      });
+    }
+
+    doc.setFontSize(8);
+    doc.setTextColor(30, 30, 30);
+    doc.text(formatCurrency(item.price || 0), leftColumnX + 120, textTop, { align: 'right' });
+    doc.text(String(item.quantity || 1), leftColumnX + 150, textTop, { align: 'right' });
     if (showLineTotal) {
       doc.text(
         formatCurrency(item.subtotal || (item.price || 0) * (item.quantity || 1)),
         leftColumnX + 170,
-        yPosition,
+        textTop,
         { align: 'right' }
       );
     }
 
-    let extraY = yPosition + lineHeight * 0.75;
-    doc.setFontSize(7);
-    doc.setTextColor(90, 90, 90);
-    for (const line of nameLines.slice(1)) {
-      doc.text(line, nameX, extraY);
-      extraY += lineHeight * 0.7;
-    }
-    for (const line of detailLines) {
-      doc.text(line, nameX, extraY);
-      extraY += lineHeight * 0.7;
-    }
     doc.setTextColor(0, 0, 0);
     yPosition += rowH;
   };
@@ -387,13 +397,8 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   // ==========================================
   if (budget.services && budget.services.length > 0) {
     checkNewPage(lineHeight * 12);
-    
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(30, 30, 30);
-    doc.text('Servico', leftColumnX, yPosition);
-    yPosition += lineHeight * 1.0;
-    
+    yPosition += 1.5;
+
     // Cabeçalho da tabela
     const headerRgb = hexToRgb(headerColor);
     const lightR = Math.min(255, headerRgb[0] + 220);
@@ -445,7 +450,7 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
         rowIndex = 0;
       }
 
-      if (checkNewPage(lineHeight * 4)) {
+      if (checkNewPage(lineHeight * 6)) {
         yPosition += lineHeight * 0.4;
       }
       await drawItemBody(service, showServiceSubtotals, rowIndex % 2 === 0);
@@ -463,13 +468,8 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   // ==========================================
   if (budget.products && budget.products.length > 0) {
     checkNewPage(lineHeight * 12);
-    
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(30, 30, 30);
-    doc.text('Produto', leftColumnX, yPosition);
-    yPosition += lineHeight * 1.0;
-    
+    yPosition += 1.5;
+
     // Cabeçalho da tabela
     const headerRgb = hexToRgb(headerColor);
     const lightR = Math.min(255, headerRgb[0] + 220);
@@ -521,7 +521,7 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
         rowIndex = 0;
       }
 
-      if (checkNewPage(lineHeight * 4)) {
+      if (checkNewPage(lineHeight * 6)) {
         yPosition += lineHeight * 0.4;
       }
       await drawItemBody(product, showProductSubtotals, rowIndex % 2 === 0);
