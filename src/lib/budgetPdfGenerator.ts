@@ -92,6 +92,90 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     return false;
   };
 
+  const drawItemBody = async (
+    item: {
+      name?: string;
+      description?: string;
+      image_url?: string;
+      price?: number;
+      quantity?: number;
+      subtotal?: number;
+    },
+    showLineTotal: boolean,
+    striped: boolean
+  ) => {
+    const thumb = 10;
+    let imageDrawnH = 0;
+    let nameX = leftColumnX + 2;
+    const loadedImage = item.image_url ? await loadImageForBudgetPdf(item.image_url) : null;
+    if (loadedImage) {
+      const fitted = fitImageInBox(loadedImage.naturalW, loadedImage.naturalH, thumb, thumb);
+      imageDrawnH = fitted.h;
+      nameX = leftColumnX + thumb + 4;
+    }
+    const nameWidth = Math.max(36, leftColumnX + 108 - nameX);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    const nameLines = doc.splitTextToSize(item.name || '', nameWidth);
+    const detail = (item.description || '').trim();
+    doc.setFontSize(7);
+    const detailLines = detail ? doc.splitTextToSize(detail, nameWidth) : [];
+    const textBlockH =
+      lineHeight * 0.85 +
+      Math.max(0, nameLines.length - 1) * lineHeight * 0.7 +
+      detailLines.length * lineHeight * 0.7;
+    const rowH = Math.max(lineHeight * 0.95, imageDrawnH + 1.5, textBlockH);
+
+    if (striped) {
+      doc.setFillColor(250, 250, 250);
+      doc.rect(leftColumnX, yPosition - 3, maxWidth, rowH, 'F');
+    }
+
+    if (loadedImage) {
+      const fitted = fitImageInBox(loadedImage.naturalW, loadedImage.naturalH, thumb, thumb);
+      try {
+        doc.addImage(
+          loadedImage.dataUrl,
+          loadedImage.format,
+          leftColumnX + 1,
+          yPosition - 2.5,
+          fitted.w,
+          fitted.h
+        );
+      } catch (error) {
+        console.warn('Erro ao inserir imagem do item no PDF:', error);
+      }
+    }
+
+    doc.setFontSize(8);
+    doc.setTextColor(30, 30, 30);
+    doc.text(nameLines[0] || '', nameX, yPosition);
+    doc.text(formatCurrency(item.price || 0), leftColumnX + 120, yPosition, { align: 'right' });
+    doc.text(String(item.quantity || 1), leftColumnX + 150, yPosition, { align: 'right' });
+    if (showLineTotal) {
+      doc.text(
+        formatCurrency(item.subtotal || (item.price || 0) * (item.quantity || 1)),
+        leftColumnX + 170,
+        yPosition,
+        { align: 'right' }
+      );
+    }
+
+    let extraY = yPosition + lineHeight * 0.75;
+    doc.setFontSize(7);
+    doc.setTextColor(90, 90, 90);
+    for (const line of nameLines.slice(1)) {
+      doc.text(line, nameX, extraY);
+      extraY += lineHeight * 0.7;
+    }
+    for (const line of detailLines) {
+      doc.text(line, nameX, extraY);
+      extraY += lineHeight * 0.7;
+    }
+    doc.setTextColor(0, 0, 0);
+    yPosition += rowH;
+  };
+
   // ==========================================
   // CABEÇALHO — faixa da marca + logo da organização + dados
   // ==========================================
@@ -361,31 +445,10 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
         rowIndex = 0;
       }
 
-      if (rowIndex % 2 === 0) {
-        doc.setFillColor(250, 250, 250);
-        doc.rect(leftColumnX, yPosition - 2, maxWidth, lineHeight * 0.9, 'F');
+      if (checkNewPage(lineHeight * 4)) {
+        yPosition += lineHeight * 0.4;
       }
-
-      doc.setFontSize(8);
-      doc.setTextColor(30, 30, 30);
-      
-      const descLines = doc.splitTextToSize(service.name || '', 100);
-      doc.text(descLines[0], leftColumnX + 2, yPosition);
-      doc.text(formatCurrency(service.price || 0), leftColumnX + 120, yPosition, { align: 'right' });
-      doc.text((service.quantity || 1).toString(), leftColumnX + 150, yPosition, { align: 'right' });
-      if (showServiceSubtotals) {
-        doc.text(formatCurrency(service.subtotal || (service.price || 0) * (service.quantity || 1)), leftColumnX + 170, yPosition, { align: 'right' });
-      }
-      
-      yPosition += lineHeight * 0.9;
-
-      for (let i = 1; i < descLines.length; i++) {
-        if (checkNewPage(lineHeight)) {
-          yPosition += lineHeight * 0.5;
-        }
-        doc.text(descLines[i], leftColumnX + 5, yPosition);
-        yPosition += lineHeight * 0.8;
-      }
+      await drawItemBody(service, showServiceSubtotals, rowIndex % 2 === 0);
 
       rowIndex++;
     }
@@ -458,31 +521,10 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
         rowIndex = 0;
       }
 
-      if (rowIndex % 2 === 0) {
-        doc.setFillColor(250, 250, 250);
-        doc.rect(leftColumnX, yPosition - 2, maxWidth, lineHeight * 0.9, 'F');
+      if (checkNewPage(lineHeight * 4)) {
+        yPosition += lineHeight * 0.4;
       }
-
-      doc.setFontSize(8);
-      doc.setTextColor(30, 30, 30);
-      
-      const descLines = doc.splitTextToSize(product.name || '', 100);
-      doc.text(descLines[0], leftColumnX + 2, yPosition);
-      doc.text(formatCurrency(product.price || 0), leftColumnX + 120, yPosition, { align: 'right' });
-      doc.text((product.quantity || 1).toString(), leftColumnX + 150, yPosition, { align: 'right' });
-      if (showProductSubtotals) {
-        doc.text(formatCurrency(product.subtotal || (product.price || 0) * (product.quantity || 1)), leftColumnX + 170, yPosition, { align: 'right' });
-      }
-      
-      yPosition += lineHeight * 0.9;
-
-      for (let i = 1; i < descLines.length; i++) {
-        if (checkNewPage(lineHeight)) {
-          yPosition += lineHeight * 0.5;
-        }
-        doc.text(descLines[i], leftColumnX + 5, yPosition);
-        yPosition += lineHeight * 0.8;
-      }
+      await drawItemBody(product, showProductSubtotals, rowIndex % 2 === 0);
 
       rowIndex++;
     }

@@ -363,6 +363,7 @@ export function CreateBudgetDialog({
     price: product.price,
     wholesale_price: product.wholesale_price ?? null,
     description: product.description || undefined,
+    image_url: product.image_url || undefined,
     sku: product.sku,
     barcode: product.barcode,
   }));
@@ -396,7 +397,13 @@ export function CreateBudgetDialog({
                   onProductsChange={setProductsList}
                   onServicesChange={setServicesList}
                   availableProducts={availableProducts}
-                  availableServices={activeServices}
+                  availableServices={activeServices.map((service) => ({
+                    id: service.id,
+                    name: service.name,
+                    price: service.price,
+                    description: service.description || undefined,
+                    image_url: service.image_url || undefined,
+                  }))}
                 />
 
                 <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">

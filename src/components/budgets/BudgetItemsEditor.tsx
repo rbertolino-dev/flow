@@ -3,11 +3,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BudgetProduct, BudgetService } from '@/types/budget-module';
-import { Package, Plus, Trash2, Wrench, X, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { Package, Plus, Trash2, Wrench, X, Search, ChevronDown, ChevronUp, Pencil, Loader2 } from 'lucide-react';
 import { useWholesalePriceEnabled } from '@/hooks/useWholesalePriceEnabled';
 import { resolveProductUnitPrice, type ProductPriceTier } from '@/lib/productPricing';
+import { useActiveOrganization } from '@/hooks/useActiveOrganization';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+
+const SERVICE_IMAGE_BUCKET = 'whatsapp-workflow-media';
 
 export type AvailableBudgetProduct = {
   id: string;
@@ -15,8 +21,17 @@ export type AvailableBudgetProduct = {
   price: number;
   wholesale_price?: number | null;
   description?: string;
+  image_url?: string;
   sku?: string | null;
   barcode?: string | null;
+};
+
+type AvailableBudgetService = {
+  id: string;
+  name: string;
+  price: number;
+  description?: string;
+  image_url?: string;
 };
 
 interface BudgetItemsEditorProps {
@@ -25,7 +40,11 @@ interface BudgetItemsEditorProps {
   onProductsChange: (products: BudgetProduct[]) => void;
   onServicesChange: (services: BudgetService[]) => void;
   availableProducts?: AvailableBudgetProduct[];
-  availableServices?: Array<{ id: string; name: string; price: number; description?: string }>;
+  availableServices?: AvailableBudgetService[];
+}
+
+function lineSubtotal(price: number, quantity: number, discount: number) {
+  return Math.max(0, price * quantity - (discount || 0));
 }
 
 function formatCurrency(value: number) {
@@ -40,6 +59,8 @@ export function BudgetItemsEditor({
   availableProducts = [],
   availableServices = [],
 }: BudgetItemsEditorProps) {
+  const { activeOrgId } = useActiveOrganization();
+  const { toast } = useToast();
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showAddService, setShowAddService] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: '', price: '0', quantity: '1' });
@@ -52,6 +73,9 @@ export function BudgetItemsEditor({
   const [showManualService, setShowManualService] = useState(false);
   const [lastAddedLabel, setLastAddedLabel] = useState('');
   const [priceTier, setPriceTier] = useState<ProductPriceTier>('retail');
+  const [detailedProducts, setDetailedProducts] = useState(true);
+  const [detailedServices, setDetailedServices] = useState(true);
+  const [uploadingServiceId, setUploadingServiceId] = useState<string | null>(null);
   const wholesaleEnabled = useWholesalePriceEnabled();
   const productSearchRef = useRef<HTMLDivElement>(null);
   const serviceSearchRef = useRef<HTMLDivElement>(null);
@@ -118,7 +142,11 @@ export function BudgetItemsEditor({
       next[existingIndex] = {
         ...next[existingIndex],
         quantity: next[existingIndex].quantity + qty,
-        subtotal: (next[existingIndex].quantity + qty) * next[existingIndex].price,
+        subtotal: lineSubtotal(
+          next[existingIndex].price,
+          next[existingIndex].quantity + qty,
+          next[existingIndex].line_discount || 0
+        ),
       };
       onProductsChange(next);
     } else {
@@ -127,7 +155,10 @@ export function BudgetItemsEditor({
         {
           id: product.id,
           name: product.name,
-          description: product.description,
+          description: product.description || '',
+          image_url: product.image_url,
+          line_discount: 0,
+          internal_notes: '',
           price: unitPrice,
           quantity: qty,
           subtotal: unitPrice * qty,
@@ -141,10 +172,7 @@ export function BudgetItemsEditor({
     focusProductSearch();
   };
 
-  const addServiceFromCatalog = (
-    service: { id: string; name: string; price: number; description?: string },
-    quantity = 1
-  ) => {
+  const addServiceFromCatalog = (service: AvailableBudgetService, quantity = 1) => {
     const qty = Math.max(0.01, quantity);
     const existingIndex = services.findIndex((item) => item.id === service.id && !item.isManual);
     if (existingIndex >= 0) {
@@ -152,7 +180,11 @@ export function BudgetItemsEditor({
       next[existingIndex] = {
         ...next[existingIndex],
         quantity: next[existingIndex].quantity + qty,
-        subtotal: (next[existingIndex].quantity + qty) * next[existingIndex].price,
+        subtotal: lineSubtotal(
+          next[existingIndex].price,
+          next[existingIndex].quantity + qty,
+          next[existingIndex].line_discount || 0
+        ),
       };
       onServicesChange(next);
     } else {
@@ -161,7 +193,9 @@ export function BudgetItemsEditor({
         {
           id: service.id,
           name: service.name,
-          description: service.description,
+          description: service.description || '',
+          image_url: service.image_url,
+          line_discount: 0,
           price: service.price,
           quantity: qty,
           subtotal: service.price * qty,
@@ -184,6 +218,9 @@ export function BudgetItemsEditor({
       {
         id: `manual-${Date.now()}`,
         name: newProduct.name,
+        description: '',
+        line_discount: 0,
+        internal_notes: '',
         price,
         quantity,
         subtotal: price * quantity,
@@ -206,6 +243,8 @@ export function BudgetItemsEditor({
       {
         id: `manual-${Date.now()}`,
         name: newService.name,
+        description: '',
+        line_discount: 0,
         price,
         quantity,
         subtotal: price * quantity,
@@ -227,24 +266,56 @@ export function BudgetItemsEditor({
     onServicesChange(services.filter((_, i) => i !== index));
   };
 
-  const updateProduct = (index: number, field: 'quantity' | 'price', value: string) => {
+  const updateProduct = (
+    index: number,
+    patch: Partial<Pick<BudgetProduct, 'quantity' | 'price' | 'line_discount' | 'description' | 'internal_notes'>>
+  ) => {
     const next = [...products];
-    const product = { ...next[index] };
-    if (field === 'quantity') product.quantity = parseFloat(value) || 1;
-    else product.price = parseFloat(value) || 0;
-    product.subtotal = product.price * product.quantity;
+    const product = { ...next[index], ...patch };
+    product.line_discount = Math.max(0, product.line_discount || 0);
+    product.subtotal = lineSubtotal(product.price, product.quantity, product.line_discount);
     next[index] = product;
     onProductsChange(next);
   };
 
-  const updateService = (index: number, field: 'quantity' | 'price', value: string) => {
+  const updateService = (
+    index: number,
+    patch: Partial<Pick<BudgetService, 'quantity' | 'price' | 'line_discount' | 'description' | 'image_url'>>
+  ) => {
     const next = [...services];
-    const service = { ...next[index] };
-    if (field === 'quantity') service.quantity = parseFloat(value) || 1;
-    else service.price = parseFloat(value) || 0;
-    service.subtotal = service.price * service.quantity;
+    const service = { ...next[index], ...patch };
+    service.line_discount = Math.max(0, service.line_discount || 0);
+    service.subtotal = lineSubtotal(service.price, service.quantity, service.line_discount);
     next[index] = service;
     onServicesChange(next);
+  };
+
+  const uploadServiceImage = async (index: number, file: File) => {
+    if (!activeOrgId) {
+      toast({ title: 'Erro', description: 'Organização não encontrada', variant: 'destructive' });
+      return;
+    }
+    const serviceId = services[index]?.id;
+    setUploadingServiceId(serviceId || String(index));
+    try {
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const fileName = `${crypto.randomUUID()}-${Date.now()}.${fileExt}`;
+      const filePath = `${activeOrgId}/services/${fileName}`;
+      const { error } = await supabase.storage
+        .from(SERVICE_IMAGE_BUCKET)
+        .upload(filePath, file, { upsert: false, cacheControl: '86400' });
+      if (error) throw error;
+      const { data } = supabase.storage.from(SERVICE_IMAGE_BUCKET).getPublicUrl(filePath);
+      updateService(index, { image_url: data.publicUrl });
+    } catch (err: unknown) {
+      toast({
+        title: 'Erro no upload',
+        description: err instanceof Error ? err.message : 'Falha ao enviar imagem',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingServiceId(null);
+    }
   };
 
   const itemCount = products.length + services.length;
@@ -360,18 +431,31 @@ export function BudgetItemsEditor({
                         <button
                           key={product.id}
                           type="button"
-                          className="flex w-full items-start justify-between gap-3 border-b px-3 py-2.5 text-left last:border-b-0 hover:bg-muted"
+                          className="flex w-full items-center justify-between gap-3 border-b px-3 py-2.5 text-left last:border-b-0 hover:bg-muted"
                           onClick={() => addProductFromCatalog(product, 1)}
                         >
-                          <span>
-                            <span className="block text-sm font-medium">{product.name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatCurrency(displayPrice)}
-                              {wholesaleEnabled && priceTier === 'wholesale' ? ' (atacado)' : ''}
-                              {' · clique para incluir'}
+                          <span className="flex min-w-0 items-center gap-2">
+                            {product.image_url ? (
+                              <img
+                                src={product.image_url}
+                                alt=""
+                                className="h-9 w-9 shrink-0 rounded-md border object-cover"
+                              />
+                            ) : (
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-slate-50 text-[9px] font-medium text-red-600">
+                                Sem foto
+                              </span>
+                            )}
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium">{product.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatCurrency(displayPrice)}
+                                {wholesaleEnabled && priceTier === 'wholesale' ? ' (atacado)' : ''}
+                                {' · clique para incluir'}
+                              </span>
                             </span>
                           </span>
-                          <Plus className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+                          <Plus className="h-4 w-4 shrink-0 text-slate-500" />
                         </button>
                       );
                     })
@@ -606,75 +690,222 @@ export function BudgetItemsEditor({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-slate-200">
-        <div className="flex items-center justify-between border-b bg-slate-50 px-3 py-2">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-slate-700">Itens do orçamento</span>
           <Badge variant="secondary">{itemCount}</Badge>
         </div>
         {itemCount === 0 ? (
-          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+          <div className="rounded-xl border border-slate-200 px-4 py-8 text-center text-sm text-muted-foreground">
             Adicione produtos ou serviços para montar o orçamento
           </div>
         ) : (
-          <div className="divide-y">
+          <div className="space-y-3">
+            {products.length > 0 ? (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2">
+                <Label htmlFor="detailed-products" className="cursor-pointer text-sm font-medium">
+                  Produtos com descrição detalhada
+                </Label>
+                <Switch
+                  id="detailed-products"
+                  checked={detailedProducts}
+                  onCheckedChange={setDetailedProducts}
+                  className="data-[state=checked]:bg-emerald-500"
+                />
+              </div>
+            ) : null}
             {products.map((product, index) => (
-              <div key={`p-${product.id}-${index}`} className="grid grid-cols-[1fr_auto] gap-3 px-3 py-3 sm:grid-cols-[1fr_6rem_5rem_6rem_2rem] sm:items-center">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">{product.name}</div>
-                  <div className="text-xs text-muted-foreground">Produto</div>
+              <div key={`p-${product.id}-${index}`} className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 truncate text-sm font-semibold">{product.name}</p>
+                  <div className="flex shrink-0">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-blue-700"
+                      onClick={() => setDetailedProducts(true)}
+                      aria-label="Editar descrição do produto"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeProduct(index)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
                 </div>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={product.price}
-                  onChange={(event) => updateProduct(index, 'price', event.target.value)}
-                  className="h-9"
-                  aria-label="Preço do produto"
-                />
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={product.quantity}
-                  onChange={(event) => updateProduct(index, 'quantity', event.target.value)}
-                  className="h-9"
-                  aria-label="Quantidade do produto"
-                />
-                <div className="hidden text-right text-sm font-medium tabular-nums sm:block">
-                  {formatCurrency(product.subtotal)}
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Preço unit.</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={product.price}
+                      onChange={(event) => updateProduct(index, { price: parseFloat(event.target.value) || 0 })}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Qtd</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={product.quantity}
+                      onChange={(event) => updateProduct(index, { quantity: parseFloat(event.target.value) || 0 })}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Desconto</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="Digite"
+                      value={product.line_discount || ''}
+                      onChange={(event) =>
+                        updateProduct(index, { line_discount: parseFloat(event.target.value) || 0 })
+                      }
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Subtotal</Label>
+                    <Input value={product.subtotal.toFixed(2)} readOnly className="h-9 bg-slate-50" />
+                  </div>
                 </div>
-                <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeProduct(index)}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+                {detailedProducts ? (
+                  <div className="space-y-2">
+                    <Input
+                      value={product.description || ''}
+                      onChange={(event) => updateProduct(index, { description: event.target.value })}
+                      placeholder="Descrição"
+                      className="h-9"
+                    />
+                    <Input
+                      value={product.internal_notes || ''}
+                      onChange={(event) => updateProduct(index, { internal_notes: event.target.value })}
+                      placeholder="Observações (controle interno)"
+                      className="h-9"
+                    />
+                    {product.image_url ? (
+                      <img
+                        src={product.image_url}
+                        alt={product.name}
+                        className="h-16 w-16 rounded-md border object-cover"
+                      />
+                    ) : (
+                      <p className="text-sm font-medium text-red-600">Sem foto</p>
+                    )}
+                  </div>
+                ) : null}
               </div>
             ))}
+
+            {services.length > 0 ? (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2">
+                <Label htmlFor="detailed-services" className="cursor-pointer text-sm font-medium">
+                  Serviços com descrição detalhada
+                </Label>
+                <Switch
+                  id="detailed-services"
+                  checked={detailedServices}
+                  onCheckedChange={setDetailedServices}
+                  className="data-[state=checked]:bg-emerald-500"
+                />
+              </div>
+            ) : null}
             {services.map((service, index) => (
-              <div key={`s-${service.id}-${index}`} className="grid grid-cols-[1fr_auto] gap-3 px-3 py-3 sm:grid-cols-[1fr_6rem_5rem_6rem_2rem] sm:items-center">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">{service.name}</div>
-                  <div className="text-xs text-muted-foreground">Serviço</div>
+              <div key={`s-${service.id}-${index}`} className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 truncate text-sm font-semibold">{service.name}</p>
+                  <div className="flex shrink-0">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-blue-700"
+                      onClick={() => setDetailedServices(true)}
+                      aria-label="Editar descrição do serviço"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeService(index)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
                 </div>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={service.price}
-                  onChange={(event) => updateService(index, 'price', event.target.value)}
-                  className="h-9"
-                  aria-label="Preço do serviço"
-                />
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={service.quantity}
-                  onChange={(event) => updateService(index, 'quantity', event.target.value)}
-                  className="h-9"
-                  aria-label="Quantidade do serviço"
-                />
-                <div className="hidden text-right text-sm font-medium tabular-nums sm:block">
-                  {formatCurrency(service.subtotal)}
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Preço unit.</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={service.price}
+                      onChange={(event) => updateService(index, { price: parseFloat(event.target.value) || 0 })}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Desconto</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="Digite"
+                      value={service.line_discount || ''}
+                      onChange={(event) =>
+                        updateService(index, { line_discount: parseFloat(event.target.value) || 0 })
+                      }
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Qtd</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={service.quantity}
+                      onChange={(event) => updateService(index, { quantity: parseFloat(event.target.value) || 0 })}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Subtotal</Label>
+                    <Input value={service.subtotal.toFixed(2)} readOnly className="h-9 bg-slate-50" />
+                  </div>
                 </div>
-                <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeService(index)}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+                {detailedServices ? (
+                  <div className="space-y-2">
+                    <Input
+                      value={service.description || ''}
+                      onChange={(event) => updateService(index, { description: event.target.value })}
+                      placeholder="Descrição detalhada"
+                      className="h-9"
+                    />
+                    <label className="flex h-24 cursor-pointer items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-sm text-slate-700 hover:bg-amber-100">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void uploadServiceImage(index, file);
+                          event.target.value = '';
+                        }}
+                      />
+                      {uploadingServiceId === service.id ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : service.image_url ? (
+                        <img src={service.image_url} alt="" className="h-20 w-full rounded-md object-contain" />
+                      ) : (
+                        'Clique para subir imagem'
+                      )}
+                    </label>
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>

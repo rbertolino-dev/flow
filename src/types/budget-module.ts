@@ -7,6 +7,11 @@ export interface BudgetProduct {
   price: number;
   quantity: number;
   subtotal: number;
+  image_url?: string;
+  /** Desconto em reais nesta linha (reduz o subtotal do item). */
+  line_discount?: number;
+  /** Controle interno — não entra no PDF. */
+  internal_notes?: string;
   // Se foi adicionado manualmente (não do banco)
   isManual?: boolean;
 }
@@ -18,6 +23,9 @@ export interface BudgetService {
   price: number;
   quantity: number;
   subtotal: number;
+  image_url?: string;
+  /** Desconto em reais nesta linha (reduz o subtotal do item). */
+  line_discount?: number;
   // Se foi adicionado manualmente (não do banco)
   isManual?: boolean;
 }
