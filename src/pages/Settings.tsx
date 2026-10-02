@@ -66,7 +66,7 @@ import { InstanceDisconnectionAlerts } from "@/components/crm/InstanceDisconnect
 import { ConditionalIntegration } from "@/components/integrations/ConditionalIntegration";
 import { useIntegrationAccess } from "@/hooks/useIntegrationAccess";
 import { LandingPageConfigurator } from "@/components/landing-page/LandingPageConfigurator";
-import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
+import { useLandingPageAccess } from "@/hooks/useLandingPageAccess";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -87,16 +87,15 @@ export default function Settings() {
   const { stages, createStage, updateStage, deleteStage, cleanDuplicateStages, countLeadsInStage } = usePipelineStages();
   const { tags, createTag, updateTag, deleteTag } = useTags();
   const { toast } = useToast();
-  const { hasFeature, loading: featuresLoading } = useOrganizationFeatures();
-  const canUseLandingPage = !featuresLoading && hasFeature("landing_page");
+  const { loading: landingAccessLoading, allowed: canUseLandingPage } = useLandingPageAccess();
   const { providers, organizationId } = useOrganizationEvolutionProviders();
   const [providerFilter, setProviderFilter] = useState("all");
 
   useEffect(() => {
-    if (!featuresLoading && activeTab === "landing-page" && !hasFeature("landing_page")) {
+    if (!landingAccessLoading && activeTab === "landing-page" && !canUseLandingPage) {
       setActiveTab("integrations");
     }
-  }, [featuresLoading, activeTab, hasFeature]);
+  }, [landingAccessLoading, activeTab, canUseLandingPage]);
 
   // Verificar acesso às integrações para controlar visibilidade das tabs
   const hasEvolutionAccess = useIntegrationAccess('evolution');

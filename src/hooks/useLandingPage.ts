@@ -3,16 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { LandingPage, LandingPageItem, LandingPageConfig } from "@/types/landing-page";
 import { useToast } from "@/hooks/use-toast";
+import { slugifyLandingPage } from "@/lib/landingPageAccess";
 
-export function slugifyLandingPage(value: string): string {
-  const base = (value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-  return base || "landing-page";
-}
+export { slugifyLandingPage };
 
 async function assertWhatsappInstance(organizationId: string, instanceId?: string | null) {
   if (!instanceId) return;

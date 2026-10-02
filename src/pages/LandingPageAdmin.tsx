@@ -2,12 +2,12 @@ import { useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { LandingPageConfigurator } from "@/components/landing-page/LandingPageConfigurator";
-import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
+import { useLandingPageAccess } from "@/hooks/useLandingPageAccess";
 import { Loader2 } from "lucide-react";
 
 export default function LandingPageAdmin() {
   const navigate = useNavigate();
-  const { hasFeature, loading: featuresLoading } = useOrganizationFeatures();
+  const { loading: featuresLoading, allowed } = useLandingPageAccess();
 
   const handleViewChange = (view: CRMView) => {
     if (view === "settings") {
@@ -19,7 +19,7 @@ export default function LandingPageAdmin() {
     }
   };
 
-  const blocked = !featuresLoading && !hasFeature("landing_page");
+  const blocked = !featuresLoading && !allowed;
 
   return (
     <AuthGuard>
