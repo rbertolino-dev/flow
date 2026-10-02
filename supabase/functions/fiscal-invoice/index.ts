@@ -15,7 +15,7 @@ function bubbleBase(env: string) {
 }
 
 function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
+  return new Response(JSON.stringify(body, (_key, value) => typeof value === "bigint" ? Number(value) : value), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
@@ -390,7 +390,7 @@ serve(async (req) => {
       const to = url.searchParams.get("to") || "2100-01-01";
       const q = (url.searchParams.get("q") || "").trim();
       const rows = await client.queryObject(
-        `SELECT s.id, s.sale_number, s.customer_name, s.created_at, s.total,
+        `SELECT s.id, s.sale_number::int AS sale_number, s.customer_name, s.created_at, s.total,
                 bool_or(i.item_type = 'product') AS has_product,
                 bool_or(i.item_type = 'service') AS has_service
          FROM pos_sales s
