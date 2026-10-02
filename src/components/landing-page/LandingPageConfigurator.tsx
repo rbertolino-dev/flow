@@ -35,6 +35,7 @@ export function LandingPageConfigurator() {
   const { activeOrganization } = useActiveOrganization();
   
   const [saving, setSaving] = useState(false);
+  const [section, setSection] = useState("general");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
@@ -390,12 +391,21 @@ export function LandingPageConfigurator() {
             O link {getPublicUrl().replace(window.location.origin, "")} só abre quando a página estiver ativa.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
+        <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           {checklist.map((item) => (
-            <Badge key={item.id} variant={item.done ? "default" : "outline"}>
-              {item.done ? <Check className="h-3 w-3 mr-1" /> : null}
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setSection(item.id === "catalog" ? "products" : item.id === "whatsapp" ? "contact" : "general")}
+              className={`flex items-center gap-2 rounded-lg border px-3 py-3 text-left text-sm font-medium transition-colors ${
+                item.done ? "border-primary/40 bg-primary/5 text-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${item.done ? "bg-primary text-primary-foreground" : "border"}`}>
+                {item.done ? <Check className="h-3.5 w-3.5" /> : null}
+              </span>
               {item.label}
-            </Badge>
+            </button>
           ))}
         </CardContent>
       </Card>
@@ -410,32 +420,31 @@ export function LandingPageConfigurator() {
       )}
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-      <Tabs defaultValue="general" className="space-y-4 min-w-0">
-        <TabsList className="flex h-auto flex-wrap">
-          <TabsTrigger value="general">
-            <Settings className="h-4 w-4 mr-2" />
-            Geral
-          </TabsTrigger>
-          <TabsTrigger value="design">
-            <Palette className="h-4 w-4 mr-2" />
-            Aparência
-          </TabsTrigger>
-          <TabsTrigger value="products">
-            <ShoppingBag className="h-4 w-4 mr-2" />
-            Catálogo
-          </TabsTrigger>
-          <TabsTrigger value="contact">
-            <MessageSquare className="h-4 w-4 mr-2" />
-            Contato
-          </TabsTrigger>
-          <TabsTrigger value="form">
-            <FileText className="h-4 w-4 mr-2" />
-            Formulário
-          </TabsTrigger>
-          <TabsTrigger value="seo">
-            <Globe className="h-4 w-4 mr-2" />
-            SEO
-          </TabsTrigger>
+      <Tabs value={section} onValueChange={setSection} className="space-y-4 min-w-0">
+        <TabsList className="grid h-auto w-full grid-cols-1 gap-3 bg-transparent p-0 sm:grid-cols-2">
+          {[
+            { value: "general", title: "Geral", description: "Título, endereço e modelo", icon: Settings },
+            { value: "design", title: "Aparência", description: "Capa, logo e cores", icon: Palette },
+            { value: "products", title: "Catálogo", description: "O que entra na vitrine", icon: ShoppingBag },
+            { value: "contact", title: "Contato", description: "WhatsApp, telefone, horário e mapa", icon: MessageSquare },
+            { value: "form", title: "Formulário", description: "Campos que viram lead", icon: FileText },
+            { value: "seo", title: "SEO", description: "Como aparece na busca e no WhatsApp", icon: Globe },
+          ].map((entry) => {
+            const Icon = entry.icon;
+            return (
+              <TabsTrigger
+                key={entry.value}
+                value={entry.value}
+                className="h-auto min-h-[88px] w-full flex-col items-start justify-start gap-1 whitespace-normal rounded-xl border bg-card px-4 py-4 text-left shadow-sm data-[state=active]:border-primary data-[state=active]:bg-primary/5 data-[state=active]:shadow-md"
+              >
+                <span className="flex items-center gap-2 text-base font-semibold">
+                  <Icon className="h-5 w-5 shrink-0" />
+                  {entry.title}
+                </span>
+                <span className="text-sm font-normal text-muted-foreground">{entry.description}</span>
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
 
         <TabsContent value="general" className="space-y-4">

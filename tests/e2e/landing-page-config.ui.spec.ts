@@ -12,6 +12,7 @@ test("configuração da landing mostra checklist, contato e rascunho @human-beha
   await expect(page.getByRole("button", { name: "Copiar link" })).toBeVisible();
   await expect(page.getByText("Pré-visualização do rascunho")).toBeVisible();
 
+  await expect(page.getByText("WhatsApp, telefone, horário e mapa")).toBeVisible();
   await page.getByRole("tab", { name: "Contato" }).click();
   await expect(page.getByText("Horário de Atendimento")).toBeVisible();
   await expect(page.getByText("Mapa de Localização")).toBeVisible();
