@@ -12,7 +12,7 @@ import {
 
 const EQUIPMENT_SELECT = `
   id, organization_id, lead_id, name, equipment_type, brand, model,
-  serial_number, sector, notes, status, created_by, created_at, updated_at, deleted_at,
+  serial_number, sector, notes, purchased_at, warranty_until, status, created_by, created_at, updated_at, deleted_at,
   lead:leads(id, name, company)
 `;
 
@@ -104,6 +104,22 @@ export async function fetchEquipmentIdsForOrder(
     .eq('service_order_id', serviceOrderId);
   if (error) throw error;
   return (data || []).map((row: { equipment_id: string }) => row.equipment_id);
+}
+
+export async function fetchEquipmentById(
+  activeOrgId: string,
+  equipmentId: string
+): Promise<Equipment | null> {
+  // @ts-expect-error tabela ainda nao tipada no client gerado
+  const { data, error } = await supabase
+    .from('equipments')
+    .select(EQUIPMENT_SELECT)
+    .eq('organization_id', activeOrgId)
+    .eq('id', equipmentId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as Equipment;
 }
 
 export async function fetchEquipmentsForOrder(
@@ -267,6 +283,8 @@ export function useEquipments(filters?: EquipmentFilters, options?: { enabled?: 
         serial_number: form.serial_number?.trim() || null,
         sector: form.sector?.trim() || null,
         notes: form.notes?.trim() || null,
+        purchased_at: form.purchased_at?.trim() || null,
+        warranty_until: form.warranty_until?.trim() || null,
         status: (form.status || 'active') as EquipmentStatus,
         created_by: user?.id || null,
         updated_at: new Date().toISOString(),
@@ -309,6 +327,8 @@ export function useEquipments(filters?: EquipmentFilters, options?: { enabled?: 
       if (form.serial_number !== undefined) payload.serial_number = form.serial_number.trim() || null;
       if (form.sector !== undefined) payload.sector = form.sector.trim() || null;
       if (form.notes !== undefined) payload.notes = form.notes.trim() || null;
+      if (form.purchased_at !== undefined) payload.purchased_at = form.purchased_at.trim() || null;
+      if (form.warranty_until !== undefined) payload.warranty_until = form.warranty_until.trim() || null;
       if (form.status !== undefined) payload.status = form.status;
 
       // @ts-expect-error tabela ainda nao tipada no client gerado

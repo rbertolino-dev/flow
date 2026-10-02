@@ -13,6 +13,8 @@ export interface Equipment {
   serial_number?: string | null;
   sector?: string | null;
   notes?: string | null;
+  purchased_at?: string | null;
+  warranty_until?: string | null;
   status: EquipmentStatus;
   created_by?: string | null;
   created_at: string;
@@ -36,7 +38,31 @@ export interface EquipmentFormData {
   serial_number?: string;
   sector?: string;
   notes?: string;
+  purchased_at?: string;
+  warranty_until?: string;
   status?: EquipmentStatus;
+}
+
+export type WarrantyTone = 'valid' | 'soon' | 'expired';
+
+export function warrantyTone(until?: string | null, now = new Date()): WarrantyTone | null {
+  const raw = (until || '').slice(0, 10);
+  if (!raw) return null;
+  const end = new Date(`${raw}T12:00:00`);
+  if (Number.isNaN(end.getTime())) return null;
+  const today = new Date(now);
+  today.setHours(12, 0, 0, 0);
+  const days = Math.round((end.getTime() - today.getTime()) / 86400000);
+  if (days < 0) return 'expired';
+  if (days <= 30) return 'soon';
+  return 'valid';
+}
+
+export function warrantyLabel(tone: WarrantyTone | null): string | null {
+  if (tone === 'valid') return 'Vigente';
+  if (tone === 'soon') return 'Vence em 30 dias';
+  if (tone === 'expired') return 'Vencida';
+  return null;
 }
 
 export interface EquipmentFilters {

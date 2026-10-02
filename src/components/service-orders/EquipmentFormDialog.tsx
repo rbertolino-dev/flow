@@ -53,6 +53,8 @@ const emptyForm = (leadId?: string): EquipmentFormData => ({
   serial_number: '',
   sector: '',
   notes: '',
+  purchased_at: '',
+  warranty_until: '',
   status: 'active',
 });
 
@@ -87,6 +89,8 @@ export function EquipmentFormDialog({
         serial_number: equipment.serial_number || '',
         sector: equipment.sector || '',
         notes: equipment.notes || '',
+        purchased_at: (equipment.purchased_at || '').slice(0, 10),
+        warranty_until: (equipment.warranty_until || '').slice(0, 10),
         status: equipment.status || 'active',
       });
       setLeadSearch(equipment.lead ? leadLabel(equipment.lead) : '');
@@ -145,6 +149,8 @@ export function EquipmentFormDialog({
       serial_number: form.serial_number?.trim() || undefined,
       sector: form.sector?.trim() || undefined,
       notes: form.notes?.trim() || undefined,
+      purchased_at: form.purchased_at?.trim() || undefined,
+      warranty_until: form.warranty_until?.trim() || undefined,
       status: (form.status || 'active') as EquipmentStatus,
     });
     setSaving(false);
@@ -295,6 +301,24 @@ export function EquipmentFormDialog({
                   <SelectItem value="inactive">Inativo</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Data da compra</Label>
+              <Input
+                type="date"
+                value={form.purchased_at || ''}
+                onChange={(e) => setForm((prev) => ({ ...prev, purchased_at: e.target.value }))}
+                data-testid="equipment-purchased-at"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Garantia até</Label>
+              <Input
+                type="date"
+                value={form.warranty_until || ''}
+                onChange={(e) => setForm((prev) => ({ ...prev, warranty_until: e.target.value }))}
+                data-testid="equipment-warranty-until"
+              />
             </div>
           </div>
 

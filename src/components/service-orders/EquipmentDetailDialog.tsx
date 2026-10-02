@@ -10,11 +10,21 @@ import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import QRCode from 'qrcode';
 import {
   Equipment,
   EquipmentServiceHistoryItem,
   equipmentDisplayName,
+  warrantyLabel,
+  warrantyTone,
 } from '@/types/equipment';
+import {
+  EquipmentAttachment,
+  deleteEquipmentAttachment,
+  listEquipmentAttachments,
+  uploadEquipmentAttachment,
+} from '@/lib/equipmentAttachments';
+import { useToast } from '@/hooks/use-toast';
 
 interface EquipmentDetailDialogProps {
   open: boolean;
@@ -37,6 +47,11 @@ export function EquipmentDetailDialog({
 }: EquipmentDetailDialogProps) {
   const [history, setHistory] = useState<EquipmentServiceHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [attachments, setAttachments] = useState<EquipmentAttachment[]>([]);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [qrUrl, setQrUrl] = useState('');
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!open || !equipment?.id) {
@@ -55,6 +70,61 @@ export function EquipmentDetailDialog({
       cancelled = true;
     };
   }, [open, equipment?.id, loadHistory]);
+
+  useEffect(() => {
+    if (!open || !equipment?.id || !equipment.organization_id) {
+      setAttachments([]);
+      return;
+    }
+    let cancelled = false;
+    setAttachmentsLoading(true);
+    void listEquipmentAttachments(equipment.organization_id, equipment.id)
+      .then((items) => {
+        if (!cancelled) setAttachments(items);
+      })
+      .catch(() => {
+        if (!cancelled) setAttachments([]);
+      })
+      .finally(() => {
+        if (!cancelled) setAttachmentsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, equipment?.id, equipment?.organization_id]);
+
+  useEffect(() => {
+    if (!open || !equipment?.id) {
+      setQrUrl('');
+      return;
+    }
+    const target = `${window.location.origin}/service-orders?equipment=${equipment.id}`;
+    let cancelled = false;
+    void QRCode.toDataURL(target, { width: 240, margin: 1 }).then((url) => {
+      if (!cancelled) setQrUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, equipment?.id]);
+
+  const onUpload = async (file: File | undefined) => {
+    if (!file || !equipment) return;
+    setUploading(true);
+    try {
+      await uploadEquipmentAttachment(equipment.organization_id, equipment.id, file);
+      const items = await listEquipmentAttachments(equipment.organization_id, equipment.id);
+      setAttachments(items);
+    } catch (err) {
+      toast({
+        title: 'Não foi possível enviar',
+        description: err instanceof Error ? err.message : 'Falha no envio',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   if (!equipment) return null;
 
@@ -101,10 +171,105 @@ export function EquipmentDetailDialog({
               {equipment.notes}
             </p>
           )}
+          {equipment.purchased_at && (
+            <p>
+              <span className="text-muted-foreground">Compra: </span>
+              {format(new Date(`${equipment.purchased_at.slice(0, 10)}T12:00:00`), 'dd/MM/yyyy', {
+                locale: ptBR,
+              })}
+            </p>
+          )}
+          {equipment.warranty_until && (
+            <p className="flex flex-wrap items-center gap-2">
+              <span>
+                <span className="text-muted-foreground">Garantia até: </span>
+                {format(new Date(`${equipment.warranty_until.slice(0, 10)}T12:00:00`), 'dd/MM/yyyy', {
+                  locale: ptBR,
+                })}
+              </span>
+              {warrantyLabel(warrantyTone(equipment.warranty_until)) && (
+                <Badge variant="outline">{warrantyLabel(warrantyTone(equipment.warranty_until))}</Badge>
+              )}
+            </p>
+          )}
           <p className="sm:col-span-2 text-muted-foreground">
             Cadastrado em{' '}
             {format(new Date(equipment.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
           </p>
+        </div>
+
+        {qrUrl && (
+          <div className="flex items-center gap-3">
+            <img src={qrUrl} alt="QR code do equipamento" className="h-28 w-28 border rounded" />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const link = document.createElement('a');
+                link.href = qrUrl;
+                link.download = `equipamento-${equipment.id}.png`;
+                link.click();
+              }}
+            >
+              Baixar QR
+            </Button>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-semibold">Anexos</h3>
+            <label className="text-sm">
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                className="hidden"
+                disabled={uploading}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = '';
+                  void onUpload(file);
+                }}
+              />
+              <span className="inline-flex h-8 cursor-pointer items-center rounded-md border px-3 text-sm">
+                {uploading ? 'Enviando...' : 'Enviar foto ou PDF'}
+              </span>
+            </label>
+          </div>
+          {attachmentsLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          ) : attachments.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum anexo.</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {attachments.map((file) => (
+                <li key={file.id} className="flex items-center justify-between gap-2">
+                  <a href={file.file_url} target="_blank" rel="noreferrer" className="truncate text-primary hover:underline">
+                    {file.file_name}
+                  </a>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      void deleteEquipmentAttachment(file)
+                        .then(() => setAttachments((current) => current.filter((item) => item.id !== file.id)))
+                        .catch((err) => {
+                          toast({
+                            title: 'Não foi possível excluir',
+                            description: err instanceof Error ? err.message : 'Falha ao excluir',
+                            variant: 'destructive',
+                          });
+                        });
+                    }}
+                  >
+                    Excluir
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2">

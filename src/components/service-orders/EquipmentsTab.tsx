@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,15 +30,18 @@ import {
 import { Loader2, MoreHorizontal, Plus, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useEquipments } from '@/hooks/useEquipments';
+import { useEquipments, fetchEquipmentById } from '@/hooks/useEquipments';
 import { useLeads } from '@/hooks/useLeads';
 import { useDebounce } from '@/hooks/use-debounce';
+import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import {
   Equipment,
   EquipmentFilters,
   EquipmentFormData,
   EquipmentStatus,
   equipmentDisplayName,
+  warrantyLabel,
+  warrantyTone,
 } from '@/types/equipment';
 import { EquipmentFormDialog } from '@/components/service-orders/EquipmentFormDialog';
 import { EquipmentDetailDialog } from '@/components/service-orders/EquipmentDetailDialog';
@@ -47,6 +50,13 @@ const STATUS_OPTIONS: Array<{ value: EquipmentStatus | 'all'; label: string }> =
   { value: 'all', label: 'Todos' },
   { value: 'active', label: 'Ativo' },
   { value: 'inactive', label: 'Inativo' },
+];
+
+const WARRANTY_OPTIONS: Array<{ value: 'all' | 'valid' | 'soon' | 'expired'; label: string }> = [
+  { value: 'all', label: 'Todas' },
+  { value: 'valid', label: 'Vigentes' },
+  { value: 'soon', label: 'A vencer' },
+  { value: 'expired', label: 'Vencidas' },
 ];
 
 function equipmentMeta(item: Equipment): string {
@@ -59,16 +69,25 @@ function equipmentMeta(item: Equipment): string {
 interface EquipmentsTabProps {
   onOpenOrder?: (serviceOrderId: string) => void;
   onCreateOrder?: (equipment: Equipment) => void;
+  openEquipmentId?: string | null;
+  onEquipmentOpened?: () => void;
 }
 
 type EquipmentSortKey = 'name' | 'last_service';
 
-export function EquipmentsTab({ onOpenOrder, onCreateOrder }: EquipmentsTabProps) {
+export function EquipmentsTab({
+  onOpenOrder,
+  onCreateOrder,
+  openEquipmentId,
+  onEquipmentOpened,
+}: EquipmentsTabProps) {
+  const { activeOrgId } = useActiveOrganization();
   const { leads } = useLeads();
   const [search, setSearch] = useState('');
   const [leadSearch, setLeadSearch] = useState('');
   const [leadId, setLeadId] = useState<string | undefined>();
   const [status, setStatus] = useState<EquipmentStatus | 'all'>('all');
+  const [warrantyFilter, setWarrantyFilter] = useState<'all' | 'valid' | 'soon' | 'expired'>('all');
   const debouncedSearch = useDebounce(search, 300);
 
   const appliedFilters = useMemo<EquipmentFilters>(
@@ -95,7 +114,9 @@ export function EquipmentsTab({ onOpenOrder, onCreateOrder }: EquipmentsTabProps
   const [deleting, setDeleting] = useState<Equipment | null>(null);
   const [sort, setSort] = useState<{ key: EquipmentSortKey; dir: 'asc' | 'desc' } | null>(null);
 
-  const hasActiveFilter = Boolean(search.trim() || leadId || status !== 'all');
+  const hasActiveFilter = Boolean(
+    search.trim() || leadId || status !== 'all' || warrantyFilter !== 'all'
+  );
 
   const filteredLeadOptions = leads
     .filter((lead) => {
@@ -113,6 +134,7 @@ export function EquipmentsTab({ onOpenOrder, onCreateOrder }: EquipmentsTabProps
     setLeadSearch('');
     setLeadId(undefined);
     setStatus('all');
+    setWarrantyFilter('all');
   };
 
   const openCreate = () => {
@@ -129,9 +151,6 @@ export function EquipmentsTab({ onOpenOrder, onCreateOrder }: EquipmentsTabProps
     const created = await createEquipment(form);
     return Boolean(created);
   };
-
-  const countLabel =
-    equipments.length === 1 ? '1 equipamento' : `${equipments.length} equipamentos`;
 
   const sortedEquipments = useMemo(() => {
     if (!sort) return equipments;
@@ -157,10 +176,50 @@ export function EquipmentsTab({ onOpenOrder, onCreateOrder }: EquipmentsTabProps
     });
   };
 
+  const visibleEquipments = useMemo(() => {
+    if (warrantyFilter === 'all') return sortedEquipments;
+    return sortedEquipments.filter((item) => warrantyTone(item.warranty_until) === warrantyFilter);
+  }, [sortedEquipments, warrantyFilter]);
+
+  const countLabel =
+    visibleEquipments.length === 1 ? '1 equipamento' : `${visibleEquipments.length} equipamentos`;
+
   const startOrder = (item: Equipment) => {
     setDetail(null);
     onCreateOrder?.(item);
   };
+
+  const duplicateItem = async (item: Equipment) => {
+    const base = (item.name || equipmentDisplayName(item)).trim();
+    await createEquipment({
+      lead_id: item.lead_id,
+      name: `${base} (cópia)`,
+      equipment_type: item.equipment_type || undefined,
+      brand: item.brand || undefined,
+      model: item.model || undefined,
+      sector: item.sector || undefined,
+      notes: item.notes || undefined,
+      status: item.status,
+      purchased_at: item.purchased_at || undefined,
+      warranty_until: item.warranty_until || undefined,
+    });
+  };
+
+  const onEquipmentOpenedRef = useRef(onEquipmentOpened);
+  onEquipmentOpenedRef.current = onEquipmentOpened;
+
+  useEffect(() => {
+    if (!openEquipmentId || !activeOrgId) return;
+    let cancelled = false;
+    void fetchEquipmentById(activeOrgId, openEquipmentId).then((item) => {
+      if (cancelled) return;
+      onEquipmentOpenedRef.current?.();
+      if (item) setDetail(item);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [openEquipmentId, activeOrgId]);
 
   return (
     <div className="space-y-4" data-testid="os-equipments-tab">
@@ -239,6 +298,18 @@ export function EquipmentsTab({ onOpenOrder, onCreateOrder }: EquipmentsTabProps
               {option.label}
             </Button>
           ))}
+          {WARRANTY_OPTIONS.map((option) => (
+            <Button
+              key={option.value}
+              type="button"
+              size="sm"
+              variant={warrantyFilter === option.value ? 'default' : 'outline'}
+              onClick={() => setWarrantyFilter(option.value)}
+              data-testid={`equipment-filter-warranty-${option.value}`}
+            >
+              {option.label}
+            </Button>
+          ))}
           <span className="text-sm text-muted-foreground ml-auto" data-testid="equipment-count">
             {loading ? 'Carregando...' : countLabel}
           </span>
@@ -261,7 +332,7 @@ export function EquipmentsTab({ onOpenOrder, onCreateOrder }: EquipmentsTabProps
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      ) : equipments.length === 0 ? (
+      ) : visibleEquipments.length === 0 ? (
         <div className="text-center py-10 space-y-3">
           <p className="text-sm text-muted-foreground">
             {hasActiveFilter
@@ -303,7 +374,7 @@ export function EquipmentsTab({ onOpenOrder, onCreateOrder }: EquipmentsTabProps
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedEquipments.map((item) => {
+              {visibleEquipments.map((item) => {
                 const title = equipmentDisplayName(item);
                 const meta = equipmentMeta(item);
                 return (
@@ -326,6 +397,11 @@ export function EquipmentsTab({ onOpenOrder, onCreateOrder }: EquipmentsTabProps
                       <Badge variant={item.status === 'active' ? 'default' : 'secondary'}>
                         {item.status === 'active' ? 'Ativo' : 'Inativo'}
                       </Badge>
+                      {warrantyLabel(warrantyTone(item.warranty_until)) && (
+                        <Badge variant="outline" className="ml-1">
+                          {warrantyLabel(warrantyTone(item.warranty_until))}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>{item.service_count || 0}</TableCell>
                     <TableCell>
@@ -345,6 +421,9 @@ export function EquipmentsTab({ onOpenOrder, onCreateOrder }: EquipmentsTabProps
                           {onCreateOrder && (
                             <DropdownMenuItem onClick={() => startOrder(item)}>Nova OS</DropdownMenuItem>
                           )}
+                          <DropdownMenuItem onClick={() => void duplicateItem(item)}>
+                            Duplicar
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => {
                               setEditing(item);

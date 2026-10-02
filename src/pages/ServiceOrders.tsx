@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { CRMLayout } from '@/components/crm/CRMLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -131,6 +131,12 @@ export default function ServiceOrders() {
   const { activeOrganization, activeOrgId } = useActiveOrganization();
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openEquipmentId = searchParams.get('equipment');
+
+  useEffect(() => {
+    if (openEquipmentId) setModuleTab('equipments');
+  }, [openEquipmentId]);
 
   useEffect(() => {
     const openOrderId = (location.state as { openOrderId?: string } | null)?.openOrderId;
@@ -539,6 +545,12 @@ export default function ServiceOrders() {
 
           <TabsContent value="equipments" className="mt-0">
             <EquipmentsTab
+              openEquipmentId={openEquipmentId}
+              onEquipmentOpened={() => {
+                const next = new URLSearchParams(searchParams);
+                next.delete('equipment');
+                setSearchParams(next, { replace: true });
+              }}
               onOpenOrder={async (id) => {
                 const order = await getOrder(id);
                 if (!order) {
