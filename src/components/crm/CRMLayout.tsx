@@ -48,7 +48,8 @@ export type CRMView =
   | "messages-center"
   | "landing-page"
   | "broadcast-2"
-  | "wordpress-content";
+  | "wordpress-content"
+  | "nota-fiscal";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
@@ -159,6 +160,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
       navigate("/budgets");
     } else if (itemId === "pdv") {
       navigate("/pdv");
+    } else if (itemId === "nota-fiscal") {
+      navigate("/nota-fiscal");
     } else if (itemId === "estoque") {
       navigate("/estoque");
     } else if (itemId === "service-orders") {
@@ -215,6 +218,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     // 'digital-contracts': 'digital_contracts', // controlado por feature - REMOVIDO TEMPORARIAMENTE
     'budgets': 'budgets', // controlado por feature
     'pdv': 'pos', // controlado por feature
+    'nota-fiscal': 'nota_fiscal',
     'estoque': null, // usa o cadastro de produtos já existente
     'service-orders': 'service_orders', // controlado por feature
     'finance': 'finance',
@@ -245,6 +249,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     // { id: "digital-contracts" as const, label: "Contrato Digital", icon: FileSignature }, // REMOVIDO TEMPORARIAMENTE
     { id: "budgets" as const, label: "Orçamentos", icon: Receipt },
     { id: "pdv" as const, label: "PDV", icon: Store },
+    { id: "nota-fiscal" as const, label: "Nota Fiscal", icon: FileText },
     { id: "estoque" as const, label: "Estoque", icon: Warehouse },
     { id: "service-orders" as const, label: "Ordem de Serviço", icon: ClipboardList },
     { id: "finance" as const, label: "Financeiro", icon: Wallet },

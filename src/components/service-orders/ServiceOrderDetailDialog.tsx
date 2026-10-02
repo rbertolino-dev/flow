@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -75,6 +76,7 @@ export function ServiceOrderDetailDialog({
   onCancelFutureVisits,
   exporting,
 }: ServiceOrderDetailDialogProps) {
+  const navigate = useNavigate();
   const [logs, setLogs] = useState<ServiceOrderLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
@@ -310,7 +312,10 @@ export function ServiceOrderDetailDialog({
               </div>
             )}
 
-            <div className="flex justify-center pt-2">
+            <div className="flex justify-center gap-2 pt-2">
+              <Button variant="default" size="sm" onClick={() => { onOpenChange(false); navigate(`/nota-fiscal?os=${order.id}`); }}>
+                Emitir NFS-e
+              </Button>
               <Button variant="secondary" size="sm" onClick={() => onCopy(order)}>
                 <Copy className="h-4 w-4 mr-1" />
                 Copiar Ordem de Serviço

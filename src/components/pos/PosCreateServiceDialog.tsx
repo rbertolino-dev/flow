@@ -27,6 +27,7 @@ export function PosCreateServiceDialog({ open, onOpenChange, onCreated }: Props)
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [category, setCategory] = useState("");
+  const [taxClassRef, setTaxClassRef] = useState("");
   const [saving, setSaving] = useState(false);
 
   const reset = () => {
@@ -34,6 +35,7 @@ export function PosCreateServiceDialog({ open, onOpenChange, onCreated }: Props)
     setDescription("");
     setPrice("");
     setCategory("");
+    setTaxClassRef("");
   };
 
   const handleSave = async () => {
@@ -53,6 +55,7 @@ export function PosCreateServiceDialog({ open, onOpenChange, onCreated }: Props)
         description: description.trim() || undefined,
         price: priceNum,
         category: category.trim() || undefined,
+        tax_class_ref: taxClassRef.trim() || null,
         is_active: true,
       });
       onCreated?.({
@@ -119,6 +122,10 @@ export function PosCreateServiceDialog({ open, onOpenChange, onCreated }: Props)
                 placeholder="Opcional"
               />
             </div>
+          </div>
+          <div className="space-y-1">
+            <Label>Classe de imposto NFS-e (ref Webmania)</Label>
+            <Input value={taxClassRef} onChange={(e) => setTaxClassRef(e.target.value)} placeholder="REF0000" />
           </div>
         </div>
         <DialogFooter>

@@ -16,6 +16,10 @@ interface Product {
   description?: string | null;
   sku?: string | null;
   barcode?: string | null;
+  ncm?: string | null;
+  fiscal_origin?: string | null;
+  cest?: string | null;
+  tax_class_ref?: string | null;
   price: number;
   wholesale_price?: number | null;
   cost?: number | null;
@@ -202,6 +206,10 @@ async function ensureStockSchema(client: any) {
   await client.queryArray(`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS source TEXT`);
   await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_supply BOOLEAN NOT NULL DEFAULT false`);
   await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS wholesale_price NUMERIC(12,2)`);
+  await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS ncm TEXT`);
+  await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS fiscal_origin TEXT`);
+  await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS cest TEXT`);
+  await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS tax_class_ref TEXT`);
   await client.queryArray(`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS budget_id UUID`);
   await client.queryArray(`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS service_order_id UUID`);
   await client.queryArray(`ALTER TABLE pos_sales ADD COLUMN IF NOT EXISTS client_request_id TEXT`);
@@ -1190,6 +1198,14 @@ serve(async (req) => {
 
         const result = await client.queryObject<Product>(insertQuery, insertParams);
         const created = result.rows[0];
+        await client.queryArray(
+          `UPDATE products SET ncm = $1, fiscal_origin = $2, cest = $3, tax_class_ref = $4 WHERE id = $5 AND organization_id = $6`,
+          [body.ncm ? String(body.ncm) : null, body.fiscal_origin ? String(body.fiscal_origin) : null, body.cest ? String(body.cest) : null, body.tax_class_ref ? String(body.tax_class_ref) : null, created.id, organizationId]
+        );
+        created.ncm = body.ncm ? String(body.ncm) : null;
+        created.fiscal_origin = body.fiscal_origin ? String(body.fiscal_origin) : null;
+        created.cest = body.cest ? String(body.cest) : null;
+        created.tax_class_ref = body.tax_class_ref ? String(body.tax_class_ref) : null;
         await writeProductAudit(client, {
           organizationId,
           productId: created.id,
@@ -1306,7 +1322,8 @@ serve(async (req) => {
         const allowedFields = [
           'name', 'description', 'sku', 'barcode', 'price', 'wholesale_price', 'cost', 'category',
           'is_active', 'min_stock', 'ideal_stock', 'brand', 'unit', 'image_url',
-          'commission_percentage', 'commission_fixed'
+          'commission_percentage', 'commission_fixed',
+          'ncm', 'fiscal_origin', 'cest', 'tax_class_ref'
         ];
 
         for (const field of allowedFields) {

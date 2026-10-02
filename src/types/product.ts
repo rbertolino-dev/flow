@@ -11,6 +11,10 @@ export interface Product {
   category: string;
   sku?: string | null;
   barcode?: string | null;
+  ncm?: string | null;
+  fiscal_origin?: string | null;
+  cest?: string | null;
+  tax_class_ref?: string | null;
   stock_quantity?: number | null;
   min_stock?: number | null;
   ideal_stock?: number | null;
@@ -39,6 +43,10 @@ export interface ProductFormData {
   category: string;
   sku?: string | null;
   barcode?: string | null;
+  ncm?: string | null;
+  fiscal_origin?: string | null;
+  cest?: string | null;
+  tax_class_ref?: string | null;
   stock_quantity?: number | null;
   min_stock?: number | null;
   ideal_stock?: number | null;

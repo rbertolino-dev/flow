@@ -16,6 +16,7 @@ interface Service {
   description?: string;
   price: number;
   category?: string;
+  tax_class_ref?: string | null;
   image_url?: string | null;
   is_active: boolean;
   created_at: string;
@@ -110,6 +111,7 @@ serve(async (req) => {
     });
 
     await client.connect();
+    await client.queryArray(`ALTER TABLE services ADD COLUMN IF NOT EXISTS tax_class_ref TEXT`);
 
     // Verificar método HTTP
     const url = new URL(req.url);
@@ -126,6 +128,7 @@ serve(async (req) => {
           description,
           price,
           category,
+          tax_class_ref,
           image_url,
           is_active,
           created_at,
@@ -207,7 +210,7 @@ serve(async (req) => {
     // POST para criar/atualizar serviço
     if (req.method === 'POST') {
       const body = await req.json();
-      const { id, name, description, price, category, is_active, image_url } = body;
+      const { id, name, description, price, category, is_active, image_url, tax_class_ref } = body;
 
       if (!name || price === undefined) {
         return new Response(
@@ -227,13 +230,14 @@ serve(async (req) => {
             category = $4,
             is_active = $5,
             image_url = $6,
+            tax_class_ref = $7,
             updated_at = now()
-          WHERE id = $7 AND organization_id = $8
+          WHERE id = $8 AND organization_id = $9
           RETURNING *
         `;
         const result = await client.queryObject<Service>(
           updateQuery,
-          [name, description || null, price, category || null, is_active !== false, image_url ?? null, id, organizationId]
+          [name, description || null, price, category || null, is_active !== false, image_url ?? null, tax_class_ref || null, id, organizationId]
         );
         await client.end();
 
@@ -251,13 +255,13 @@ serve(async (req) => {
       } else {
         // Criar novo serviço
         const insertQuery = `
-          INSERT INTO services (organization_id, name, description, price, category, is_active, image_url)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          INSERT INTO services (organization_id, name, description, price, category, is_active, image_url, tax_class_ref)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
           RETURNING *
         `;
         const result = await client.queryObject<Service>(
           insertQuery,
-          [organizationId, name, description || null, price, category || null, is_active !== false, image_url ?? null]
+          [organizationId, name, description || null, price, category || null, is_active !== false, image_url ?? null, tax_class_ref || null]
         );
         
         if (result.rows.length === 0) {

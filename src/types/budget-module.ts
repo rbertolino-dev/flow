@@ -129,6 +129,7 @@ export interface Service {
   description?: string;
   price: number;
   category?: string;
+  tax_class_ref?: string | null;
   image_url?: string | null;
   is_active: boolean;
   created_at: string;

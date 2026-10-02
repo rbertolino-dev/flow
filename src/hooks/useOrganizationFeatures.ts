@@ -27,6 +27,7 @@ export const AVAILABLE_FEATURES = [
   { value: 'digital_contracts', label: 'Contrato Digital', description: 'Módulo completo de contratos digitais' },
   { value: 'budgets', label: 'Orçamentos', description: 'Criação e gestão de orçamentos' },
   { value: 'pos', label: 'PDV', description: 'Ponto de venda com estoque e histórico' },
+  { value: 'nota_fiscal', label: 'Nota fiscal', description: 'Emissão de NF-e, NFC-e e NFS-e pela Webmania, com impostos do Agilize Total' },
   { value: 'service_orders', label: 'Ordem de Serviço', description: 'Ordens de serviço com modelos e produtos' },
   { value: 'service_orders_optical', label: 'OS de ótica', description: 'Modelo de ótica com tabela e PDF em 3 vias. Vale só para esta empresa quando habilitado aqui.' },
   { value: 'product_wholesale_price', label: 'Preço de atacado', description: 'Cadastro de preço varejo e atacado no estoque, com escolha na venda (PDV e orçamento). Só liga se habilitar na empresa ou no plano.' },
@@ -39,7 +40,7 @@ export const AVAILABLE_FEATURES = [
 export type FeatureKey = typeof AVAILABLE_FEATURES[number]['value'];
 
 /** Não entra no trial nem em empresa nova. Só liga se o super admin habilitar na empresa ou no plano. */
-export const EXPLICIT_ORG_FEATURES = new Set<FeatureKey>(['service_orders_optical', 'product_wholesale_price']);
+export const EXPLICIT_ORG_FEATURES = new Set<FeatureKey>(['service_orders_optical', 'product_wholesale_price', 'nota_fiscal']);
 
 export function isFeatureReleasedForOrg(input: {
   feature: string;

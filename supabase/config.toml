@@ -353,3 +353,9 @@ verify_jwt = true
 
 [functions.agilize-estoque-falhas]
 verify_jwt = true
+
+[functions.fiscal-invoice]
+verify_jwt = true
+
+[functions.fiscal-webhook]
+verify_jwt = false

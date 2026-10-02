@@ -88,6 +88,7 @@ export function useServices() {
       price: number;
       category?: string;
       image_url?: string | null;
+      tax_class_ref?: string | null;
       is_active?: boolean;
     }) => {
       if (!activeOrgId) throw new Error('Organização não encontrada');

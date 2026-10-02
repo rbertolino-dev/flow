@@ -63,6 +63,9 @@ const emptyForm = {
   ideal_stock: "",
   stock_quantity: "",
   unit: "un",
+  ncm: "",
+  fiscal_origin: "0",
+  tax_class_ref: "",
   description: "",
   image_url: "" as string | null,
   is_supply: false,
@@ -119,6 +122,9 @@ export function CreateProductDialog({
         ideal_stock: product.ideal_stock != null ? String(product.ideal_stock) : "",
         stock_quantity: product.stock_quantity != null ? String(product.stock_quantity) : "0",
         unit: product.unit || "un",
+        ncm: product.ncm || "",
+        fiscal_origin: product.fiscal_origin || "0",
+        tax_class_ref: product.tax_class_ref || "",
         description: product.description || "",
         image_url: product.image_url || null,
         is_supply: Boolean(product.is_supply),
@@ -214,6 +220,9 @@ export function CreateProductDialog({
       min_stock: Number(form.min_stock),
       ideal_stock: Number(form.ideal_stock),
       unit: form.unit.trim() || "un",
+      ncm: form.ncm.trim() || null,
+      fiscal_origin: form.fiscal_origin.trim() || null,
+      tax_class_ref: form.tax_class_ref.trim() || null,
       image_url: form.image_url || null,
       is_active: product?.is_active ?? true,
       is_supply: form.is_supply,
@@ -417,6 +426,9 @@ export function CreateProductDialog({
               </p>
             </div>
             <Field label="Unidade" placeholder="un, kg, cx" value={form.unit} onChange={(value) => setForm({ ...form, unit: value })} />
+            <Field label="NCM" placeholder="8 dígitos" value={form.ncm} onChange={(value) => setForm({ ...form, ncm: value.replace(/\D/g, "").slice(0, 8) })} />
+            <Field label="Origem (0 a 8)" value={form.fiscal_origin} onChange={(value) => setForm({ ...form, fiscal_origin: value })} />
+            <Field label="Classe de imposto (ref Webmania)" placeholder="REF0000" value={form.tax_class_ref} onChange={(value) => setForm({ ...form, tax_class_ref: value })} />
             <CatalogField
               label="Categoria"
               value={form.category}

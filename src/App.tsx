@@ -58,6 +58,7 @@ const BudgetsModule = lazyWithRetry(() => import("./pages/BudgetsModule"));
 const SignContract = lazyWithRetry(() => import("./pages/SignContract"));
 const Budgets = lazyWithRetry(() => import("./pages/Budgets"));
 const Pos = lazyWithRetry(() => import("./pages/Pos"));
+const NotaFiscal = lazyWithRetry(() => import("./pages/NotaFiscal"));
 const Estoque = lazyWithRetry(() => import("./pages/Estoque"));
 const PosSalesHistory = lazyWithRetry(() => import("./pages/PosSalesHistory"));
 const PosSettings = lazyWithRetry(() => import("./pages/PosSettings"));
@@ -203,6 +204,7 @@ const App = () => {
                 <Route path="/contracts/new-safe-v2" element={<ContractsNewSafe />} />
                 <Route path="/budgets" element={<Budgets />} />
                 <Route path="/pdv" element={<Pos />} />
+                <Route path="/nota-fiscal" element={<NotaFiscal />} />
                 <Route path="/estoque" element={<Estoque />} />
                 <Route path="/pdv/historico" element={<PosSalesHistory />} />
                 <Route path="/pdv/configuracoes" element={<PosSettings />} />
