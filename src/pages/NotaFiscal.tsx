@@ -219,27 +219,38 @@ export default function NotaFiscal() {
 
   async function openSale(id: string, nextKind: "nfe" | "nfce" | "nfse") {
     if (!activeOrgId) return;
-    const data = await fiscalCall(activeOrgId, `sale&id=${id}`);
-    const items = (data.items || []).filter((item: { item_type: string }) => nextKind === "nfse" ? item.item_type === "service" : item.item_type === "product");
-    openEmit(nextKind, items.map((item: Record<string, unknown>, index: number) => ({
-      key: String(item.id || index),
-      product_id: item.item_type === "product" ? String(item.item_id || "") : undefined,
-      service_id: item.item_type === "service" ? String(item.item_id || "") : undefined,
-      item_type: item.item_type === "service" ? "service" : "product",
-      name: String(item.name || ""),
-      code: String(item.sku || ""),
-      ncm: String(item.ncm || ""),
-      origem: String(item.fiscal_origin || "0"),
-      quantity: Number(item.quantity || 1),
-      price: Number(item.unit_price || 0),
-      tax_class_ref: String(item.product_class || item.service_class || ""),
-      description: String(item.name || ""),
-    })), "pos_sale", id, data.sale?.customer_name || "");
-    const payment = data.payments?.[0];
-    const match = FORMAS.find((item) => item.method === payment?.method);
-    if (match) setForma(match.code);
-    setDesconto(String(data.sale?.discount_amount || 0));
-    setSalesOpen(false);
+    setSalesLoading(true);
+    try {
+      const data = await fiscalCall(activeOrgId, `sale&id=${id}`);
+      const items = (data.items || []).filter((item: { item_type: string }) => nextKind === "nfse" ? item.item_type === "service" : item.item_type === "product");
+      if (!items.length) {
+        toast({ title: nextKind === "nfse" ? "Esta venda não tem serviço" : "Esta venda não tem produto", variant: "destructive" });
+        return;
+      }
+      setSalesOpen(false);
+      openEmit(nextKind, items.map((item: Record<string, unknown>, index: number) => ({
+        key: String(item.id || index),
+        product_id: item.item_type === "product" ? String(item.item_id || "") : undefined,
+        service_id: item.item_type === "service" ? String(item.item_id || "") : undefined,
+        item_type: item.item_type === "service" ? "service" : "product",
+        name: String(item.name || ""),
+        code: String(item.sku || ""),
+        ncm: String(item.ncm || ""),
+        origem: String(item.fiscal_origin || "0"),
+        quantity: Number(item.quantity || 1),
+        price: Number(item.unit_price || 0),
+        tax_class_ref: String(item.product_class || item.service_class || ""),
+        description: String(item.name || ""),
+      })), "pos_sale", id, data.sale?.customer_name || "");
+      const payment = data.payments?.[0];
+      const match = FORMAS.find((item) => item.method === payment?.method);
+      if (match) setForma(match.code);
+      setDesconto(String(data.sale?.discount_amount || 0));
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : "Não foi possível abrir a emissão", variant: "destructive" });
+    } finally {
+      setSalesLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -546,8 +557,8 @@ export default function NotaFiscal() {
               <div key={sale.id} className="rounded border p-2">
                 <p>Venda {sale.sale_number} - {sale.customer_name || "Consumidor"} em {new Date(sale.created_at).toLocaleDateString("pt-BR")} · {money(Number(sale.total || 0))}</p>
                 <div className="mt-2 flex gap-2">
-                  {saleFlag(sale.has_product) ? <Button size="sm" onClick={() => void openSale(sale.id, company?.modelo === "nfce" ? "nfce" : "nfe")}>Emitir NF-e ou NFC-e</Button> : null}
-                  {saleFlag(sale.has_service) ? <Button size="sm" variant="outline" onClick={() => void openSale(sale.id, "nfse")}>Emitir NFS-e</Button> : null}
+                  {saleFlag(sale.has_product) ? <Button size="sm" disabled={salesLoading} onClick={() => void openSale(sale.id, company?.modelo === "nfce" ? "nfce" : "nfe")}>Emitir NF-e ou NFC-e</Button> : null}
+                  {saleFlag(sale.has_service) ? <Button size="sm" variant="outline" disabled={salesLoading} onClick={() => void openSale(sale.id, "nfse")}>Emitir NFS-e</Button> : null}
                 </div>
               </div>
             ))}

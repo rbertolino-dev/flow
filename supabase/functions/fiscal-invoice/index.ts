@@ -14,8 +14,20 @@ function bubbleBase(env: string) {
   return env === "test" ? BUBBLE_TEST : BUBBLE_LIVE;
 }
 
+function plain(value: unknown): unknown {
+  if (typeof value === "bigint") return Number(value);
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value.map(plain);
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) out[key] = plain(item);
+    return out;
+  }
+  return value;
+}
+
 function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body, (_key, value) => typeof value === "bigint" ? Number(value) : value), {
+  return new Response(JSON.stringify(plain(body)), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
@@ -408,10 +420,18 @@ serve(async (req) => {
     if (action === "sale") {
       const id = url.searchParams.get("id");
       if (!id) return json({ error: "Venda não informada" }, 400);
-      const sale = await client.queryObject(`SELECT * FROM pos_sales WHERE id = $1 AND organization_id = $2`, [id, organizationId]);
+      const sale = await client.queryObject(
+        `SELECT id, organization_id, sale_number::text AS sale_number, customer_name, customer_phone,
+                subtotal::text AS subtotal, discount_amount::text AS discount_amount, total::text AS total,
+                notes, created_at
+         FROM pos_sales WHERE id = $1 AND organization_id = $2`,
+        [id, organizationId],
+      );
       if (!sale.rows[0]) return json({ error: "Venda não encontrada" }, 404);
       const items = await client.queryObject(
-        `SELECT i.*, p.ncm, p.fiscal_origin, p.cest, p.tax_class_ref AS product_class, p.sku,
+        `SELECT i.id, i.item_type, i.item_id, i.name, i.sku, i.unit,
+                i.quantity::text AS quantity, i.unit_price::text AS unit_price, i.total_price::text AS total_price,
+                p.ncm, p.fiscal_origin, p.cest, p.tax_class_ref AS product_class,
                 sv.tax_class_ref AS service_class
          FROM pos_sale_items i
          LEFT JOIN products p ON i.item_type = 'product' AND p.id = i.item_id
@@ -419,7 +439,10 @@ serve(async (req) => {
          WHERE i.sale_id = $1 AND i.organization_id = $2`,
         [id, organizationId],
       );
-      const payments = await client.queryObject(`SELECT method, amount FROM pos_sale_payments WHERE sale_id = $1`, [id]);
+      const payments = await client.queryObject(
+        `SELECT method, amount::text AS amount FROM pos_sale_payments WHERE sale_id = $1`,
+        [id],
+      );
       return json({ sale: sale.rows[0], items: items.rows, payments: payments.rows });
     }
 
