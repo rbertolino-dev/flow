@@ -383,6 +383,7 @@ serve(async (req) => {
 
     const alertas: AlertRow[] = [];
     let soCopia = 0;
+    let escolhasNormais = 0;
     const cartCache = new Map<string, Record<string, unknown>[]>();
     async function itensDaVenda(vendaId: string): Promise<Record<string, unknown>[]> {
       const cached = cartCache.get(vendaId);
@@ -452,10 +453,13 @@ serve(async (req) => {
 
       const vezesNaFicha = sheet ? listedTimes(sheet, produtoNome) : 0;
       const ligado = lancamentos.filter((row) => row.ligadoAVenda).length;
-      const situacao: AlertRow["situacao"] =
-        vezesNaFicha >= cartRows.length && ligado === cartRows.length
-          ? "ficha_confirma"
-          : "alem_da_ficha";
+      const escolhaNormal =
+        vezesNaFicha >= cartRows.length && ligado === cartRows.length;
+      if (escolhaNormal) {
+        escolhasNormais += 1;
+        continue;
+      }
+      const situacao: AlertRow["situacao"] = "alem_da_ficha";
       const nivel = gravidade(Math.max(cartRows.length, lancamentos.length));
       const quando = formatBrt(sheet?.quandoMs ?? cartClockToUtcMs(lines[0].data_da_venda));
       const codigo = sheet?.cod ?? null;
@@ -511,7 +515,7 @@ serve(async (req) => {
         criticos: alertas.filter((row) => row.gravidade === "critico" && row.situacao === "alem_da_ficha").length,
         maiorRepeticao,
         alemDaFicha,
-        fichaConfirma: alertas.length - alemDaFicha,
+        fichaConfirma: escolhasNormais,
         soCopia,
       },
       alertas,

@@ -161,39 +161,36 @@ function LojaReport({ loja, inicio, fim }: { loja: Loja; inicio: string; fim: st
       <div className="grid gap-3 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Repetiu além da ficha</CardTitle>
+            <CardTitle className="text-sm font-medium">Saídas a mais</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">{report.resumo.alemDaFicha}</div>
-            <p className="text-xs text-muted-foreground">A venda mostra o produto menos vezes do que as saídas</p>
+            <p className="text-xs text-muted-foreground">O estoque lançou mais vezes do que o produto aparece na venda</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">A ficha confirma</CardTitle>
+            <CardTitle className="text-sm font-medium">Escolha normal</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">{report.resumo.fichaConfirma}</div>
-            <p className="text-xs text-muted-foreground">Mais de uma unidade, e a venda lista todas</p>
+            <p className="text-xs text-muted-foreground">O produto foi escolhido mais de uma vez e cada linha tem a sua saída. Não é falha</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Só na cópia</CardTitle>
+            <CardTitle className="text-sm font-medium">Críticos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold">{report.resumo.soCopia}</div>
-            <p className="text-xs text-muted-foreground">Parecia repetido, mas na venda real há um item só</p>
+            <div className="text-2xl font-semibold">{report.resumo.criticos}</div>
+            <p className="text-xs text-muted-foreground">5 ou mais saídas a mais na mesma venda</p>
           </CardContent>
         </Card>
       </div>
 
       {report.alertas.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Nenhuma venda deste período tem o mesmo produto mais de uma vez na ficha real.
-          {report.resumo.soCopia > 0
-            ? ` ${report.resumo.soCopia} suspeitas eram só da cópia dos dados.`
-            : ""}
+          Nenhuma saída a mais neste período. Se o produto foi escolhido três vezes, ele aparece três vezes na venda, cada um com quantidade 1, e isso fica de fora.
         </p>
       ) : (
         <div className="space-y-4">
@@ -213,9 +210,7 @@ function LojaReport({ loja, inicio, fim }: { loja: Loja; inicio: string; fim: st
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={row.situacao === "alem_da_ficha" ? "destructive" : "secondary"}>
-                      {row.situacao === "alem_da_ficha" ? "Além da ficha" : "Ficha confirma"}
-                    </Badge>
+                    <Badge variant="destructive">Saída a mais</Badge>
                     <Button variant="ghost" size="sm" onClick={() => copy(row.texto)}>
                       <Copy className="h-4 w-4" />
                       Copiar
@@ -303,7 +298,7 @@ export function FalhasEstoquePanel() {
       <div>
         <h1 className="text-2xl font-bold">Falhas de estoque</h1>
         <p className="text-sm text-muted-foreground">
-          Cada card é uma venda em que o mesmo produto aparece mais de uma vez. À esquerda está o que você vê ao abrir a venda. À direita está a saída no histórico de estoque do produto.
+          Escolher o mesmo produto três vezes não é falha: ele aparece três vezes na venda, cada linha com quantidade 1. A falha é quando o estoque lança mais saídas do que essas linhas.
         </p>
       </div>
 
