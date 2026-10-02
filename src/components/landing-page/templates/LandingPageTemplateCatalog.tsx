@@ -53,8 +53,9 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
   const categories = Object.keys(productsByCategory);
 
   const handleWhatsAppClick = async (productId?: string, productName?: string) => {
-    const product = landingPage.items.find(i => i.product_id === productId)?.product;
-    const itemName = product?.name || productName || 'produto';
+    const matched = landingPage.items.find(i => i.product_id === productId);
+    const product = matched?.product;
+    const itemName = productName || matched?.custom_title || product?.name || 'produto';
     let message = landingPage.whatsapp_message_template || '';
     message = message.replace(/{empresa}/g, landingPage.organization?.name || 'empresa');
     message = message.replace(/{item}/g, itemName);
@@ -97,6 +98,7 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
     const displayDescription = item.custom_description || product.description || '';
     const displayImage = item.custom_image_url || product.image_url;
     const displayPrice = item.custom_price ?? (landingPage.show_price ? product.price : null);
+    const available = product.in_stock !== false;
 
     return (
       <div
@@ -112,10 +114,15 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
               <ShoppingBag className="h-12 w-12 text-gray-300 group-hover:scale-110 transition-transform" />
             </div>
           )}
-          <div className="absolute top-2 left-2">
+          <div className="absolute top-2 left-2 flex gap-1">
             <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-white/90 backdrop-blur-sm text-gray-600 shadow-sm">
               {product.category || 'Produto'}
             </span>
+            {!available && (
+              <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-gray-900/80 text-white shadow-sm">
+                Esgotado
+              </span>
+            )}
           </div>
         </div>
         <div className="p-4 flex-1 flex flex-col">
@@ -128,12 +135,12 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
               R$ {displayPrice.toFixed(2).replace('.', ',')}
             </p>
           )}
-          {landingPage.whatsapp_enabled && (
+          {landingPage.whatsapp_enabled && available && (
             <Button
               className="w-full landing-page-premium btn-cta-lift rounded-lg py-5 text-sm font-semibold"
               size="sm"
               style={{ backgroundColor: primaryColor, color: 'white' }}
-              onClick={() => handleWhatsAppClick(product.id, product.name)}
+              onClick={() => handleWhatsAppClick(product.id, displayName)}
             >
               <MessageSquare className="h-4 w-4 mr-2" />
               {landingPage.whatsapp_button_text || 'Orçamento'}

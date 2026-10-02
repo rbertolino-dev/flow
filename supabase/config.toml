@@ -207,6 +207,12 @@ verify_jwt = false
 [functions.submit-landing-page-form]
 verify_jwt = false
 
+[functions.public-landing-page]
+verify_jwt = false
+
+[functions.landing-page-items]
+verify_jwt = true
+
 # ========== Pesquisas ==========
 [functions.get-survey]
 verify_jwt = false

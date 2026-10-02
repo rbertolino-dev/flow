@@ -4,6 +4,29 @@ import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { LandingPage, LandingPageItem, LandingPageConfig } from "@/types/landing-page";
 import { useToast } from "@/hooks/use-toast";
 
+export function slugifyLandingPage(value: string): string {
+  const base = (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return base || "landing-page";
+}
+
+async function assertWhatsappInstance(organizationId: string, instanceId?: string | null) {
+  if (!instanceId) return;
+  const { data, error } = await supabase
+    .from("evolution_config")
+    .select("id")
+    .eq("id", instanceId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (error || !data) {
+    throw new Error("A instância de WhatsApp não pertence a esta organização.");
+  }
+}
+
 export function useLandingPage() {
   const { activeOrgId } = useActiveOrganization();
   const [landingPage, setLandingPage] = useState<LandingPage | null>(null);
@@ -69,8 +92,10 @@ export function useLandingPage() {
         throw new Error(msg);
       }
 
+      await assertWhatsappInstance(activeOrgId, config.whatsappInstanceId);
+
       // Slug único globalmente (páginas ativas): evita colisão entre organizações em /p/:slug
-      let baseSlug = (config.title || 'landing-page').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'landing-page';
+      const baseSlug = slugifyLandingPage(config.slug || config.title || "landing-page");
       let slug = baseSlug;
       let attempt = 1;
       while (true) {
@@ -174,6 +199,25 @@ export function useLandingPage() {
         updated_by: user.id,
       };
 
+      if (config.whatsappInstanceId) {
+        await assertWhatsappInstance(activeOrgId, config.whatsappInstanceId);
+      }
+
+      if (config.slug !== undefined) {
+        const slug = slugifyLandingPage(config.slug);
+        const { data: clash } = await supabase
+          .from("landing_pages")
+          .select("id")
+          .eq("slug", slug)
+          .eq("is_active", true)
+          .neq("id", id)
+          .maybeSingle();
+        if (clash) {
+          throw new Error("Este endereço já está em uso por outra empresa. Escolha outro endereço.");
+        }
+        updateData.slug = slug;
+      }
+
       if (config.title !== undefined) updateData.title = config.title;
       if (config.subtitle !== undefined) updateData.subtitle = config.subtitle;
       if (config.aboutText !== undefined) updateData.about_text = config.aboutText;
@@ -276,7 +320,7 @@ export function useLandingPage() {
       toast({
         title: "Erro ao alterar status",
         description: isSlugConflict
-          ? "Este endereço da página já está em uso por outra empresa. Altere o título da página (em Geral) para gerar um endereço único e tente ativar novamente."
+          ? "Este endereço da página já está em uso por outra empresa. Altere o endereço em Geral e tente ativar novamente."
           : error?.message ?? "Erro desconhecido",
         variant: "destructive",
       });
@@ -317,10 +361,7 @@ export function useLandingPageItems(landingPageId: string | null) {
       
       const { data, error } = await supabase
         .from('landing_page_items')
-        .select(`
-          *,
-          product:products(*)
-        `)
+        .select('*')
         .eq('landing_page_id', landingPageId)
         .order('display_order', { ascending: true });
 
@@ -339,42 +380,80 @@ export function useLandingPageItems(landingPageId: string | null) {
     }
   };
 
-  const addItem = async (productId: string) => {
-    if (!landingPageId) throw new Error("Landing page não encontrada");
+  const addItem = async (productId: string, pageId?: string, options?: { silent?: boolean }) => {
+    const targetId = pageId || landingPageId;
+    if (!targetId) throw new Error("Landing page não encontrada");
 
     try {
-      const { data, error } = await supabase
-        .from('landing_page_items')
-        .insert({
-          landing_page_id: landingPageId,
+      const accessToken = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!accessToken) throw new Error("Usuário não autenticado");
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/landing-page-items`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          landing_page_id: targetId,
           product_id: productId,
-          display_order: items.length,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      setItems([...items, data]);
-      toast({
-        title: "Produto adicionado!",
-        description: "O produto foi adicionado à landing page",
+        }),
       });
 
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Erro ao adicionar produto");
+
+      const data = result.data as LandingPageItem;
+      setItems((current) => [...current, data]);
+      if (!options?.silent) {
+        toast({
+          title: "Produto adicionado!",
+          description: "O produto foi adicionado à landing page",
+        });
+      }
       return data;
     } catch (error: any) {
       console.error("Erro ao adicionar item:", error);
-      const isFkOrRls =
-        /Key is not present|foreign key|23503|row_level_security|RLS|not present in table/i.test(String(error?.message ?? ""));
       toast({
         title: "Erro ao adicionar produto",
-        description: isFkOrRls
-          ? "Produto não encontrado ou permissões do banco desatualizadas. Execute o script em scripts/aplicar-correcao-completa-landing-page.sql no SQL Editor do Supabase."
-          : error.message,
+        description: error.message,
         variant: "destructive",
       });
       throw error;
     }
+  };
+
+  const updateItem = async (
+    itemId: string,
+    patch: {
+      custom_title?: string | null;
+      custom_description?: string | null;
+      custom_image_url?: string | null;
+      custom_price?: number | null;
+    },
+  ) => {
+    if (!landingPageId) throw new Error("Landing page não encontrada");
+
+    const { data, error } = await supabase
+      .from("landing_page_items")
+      .update(patch)
+      .eq("id", itemId)
+      .eq("landing_page_id", landingPageId)
+      .select()
+      .single();
+
+    if (error) {
+      toast({
+        title: "Erro ao personalizar produto",
+        description: error.message,
+        variant: "destructive",
+      });
+      throw error;
+    }
+
+    setItems((current) => current.map((item) => (item.id === itemId ? { ...item, ...data } : item)));
+    return data;
   };
 
   const removeItem = async (itemId: string) => {
@@ -431,6 +510,7 @@ export function useLandingPageItems(landingPageId: string | null) {
     loading,
     addItem,
     removeItem,
+    updateItem,
     updateItemOrder,
     refetch: fetchItems,
   };

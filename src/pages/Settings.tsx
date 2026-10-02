@@ -66,6 +66,7 @@ import { InstanceDisconnectionAlerts } from "@/components/crm/InstanceDisconnect
 import { ConditionalIntegration } from "@/components/integrations/ConditionalIntegration";
 import { useIntegrationAccess } from "@/hooks/useIntegrationAccess";
 import { LandingPageConfigurator } from "@/components/landing-page/LandingPageConfigurator";
+import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -86,8 +87,16 @@ export default function Settings() {
   const { stages, createStage, updateStage, deleteStage, cleanDuplicateStages, countLeadsInStage } = usePipelineStages();
   const { tags, createTag, updateTag, deleteTag } = useTags();
   const { toast } = useToast();
+  const { hasFeature, loading: featuresLoading } = useOrganizationFeatures();
+  const canUseLandingPage = !featuresLoading && hasFeature("landing_page");
   const { providers, organizationId } = useOrganizationEvolutionProviders();
   const [providerFilter, setProviderFilter] = useState("all");
+
+  useEffect(() => {
+    if (!featuresLoading && activeTab === "landing-page" && !hasFeature("landing_page")) {
+      setActiveTab("integrations");
+    }
+  }, [featuresLoading, activeTab, hasFeature]);
 
   // Verificar acesso às integrações para controlar visibilidade das tabs
   const hasEvolutionAccess = useIntegrationAccess('evolution');
@@ -382,11 +391,13 @@ export default function Settings() {
               <span className="hidden sm:inline">Perfil</span>
               <span className="sm:hidden">Perfil</span>
             </TabsTrigger>
+            {canUseLandingPage && (
             <TabsTrigger value="landing-page" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap min-w-fit">
               <Globe className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 inline" />
               <span className="hidden sm:inline">Landing Page</span>
               <span className="sm:hidden">LP</span>
             </TabsTrigger>
+            )}
           </TabsList>
           </div>
 

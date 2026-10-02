@@ -40,8 +40,9 @@ export function LandingPageTemplateModern({ landingPage }: LandingPageTemplateMo
   const primaryColor = landingPage.primary_color || '#3b82f6';
 
   const handleWhatsAppClick = async (productId?: string, productName?: string) => {
-    const product = landingPage.items.find(i => i.product_id === productId)?.product;
-    const itemName = product?.name || productName || 'produto';
+    const matched = landingPage.items.find(i => i.product_id === productId);
+    const product = matched?.product;
+    const itemName = productName || matched?.custom_title || product?.name || 'produto';
     
     let message = landingPage.whatsapp_message_template || '';
     message = message.replace(/{empresa}/g, landingPage.organization?.name || 'empresa');
@@ -78,6 +79,7 @@ export function LandingPageTemplateModern({ landingPage }: LandingPageTemplateMo
     const displayDescription = item.custom_description || product.description || '';
     const displayImage = item.custom_image_url || product.image_url;
     const displayPrice = item.custom_price ?? (landingPage.show_price ? product.price : null);
+    const available = product.in_stock !== false;
 
     return (
       <div
@@ -93,10 +95,15 @@ export function LandingPageTemplateModern({ landingPage }: LandingPageTemplateMo
               <ShoppingBag className="h-16 w-16 text-gray-300 group-hover:scale-110 transition-transform" />
             </div>
           )}
-          <div className="absolute top-3 left-3">
+          <div className="absolute top-3 left-3 flex gap-2">
             <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-white/90 backdrop-blur-sm text-gray-700 shadow-sm">
               {product.category || 'Produto'}
             </span>
+            {!available && (
+              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-900/80 text-white shadow-sm">
+                Esgotado
+              </span>
+            )}
           </div>
         </div>
         <div className="p-6 sm:p-7">
@@ -113,11 +120,11 @@ export function LandingPageTemplateModern({ landingPage }: LandingPageTemplateMo
               </span>
             </div>
           )}
-          {landingPage.whatsapp_enabled && (
+          {landingPage.whatsapp_enabled && available && (
             <Button
               className="w-full landing-page-premium btn-cta-lift rounded-xl py-6 text-base font-semibold"
               style={{ backgroundColor: primaryColor, color: 'white' }}
-              onClick={() => handleWhatsAppClick(product.id, product.name)}
+              onClick={() => handleWhatsAppClick(product.id, displayName)}
             >
               <MessageSquare className="h-5 w-5 mr-2" />
               {landingPage.whatsapp_button_text || 'Pedir Orçamento'}

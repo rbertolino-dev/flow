@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { LandingPagePublicData } from "@/types/landing-page";
 import { LandingPageTemplateModern } from "@/components/landing-page/templates/LandingPageTemplateModern";
 import { LandingPageTemplateCatalog } from "@/components/landing-page/templates/LandingPageTemplateCatalog";
@@ -28,106 +27,52 @@ export default function LandingPagePublic() {
       setLoading(true);
       setError(null);
 
-      // Buscar landing page ativa pelo slug
-      const { data: pageData, error: pageError } = await supabase
-        .from('landing_pages')
-        .select(`
-          *,
-          organization:organizations(id, name, logo_url)
-        `)
-        .eq('slug', slug)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (pageError) throw pageError;
-      if (!pageData) {
-        setError("Landing page não encontrada ou desativada");
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/public-landing-page?slug=${encodeURIComponent(slug)}`,
+        {
+          headers: {
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || ""}`,
+          },
+        },
+      );
+      const pageData = await response.json().catch(() => null);
+      if (!response.ok || !pageData || pageData.error) {
+        setError(pageData?.error || "Landing page não encontrada ou desativada");
         return;
       }
 
-      // Buscar itens da landing page com produtos
-      const { data: itemsData, error: itemsError } = await supabase
-        .from('landing_page_items')
-        .select(`
-          *,
-          product:products(*)
-        `)
-        .eq('landing_page_id', pageData.id)
-        .eq('is_visible', true)
-        .order('display_order', { ascending: true });
-
-      if (itemsError) throw itemsError;
-
-      // Se mostrar todos os produtos, buscar todos os produtos ativos
-      let finalItems = itemsData || [];
-      if (pageData.show_all_items) {
-        const { data: allProducts, error: productsError } = await supabase
-          .from('products')
-          .select('*')
-          .eq('organization_id', pageData.organization_id)
-          .eq('is_active', true)
-          .order('created_at', { ascending: false });
-
-        if (productsError) throw productsError;
-
-        // Ordenar conforme configuração
-        let sortedProducts = allProducts || [];
-        if (pageData.item_order === 'category') {
-          sortedProducts = sortedProducts.sort((a, b) => 
-            (a.category || '').localeCompare(b.category || '')
-          );
-        }
-
-        finalItems = sortedProducts.map((product, index) => ({
-          id: `auto-${product.id}`,
-          landing_page_id: pageData.id,
-          product_id: product.id,
-          display_order: index,
-          custom_title: null,
-          custom_description: null,
-          custom_image_url: null,
-          custom_price: null,
-          is_visible: true,
-          created_at: product.created_at,
-          updated_at: product.updated_at,
-          product: product,
-        }));
-      }
-
-      // Aplicar SEO
       const seoTitle = pageData.seo_title || pageData.title;
-      const seoDescription = pageData.seo_description || pageData.subtitle || '';
-      const ogImage = pageData.seo_og_image_url || pageData.cover_image_url || '';
+      const seoDescription = pageData.seo_description || pageData.subtitle || "";
+      const ogImage = pageData.seo_og_image_url || pageData.cover_image_url || "";
 
-      // Atualizar meta tags
       document.title = seoTitle;
       const metaDescription = document.querySelector('meta[name="description"]');
       if (metaDescription) {
-        metaDescription.setAttribute('content', seoDescription);
+        metaDescription.setAttribute("content", seoDescription);
       } else {
-        const meta = document.createElement('meta');
-        meta.name = 'description';
+        const meta = document.createElement("meta");
+        meta.name = "description";
         meta.content = seoDescription;
         document.head.appendChild(meta);
       }
 
-      // Open Graph tags
       const ogTitle = document.querySelector('meta[property="og:title"]');
       if (ogTitle) {
-        ogTitle.setAttribute('content', seoTitle);
+        ogTitle.setAttribute("content", seoTitle);
       } else {
-        const meta = document.createElement('meta');
-        meta.setAttribute('property', 'og:title');
+        const meta = document.createElement("meta");
+        meta.setAttribute("property", "og:title");
         meta.content = seoTitle;
         document.head.appendChild(meta);
       }
 
       const ogDesc = document.querySelector('meta[property="og:description"]');
       if (ogDesc) {
-        ogDesc.setAttribute('content', seoDescription);
+        ogDesc.setAttribute("content", seoDescription);
       } else {
-        const meta = document.createElement('meta');
-        meta.setAttribute('property', 'og:description');
+        const meta = document.createElement("meta");
+        meta.setAttribute("property", "og:description");
         meta.content = seoDescription;
         document.head.appendChild(meta);
       }
@@ -135,10 +80,10 @@ export default function LandingPagePublic() {
       if (ogImage) {
         const ogImg = document.querySelector('meta[property="og:image"]');
         if (ogImg) {
-          ogImg.setAttribute('content', ogImage);
+          ogImg.setAttribute("content", ogImage);
         } else {
-          const meta = document.createElement('meta');
-          meta.setAttribute('property', 'og:image');
+          const meta = document.createElement("meta");
+          meta.setAttribute("property", "og:image");
           meta.content = ogImage;
           document.head.appendChild(meta);
         }
@@ -146,7 +91,7 @@ export default function LandingPagePublic() {
 
       setLandingPage({
         ...pageData,
-        items: finalItems,
+        items: pageData.items || [],
       });
     } catch (err: any) {
       console.error("Erro ao carregar landing page:", err);
@@ -175,8 +120,7 @@ export default function LandingPagePublic() {
     );
   }
 
-  // Renderizar template apropriado
-  if (landingPage.template === 'catalog') {
+  if (landingPage.template === "catalog") {
     return <LandingPageTemplateCatalog landingPage={landingPage} />;
   }
 

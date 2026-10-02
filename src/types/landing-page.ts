@@ -116,8 +116,10 @@ export interface LandingPageItem {
     description?: string | null;
     price: number;
     category: string;
+    unit?: string | null;
     image_url?: string | null;
     is_active: boolean;
+    in_stock?: boolean;
   };
 }
 
@@ -164,6 +166,7 @@ export interface LandingPageConfig {
   
   // Template
   template: 'modern' | 'catalog';
+  slug?: string;
   
   // Produtos/serviços
   showAllItems: boolean;
@@ -245,8 +248,10 @@ export interface LandingPagePublicData extends LandingPage {
       description?: string | null;
       price: number;
       category: string;
+      unit?: string | null;
       image_url?: string | null;
       is_active: boolean;
+      in_stock?: boolean;
     };
   }>;
   organization?: {

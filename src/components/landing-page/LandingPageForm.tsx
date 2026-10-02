@@ -44,19 +44,17 @@ export function LandingPageForm({ landingPage, selectedProduct }: LandingPageFor
     setSubmitting(true);
 
     try {
-      let ipAddress: string | null = null;
-      try {
-        const ipResponse = await fetch('https://api.ipify.org?format=json');
-        const ipData = await ipResponse.json();
-        ipAddress = ipData.ip;
-      } catch {
-        // Ignorar se não conseguir obter IP
-      }
-
+      const selectedItem = selectedProduct
+        ? landingPage.items.find((item) => item.product_id === selectedProduct)
+        : null;
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(`${supabaseUrl}/functions/v1/submit-landing-page-form`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || ''}`,
+        },
         body: JSON.stringify({
           landing_page_id: landingPage.id,
           organization_id: landingPage.organization_id,
@@ -65,13 +63,11 @@ export function LandingPageForm({ landingPage, selectedProduct }: LandingPageFor
           email: (fields.email ? formData.email.trim() : null) || null,
           message: (fields.message ? formData.message.trim() : null) || null,
           product_id: selectedProduct || null,
-          product_name: selectedProduct
-            ? landingPage.items.find(i => i.product_id === selectedProduct)?.product?.name || null
+          product_name: selectedItem
+            ? selectedItem.custom_title || selectedItem.product?.name || null
             : null,
           page_url: window.location.href,
-          ip_address: ipAddress,
           user_agent: navigator.userAgent,
-          form_destination: landingPage.form_destination,
         }),
       });
 
@@ -86,10 +82,6 @@ export function LandingPageForm({ landingPage, selectedProduct }: LandingPageFor
       }
       if (!result.success) {
         throw new Error(result.error || 'Erro ao enviar formulário');
-      }
-
-      if (landingPage.form_destination === 'email' && landingPage.form_notification_email) {
-        console.log("Enviar email para:", landingPage.form_notification_email);
       }
 
       toast({

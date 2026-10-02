@@ -24,7 +24,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 export function LandingPageConfigurator() {
   const { toast } = useToast();
   const { landingPage, loading, createLandingPage, updateLandingPage, toggleActive, refetch } = useLandingPage();
-  const { items, addItem, removeItem, loading: itemsLoading } = useLandingPageItems(landingPage?.id || null);
+  const { items, addItem, removeItem, updateItem, loading: itemsLoading } = useLandingPageItems(landingPage?.id || null);
   const { products, loading: productsLoading } = useProducts();
   const { configs: evolutionConfigs } = useEvolutionConfigs();
   
@@ -37,6 +37,7 @@ export function LandingPageConfigurator() {
 
   const [config, setConfig] = useState<LandingPageConfig>({
     title: "",
+    slug: "",
     subtitle: "",
     aboutText: "",
     template: "modern",
@@ -73,6 +74,7 @@ export function LandingPageConfigurator() {
     if (landingPage) {
       setConfig({
         title: landingPage.title,
+        slug: landingPage.slug || "",
         subtitle: landingPage.subtitle || "",
         aboutText: landingPage.about_text || "",
         template: landingPage.template,
@@ -240,7 +242,11 @@ export function LandingPageConfigurator() {
       if (landingPage) {
         await updateLandingPage(landingPage.id, config);
       } else {
-        await createLandingPage(config);
+        const created = await createLandingPage(config);
+        const ids = config.selectedProductIds || [];
+        for (const productId of ids) {
+          await addItem(productId, created.id, { silent: true });
+        }
         await refetch();
       }
     } catch (error: any) {
@@ -345,6 +351,19 @@ export function LandingPageConfigurator() {
                   onChange={(e) => setConfig({ ...config, title: e.target.value })}
                   placeholder="Ex: Nossos Produtos e Serviços"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="slug">Endereço da página</Label>
+                <Input
+                  id="slug"
+                  value={config.slug || ""}
+                  onChange={(e) => setConfig({ ...config, slug: e.target.value })}
+                  placeholder="minha-empresa"
+                />
+                <p className="text-sm text-muted-foreground">
+                  Link público: /p/{(config.slug || config.title || "pagina").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "pagina"}
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -633,7 +652,7 @@ export function LandingPageConfigurator() {
                 <div className="space-y-1">
                   <Label>Mostrar Todos os Produtos</Label>
                   <p className="text-sm text-muted-foreground">
-                    Se desativado, você pode selecionar produtos específicos
+                    Produtos ativos do cadastro desta organização. Insumos e itens inativos não entram. Com a opção desligada, escolha os produtos abaixo.
                   </p>
                 </div>
                 <Switch
@@ -658,7 +677,7 @@ export function LandingPageConfigurator() {
                   ) : (
                     <div className="space-y-2 max-h-60 overflow-y-auto">
                       {products
-                        .filter(p => p.is_active)
+                        .filter(p => p.is_active && !p.is_supply)
                         .filter(p => {
                           // GARANTIR que produto pertence à organização da landing page
                           if (landingPage && p.organization_id !== landingPage.organization_id) {
@@ -673,8 +692,9 @@ export function LandingPageConfigurator() {
                         return (
                           <div
                             key={product.id}
-                            className="flex items-center justify-between p-2 border rounded"
+                            className="p-2 border rounded space-y-2"
                           >
+                            <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                               {product.image_url && (
                                 <img
@@ -685,7 +705,10 @@ export function LandingPageConfigurator() {
                               )}
                               <div>
                                 <p className="font-medium">{product.name}</p>
-                                <p className="text-sm text-muted-foreground">{product.category}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {product.category}
+                                  {typeof product.price === "number" ? ` · R$ ${product.price.toFixed(2).replace(".", ",")}` : ""}
+                                </p>
                               </div>
                             </div>
                             <Switch
@@ -715,6 +738,37 @@ export function LandingPageConfigurator() {
                                 }
                               }}
                             />
+                            </div>
+                            {isSelected && landingPage && (() => {
+                              const item = items.find(i => i.product_id === product.id);
+                              if (!item) return null;
+                              return (
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                  <Input
+                                    placeholder="Título na página"
+                                    defaultValue={item.custom_title || ""}
+                                    onBlur={(e) => updateItem(item.id, { custom_title: e.target.value.trim() || null })}
+                                  />
+                                  <Input
+                                    placeholder="Preço na página"
+                                    type="number"
+                                    step="0.01"
+                                    defaultValue={item.custom_price ?? ""}
+                                    onBlur={(e) => updateItem(item.id, { custom_price: e.target.value === "" ? null : Number(e.target.value) })}
+                                  />
+                                  <Input
+                                    placeholder="Descrição na página"
+                                    defaultValue={item.custom_description || ""}
+                                    onBlur={(e) => updateItem(item.id, { custom_description: e.target.value.trim() || null })}
+                                  />
+                                  <Input
+                                    placeholder="URL da imagem na página"
+                                    defaultValue={item.custom_image_url || ""}
+                                    onBlur={(e) => updateItem(item.id, { custom_image_url: e.target.value.trim() || null })}
+                                  />
+                                </div>
+                              );
+                            })()}
                           </div>
                         );
                       })}

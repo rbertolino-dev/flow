@@ -97,7 +97,7 @@ if (!result?.success) throw new Error(result?.error || 'Erro ao enviar formulár
 
 **Regras:**
 - Slug é único entre **páginas ativas** (índice parcial `WHERE is_active = true`). Ao criar, gerar slug sem conflito com páginas ativas (sufixo `-2`, `-3` se necessário).
-- Ao ativar página, se der erro de unique no slug, mostrar: "Este endereço já está em uso por outra empresa. Altere o título (Geral) para gerar endereço único."
+- Ao ativar página, se der erro de unique no slug, mostrar que o endereço já está em uso e pedir para alterar o campo Endereço da página (Geral). O título não gera slug novo depois da criação.
 - Trigger em `landing_page_items` garante que `product_id` pertence à mesma organização da landing page. Não remover.
 
 ---
