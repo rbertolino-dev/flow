@@ -48,14 +48,20 @@ function pick(body: Record<string, unknown>) {
   };
 }
 
-async function mirrorBubble(id: string, fields: Record<string, string>) {
+async function mirrorBubble(id: string, env: string | null, fields: Record<string, string>) {
   const token = Deno.env.get("BUBBLE_AGILIZE_KEY");
   if (!token || !id) return;
-  await fetch(`https://app.agilizetotal.com.br/api/1.1/obj/notafiscal/${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(fields),
-  });
+  const bases = env === "test"
+    ? ["https://app.agilizetotal.com.br/version-test/api/1.1/obj", "https://app.agilizetotal.com.br/api/1.1/obj"]
+    : ["https://app.agilizetotal.com.br/api/1.1/obj", "https://app.agilizetotal.com.br/version-test/api/1.1/obj"];
+  for (const base of bases) {
+    const res = await fetch(`${base}/notafiscal/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(fields),
+    });
+    if (res.ok) return;
+  }
 }
 
 serve(async (req) => {
@@ -71,8 +77,9 @@ serve(async (req) => {
     const updates = [main, ...extras].filter((item) => item.uuid);
     if (!updates.length) return json({ ok: true, ignored: true });
     client = await postgres();
+    await client.queryArray(`ALTER TABLE fiscal_invoices ADD COLUMN IF NOT EXISTS bubble_env TEXT`);
     for (const item of updates) {
-      const result = await client.queryObject<{ bubble_nota_id: string | null }>(
+      const result = await client.queryObject<{ bubble_nota_id: string | null; bubble_env: string | null }>(
         `UPDATE fiscal_invoices SET
            status = COALESCE(NULLIF($2, ''), status),
            number = COALESCE(NULLIF($3, ''), number),
@@ -83,12 +90,12 @@ serve(async (req) => {
            response_payload = $8::jsonb,
            updated_at = now()
          WHERE webmania_uuid = $1
-         RETURNING bubble_nota_id`,
+         RETURNING bubble_nota_id, bubble_env`,
         [item.uuid, item.status, item.number, item.accessKey, item.pdf, item.xml, item.verification, JSON.stringify(body)],
       );
       const bubbleId = result.rows[0]?.bubble_nota_id;
       if (bubbleId) {
-        await mirrorBubble(bubbleId, {
+        await mirrorBubble(bubbleId, result.rows[0]?.bubble_env || null, {
           status: item.status,
           "n da nota": item.number,
           pdf: item.pdf,

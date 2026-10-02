@@ -40,6 +40,7 @@ type Company = {
   ambiente: number;
   modelo: string;
   natureza: string;
+  bubbleEnv?: string;
 };
 
 type Invoice = {
@@ -488,6 +489,7 @@ export default function NotaFiscal() {
           <DialogHeader><DialogTitle>Editar empresa</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <p className="text-sm">{company?.name || "Nome vem do Agilize Total"} {company?.cnpj ? `· ${company.cnpj}` : ""}</p>
+            {company?.bubbleEnv === "test" ? <p className="text-xs text-amber-700">Esta empresa está na versão de desenvolvimento do Agilize Total.</p> : null}
             <div><Label>ID da empresa no Agilize Total</Label><Input value={empresaId} onChange={(event) => setEmpresaId(event.target.value)} /></div>
             <div><Label>Ambiente</Label>
               <Select value={ambiente} onValueChange={setAmbiente}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="2">Homologação</SelectItem><SelectItem value="1">Produção</SelectItem></SelectContent></Select>

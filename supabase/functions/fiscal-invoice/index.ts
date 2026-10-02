@@ -7,7 +7,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-organization-id",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
-const BUBBLE = "https://app.agilizetotal.com.br/api/1.1/obj";
+const BUBBLE_LIVE = "https://app.agilizetotal.com.br/api/1.1/obj";
+const BUBBLE_TEST = "https://app.agilizetotal.com.br/version-test/api/1.1/obj";
+
+function bubbleBase(env: string) {
+  return env === "test" ? BUBBLE_TEST : BUBBLE_LIVE;
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -70,8 +75,11 @@ async function ensureSchema(client: Client) {
       ambiente INT NOT NULL DEFAULT 2,
       modelo TEXT NOT NULL DEFAULT 'nfe',
       natureza TEXT NOT NULL DEFAULT 'Venda de Mercadoria',
+      bubble_env TEXT NOT NULL DEFAULT 'live',
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
+  await client.queryArray(`ALTER TABLE fiscal_settings ADD COLUMN IF NOT EXISTS bubble_env TEXT NOT NULL DEFAULT 'live'`);
+  await client.queryArray(`ALTER TABLE fiscal_invoices ADD COLUMN IF NOT EXISTS bubble_env TEXT`);
   await client.queryArray(`
     CREATE TABLE IF NOT EXISTS fiscal_invoices (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -110,18 +118,31 @@ function bubbleToken() {
   return token;
 }
 
-async function bubbleGet(path: string) {
-  const res = await fetch(`${BUBBLE}/${path}`, { headers: { Authorization: `Bearer ${bubbleToken()}` } });
+async function bubbleGet(env: string, path: string) {
+  const res = await fetch(`${bubbleBase(env)}/${path}`, { headers: { Authorization: `Bearer ${bubbleToken()}` } });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || `Agilize Total respondeu ${res.status}`);
+  if (!res.ok) throw new Error(data?.body?.message || data?.error || `Agilize Total respondeu ${res.status}`);
   return data;
 }
 
-async function loadEmpresa(empresaId: string) {
-  const data = await bubbleGet(`empresa_principal/${encodeURIComponent(empresaId)}`);
-  const row = (data.response || data) as Record<string, unknown>;
-  if (!row || row.error) throw new Error("Empresa não encontrada no Agilize Total");
-  return row;
+async function loadEmpresa(empresaId: string, preferred = "live") {
+  const order = preferred === "test" ? ["test", "live"] : ["live", "test"];
+  let lastMessage = "Empresa não encontrada no Agilize Total";
+  for (const env of order) {
+    const res = await fetch(`${bubbleBase(env)}/empresa_principal/${encodeURIComponent(empresaId)}`, {
+      headers: { Authorization: `Bearer ${bubbleToken()}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      lastMessage = data?.body?.message || data?.error || `Agilize Total respondeu ${res.status}`;
+      continue;
+    }
+    const row = (data.response || data) as Record<string, unknown>;
+    if (row && !row.error) return { row, env };
+  }
+  throw new Error(lastMessage.includes("does not exist")
+    ? "Esse ID não existe no Agilize Total publicado nem na versão de desenvolvimento."
+    : lastMessage);
 }
 
 function publicCompany(row: Record<string, unknown>, settings: Record<string, unknown> | null) {
@@ -138,6 +159,7 @@ function publicCompany(row: Record<string, unknown>, settings: Record<string, un
     nfseModelo: field(row, "webmania modelo nfse"),
     hasNfeCredentials: Boolean(field(row, "webmania X-Consumer-Key") && field(row, "webmania X-Access-Token")),
     hasNfseCredentials: Boolean(auth),
+    bubbleEnv: String(settings?.bubble_env || "live"),
   };
 }
 
@@ -197,8 +219,8 @@ function extractReturn(body: Record<string, unknown>) {
   };
 }
 
-async function createBubbleNota(empresaId: string, payload: Record<string, unknown>) {
-  const res = await fetch(`${BUBBLE}/notafiscal`, {
+async function createBubbleNota(env: string, empresaId: string, payload: Record<string, unknown>) {
+  const res = await fetch(`${bubbleBase(env)}/notafiscal`, {
     method: "POST",
     headers: { Authorization: `Bearer ${bubbleToken()}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -208,9 +230,9 @@ async function createBubbleNota(empresaId: string, payload: Record<string, unkno
   return { id: id ? String(id) : "", raw: data };
 }
 
-async function patchBubbleNota(id: string, payload: Record<string, unknown>) {
+async function patchBubbleNota(env: string, id: string, payload: Record<string, unknown>) {
   if (!id) return;
-  await fetch(`${BUBBLE}/notafiscal/${encodeURIComponent(id)}`, {
+  await fetch(`${bubbleBase(env)}/notafiscal/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { Authorization: `Bearer ${bubbleToken()}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -268,36 +290,42 @@ serve(async (req) => {
 
     if (action === "settings" && req.method === "GET") {
       if (!settings?.empresa_id) return json({ settings: null, company: null, monthCount: 0 });
-      const empresa = await loadEmpresa(String(settings.empresa_id));
+      const loaded = await loadEmpresa(String(settings.empresa_id), String(settings.bubble_env || "live"));
+      if (loaded.env !== settings.bubble_env) {
+        await client.queryArray(`UPDATE fiscal_settings SET bubble_env = $2 WHERE organization_id = $1`, [organizationId, loaded.env]);
+        settings.bubble_env = loaded.env;
+      }
       const count = await client.queryObject<{ n: string }>(
         `SELECT count(*)::text AS n FROM fiscal_invoices WHERE organization_id = $1 AND status <> 'excluido' AND created_at >= date_trunc('month', now())`,
         [organizationId],
       );
-      return json({ settings, company: publicCompany(empresa, settings), monthCount: Number(count.rows[0]?.n || 0) });
+      return json({ settings, company: publicCompany(loaded.row, settings), monthCount: Number(count.rows[0]?.n || 0) });
     }
 
     if (action === "settings" && req.method === "POST") {
       const empresaId = String(body.empresa_id || "").trim();
       if (!empresaId) return json({ error: "Informe o ID da empresa no Agilize Total" }, 400);
-      const empresa = await loadEmpresa(empresaId);
+      const loaded = await loadEmpresa(empresaId, String(settings?.bubble_env || "live"));
       const ambiente = Number(body.ambiente) === 1 ? 1 : 2;
       const modelo = body.modelo === "nfce" ? "nfce" : "nfe";
       const natureza = String(body.natureza || "Venda de Mercadoria").slice(0, 60);
       await client.queryArray(
-        `INSERT INTO fiscal_settings (organization_id, empresa_id, ambiente, modelo, natureza, updated_at)
-         VALUES ($1, $2, $3, $4, $5, now())
-         ON CONFLICT (organization_id) DO UPDATE SET empresa_id = $2, ambiente = $3, modelo = $4, natureza = $5, updated_at = now()`,
-        [organizationId, empresaId, ambiente, modelo, natureza],
+        `INSERT INTO fiscal_settings (organization_id, empresa_id, ambiente, modelo, natureza, bubble_env, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, now())
+         ON CONFLICT (organization_id) DO UPDATE SET empresa_id = $2, ambiente = $3, modelo = $4, natureza = $5, bubble_env = $6, updated_at = now()`,
+        [organizationId, empresaId, ambiente, modelo, natureza, loaded.env],
       );
-      return json({ ok: true, company: publicCompany(empresa, { empresa_id: empresaId, ambiente, modelo, natureza }) });
+      return json({ ok: true, company: publicCompany(loaded.row, { empresa_id: empresaId, ambiente, modelo, natureza, bubble_env: loaded.env }) });
     }
 
     if (!settings?.empresa_id) return json({ error: "Configure a empresa do Agilize Total antes de emitir" }, 400);
-    const empresa = await loadEmpresa(String(settings.empresa_id));
+    const loadedEmpresa = await loadEmpresa(String(settings.empresa_id), String(settings.bubble_env || "live"));
+    const empresa = loadedEmpresa.row;
+    const bubbleEnv = loadedEmpresa.env;
 
     if (action === "classes") {
       const constraints = encodeURIComponent(JSON.stringify([{ key: "empresa", constraint_type: "equals", value: String(settings.empresa_id) }]));
-      const data = await bubbleGet(`webmaniaclasseimposto?constraints=${constraints}&limit=100`);
+      const data = await bubbleGet(bubbleEnv, `webmaniaclasseimposto?constraints=${constraints}&limit=100`);
       const results = (data.response?.results || data.results || []) as Record<string, unknown>[];
       const classes = [];
       for (const item of results.slice(0, 80)) {
@@ -306,7 +334,7 @@ serve(async (req) => {
         const scenarios = [];
         for (const id of ids) {
           try {
-            const scenarioData = await bubbleGet(`cenarioimposto/${encodeURIComponent(id)}`);
+            const scenarioData = await bubbleGet(bubbleEnv, `cenarioimposto/${encodeURIComponent(id)}`);
             const scenario = (scenarioData.response || scenarioData) as Record<string, unknown>;
             scenarios.push({
               id,
@@ -441,7 +469,7 @@ serve(async (req) => {
         `UPDATE fiscal_invoices SET status = $2, number = NULLIF($3, ''), access_key = NULLIF($4, ''), pdf_url = NULLIF($5, ''), xml_url = NULLIF($6, ''), verification_code = NULLIF($7, ''), response_payload = $8::jsonb, updated_at = now() WHERE id = $1`,
         [id, parsed.status, parsed.number, parsed.accessKey, parsed.pdf, parsed.xml, parsed.verification, JSON.stringify(remote)],
       );
-      await patchBubbleNota(String(invoice.bubble_nota_id || ""), {
+      await patchBubbleNota(String(invoice.bubble_env || bubbleEnv), String(invoice.bubble_nota_id || ""), {
         status: parsed.status, "n da nota": parsed.number, pdf: parsed.pdf, xml: parsed.xml, chave: parsed.accessKey, "text-retorno": parsed.motivo,
       });
       return json({ ok: true, invoice: parsed });
@@ -620,14 +648,14 @@ serve(async (req) => {
       const inserted = await client.queryObject<{ id: string }>(
         `INSERT INTO fiscal_invoices (
            organization_id, source, source_id, kind, status, webmania_uuid, number, access_key, pdf_url, xml_url, verification_code,
-           amount, customer_name, request_payload, response_payload
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb)
+           amount, customer_name, request_payload, response_payload, bubble_env
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16)
          RETURNING id`,
-        [organizationId, source, sourceId, kind, parsed.status || "processando", parsed.uuid || null, parsed.number || null, parsed.accessKey || null, parsed.pdf || null, parsed.xml || null, parsed.verification || null, amount, String(customer.name), JSON.stringify(requestPayload), JSON.stringify(responsePayload)],
+        [organizationId, source, sourceId, kind, parsed.status || "processando", parsed.uuid || null, parsed.number || null, parsed.accessKey || null, parsed.pdf || null, parsed.xml || null, parsed.verification || null, amount, String(customer.name), JSON.stringify(requestPayload), JSON.stringify(responsePayload), bubbleEnv],
       );
       let bubbleId = "";
       try {
-        const bubble = await createBubbleNota(String(settings.empresa_id), {
+        const bubble = await createBubbleNota(bubbleEnv, String(settings.empresa_id), {
           empresa: String(settings.empresa_id),
           tipo: kind,
           status: parsed.status || "processando",
