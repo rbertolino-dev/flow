@@ -150,7 +150,8 @@ export default function NotaFiscal() {
   const [modeloPadrao, setModeloPadrao] = useState("nfe");
   const [taxesOpen, setTaxesOpen] = useState<"product" | "service" | null>(null);
   const [salesOpen, setSalesOpen] = useState(false);
-  const [sales, setSales] = useState<{ id: string; sale_number: number; customer_name: string; created_at: string; has_product: boolean; has_service: boolean }[]>([]);
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [sales, setSales] = useState<{ id: string; sale_number: number; customer_name: string; created_at: string; total?: number; has_product: boolean | string; has_service: boolean | string }[]>([]);
   const [cceOpen, setCceOpen] = useState(false);
   const [avulsaOpen, setAvulsaOpen] = useState(false);
   const [avulsa, setAvulsa] = useState({ description: "", amount: "", tax: "", name: "", document: "", email: "" });
@@ -197,6 +198,23 @@ export default function NotaFiscal() {
     setCustomer((prev) => ({ ...prev, name }));
     setReferenciar(false);
     setScreen("emit");
+  }
+
+  function saleFlag(value: boolean | string | undefined) {
+    return value === true || value === "t" || value === "true";
+  }
+
+  function openLastSales() {
+    if (!activeOrgId) return;
+    setSalesOpen(true);
+    setSalesLoading(true);
+    void fiscalCall(activeOrgId, `sales&from=${from}&to=${to}&q=${encodeURIComponent(query)}`)
+      .then((data) => setSales(data.sales || []))
+      .catch((error) => {
+        setSales([]);
+        toast({ title: error instanceof Error ? error.message : "Não foi possível listar as vendas", variant: "destructive" });
+      })
+      .finally(() => setSalesLoading(false));
   }
 
   async function openSale(id: string, nextKind: "nfe" | "nfce" | "nfse") {
@@ -366,13 +384,13 @@ export default function NotaFiscal() {
               <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className="w-40" />
               <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} className="w-40" />
               <Input placeholder="Contato" value={query} onChange={(event) => setQuery(event.target.value)} className="w-56" />
-              <DropdownMenu>
+              <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild><Button variant="outline">Opções</Button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => { void ensureClasses(); setTaxesOpen("service"); }}>Impostos de Serviços</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => { void ensureClasses(); setTaxesOpen("product"); }}>Impostos de Produtos</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => { void ensureClasses(); setAvulsaOpen(true); }}>NFSe Avulsa</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { if (!activeOrgId) return; void fiscalCall(activeOrgId, `sales&from=${from}&to=${to}&q=${encodeURIComponent(query)}`).then((data) => { setSales(data.sales || []); setSalesOpen(true); }); }}>Últimas vendas</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => window.setTimeout(openLastSales, 0)}>Últimas vendas</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setCceOpen(true)}>Carta de Correção</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setCompanyOpen(true)}>Alternar Empresa</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => { if (!activeOrgId) return; void fiscalCall(activeOrgId, `export&from=${from}&to=${to}&q=${encodeURIComponent(query)}`).then((csv) => { const blob = new Blob([String(csv)], { type: "text/csv" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "notas.csv"; link.click(); }); }}>Exportar Notas</DropdownMenuItem>
@@ -522,12 +540,14 @@ export default function NotaFiscal() {
         <DialogContent>
           <DialogHeader><DialogTitle>Últimas vendas</DialogTitle></DialogHeader>
           <div className="max-h-[60vh] space-y-3 overflow-auto">
+            {salesLoading ? <p className="text-sm text-slate-500">Carregando vendas...</p> : null}
+            {!salesLoading && !sales.length ? <p className="text-sm text-slate-500">Nenhuma venda concluída entre {from} e {to}.</p> : null}
             {sales.map((sale) => (
               <div key={sale.id} className="rounded border p-2">
-                <p>Venda {sale.sale_number} - {sale.customer_name || "Consumidor"} em {new Date(sale.created_at).toLocaleDateString("pt-BR")}</p>
+                <p>Venda {sale.sale_number} - {sale.customer_name || "Consumidor"} em {new Date(sale.created_at).toLocaleDateString("pt-BR")} · {money(Number(sale.total || 0))}</p>
                 <div className="mt-2 flex gap-2">
-                  {sale.has_product ? <Button size="sm" onClick={() => void openSale(sale.id, company?.modelo === "nfce" ? "nfce" : "nfe")}>Emitir NF-e ou NFC-e</Button> : null}
-                  {sale.has_service ? <Button size="sm" variant="outline" onClick={() => void openSale(sale.id, "nfse")}>Emitir NFS-e</Button> : null}
+                  {saleFlag(sale.has_product) ? <Button size="sm" onClick={() => void openSale(sale.id, company?.modelo === "nfce" ? "nfce" : "nfe")}>Emitir NF-e ou NFC-e</Button> : null}
+                  {saleFlag(sale.has_service) ? <Button size="sm" variant="outline" onClick={() => void openSale(sale.id, "nfse")}>Emitir NFS-e</Button> : null}
                 </div>
               </div>
             ))}
