@@ -816,6 +816,7 @@ serve(async (req) => {
                  m.product_id::text AS product_id,
                  m.organization_id::text AS organization_id,
                  m.sale_id::text AS sale_id,
+                 m.budget_id::text AS budget_id,
                  m.movement_type,
                  m.source,
                  m.service_order_id::text AS service_order_id,
