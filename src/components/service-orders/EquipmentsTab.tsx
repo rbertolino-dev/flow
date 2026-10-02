@@ -179,10 +179,13 @@ export function EquipmentsTab({ onOpenOrder }: EquipmentsTabProps) {
                     className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
                     onClick={() => {
                       setLeadId(lead.id);
-                      setLeadSearch(lead.name || '');
+                      setLeadSearch(
+                        [lead.name, lead.company].map((part) => (part || '').trim()).filter(Boolean).join(' · ')
+                      );
                     }}
                   >
-                    {lead.name}
+                    {[lead.name, lead.company].map((part) => (part || '').trim()).filter(Boolean).join(' · ') ||
+                      'Cliente'}
                   </button>
                 ))}
               </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,21 @@ import {
 } from '@/components/ui/select';
 import { Equipment, EquipmentFormData, EquipmentStatus } from '@/types/equipment';
 import { Lead } from '@/types/lead';
+import { supabase } from '@/integrations/supabase/client';
+import { useActiveOrganization } from '@/hooks/useActiveOrganization';
+
+function leadLabel(lead: { name?: string | null; company?: string | null }): string {
+  return [lead.name, lead.company].map((part) => (part || '').trim()).filter(Boolean).join(' · ');
+}
+
+function uniqueValues(rows: Array<Record<string, string | null>>, key: string): string[] {
+  const values = new Set<string>();
+  for (const row of rows) {
+    const value = (row[key] || '').trim();
+    if (value) values.add(value);
+  }
+  return Array.from(values).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
 
 interface EquipmentFormDialogProps {
   open: boolean;
@@ -49,9 +64,16 @@ export function EquipmentFormDialog({
   lockedLeadId,
   onSubmit,
 }: EquipmentFormDialogProps) {
+  const { activeOrgId } = useActiveOrganization();
+  const listId = useId().replace(/:/g, '');
+  const typeListId = `${listId}-type`;
+  const brandListId = `${listId}-brand`;
+  const sectorListId = `${listId}-sector`;
   const [form, setForm] = useState<EquipmentFormData>(emptyForm(lockedLeadId));
   const [leadSearch, setLeadSearch] = useState('');
+  const [clientListOpen, setClientListOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [knownValues, setKnownValues] = useState<Array<Record<string, string | null>>>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -67,13 +89,35 @@ export function EquipmentFormDialog({
         notes: equipment.notes || '',
         status: equipment.status || 'active',
       });
-      setLeadSearch(equipment.lead?.name || equipment.lead?.company || '');
+      setLeadSearch(equipment.lead ? leadLabel(equipment.lead) : '');
     } else {
       setForm(emptyForm(lockedLeadId));
       const locked = leads.find((lead) => lead.id === lockedLeadId);
-      setLeadSearch(locked?.name || '');
+      setLeadSearch(locked ? leadLabel(locked) : '');
     }
+    setClientListOpen(false);
   }, [open, equipment, lockedLeadId, leads]);
+
+  useEffect(() => {
+    if (!open || !activeOrgId) return;
+    let cancelled = false;
+    void (async () => {
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { data } = await supabase
+        .from('equipments')
+        .select('equipment_type, brand, sector')
+        .eq('organization_id', activeOrgId)
+        .is('deleted_at', null);
+      if (!cancelled) setKnownValues((data || []) as Array<Record<string, string | null>>);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, activeOrgId]);
+
+  const typeOptions = useMemo(() => uniqueValues(knownValues, 'equipment_type'), [knownValues]);
+  const brandOptions = useMemo(() => uniqueValues(knownValues, 'brand'), [knownValues]);
+  const sectorOptions = useMemo(() => uniqueValues(knownValues, 'sector'), [knownValues]);
 
   const filteredLeads = leads
     .filter((lead) => {
@@ -121,10 +165,21 @@ export function EquipmentFormDialog({
               <Input
                 placeholder="Buscar cliente..."
                 value={leadSearch}
-                onChange={(e) => setLeadSearch(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setLeadSearch(value);
+                  setClientListOpen(true);
+                  setForm((prev) => {
+                    const current = leads.find((lead) => lead.id === prev.lead_id);
+                    if (!current || value.trim() !== leadLabel(current)) {
+                      return { ...prev, lead_id: '' };
+                    }
+                    return prev;
+                  });
+                }}
                 data-testid="equipment-lead-search"
               />
-              {leadSearch && !selectedLead && (
+              {clientListOpen && !selectedLead && (
                 <div className="border rounded-md max-h-36 overflow-auto">
                   {filteredLeads.map((lead) => (
                     <button
@@ -133,17 +188,17 @@ export function EquipmentFormDialog({
                       className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
                       onClick={() => {
                         setForm((prev) => ({ ...prev, lead_id: lead.id }));
-                        setLeadSearch(lead.name || '');
+                        setLeadSearch(leadLabel(lead));
+                        setClientListOpen(false);
                       }}
                     >
-                      {lead.name}
-                      {lead.company ? ` · ${lead.company}` : ''}
+                      {leadLabel(lead) || 'Cliente'}
                     </button>
                   ))}
                 </div>
               )}
-              {selectedLead && (
-                <p className="text-sm text-muted-foreground">{selectedLead.name}</p>
+              {selectedLead && !clientListOpen && (
+                <p className="text-sm text-muted-foreground">{leadLabel(selectedLead)}</p>
               )}
             </div>
           )}
@@ -151,7 +206,7 @@ export function EquipmentFormDialog({
           {lockedLeadId && selectedLead && (
             <div className="space-y-1">
               <Label>Cliente</Label>
-              <p className="text-sm font-medium">{selectedLead.name}</p>
+              <p className="text-sm font-medium">{leadLabel(selectedLead)}</p>
             </div>
           )}
 
@@ -169,18 +224,30 @@ export function EquipmentFormDialog({
             <div className="space-y-1">
               <Label>Tipo</Label>
               <Input
+                list={typeListId}
                 value={form.equipment_type || ''}
                 onChange={(e) => setForm((prev) => ({ ...prev, equipment_type: e.target.value }))}
                 data-testid="equipment-type"
               />
+              <datalist id={typeListId}>
+                {typeOptions.map((value) => (
+                  <option key={value} value={value} />
+                ))}
+              </datalist>
             </div>
             <div className="space-y-1">
               <Label>Marca</Label>
               <Input
+                list={brandListId}
                 value={form.brand || ''}
                 onChange={(e) => setForm((prev) => ({ ...prev, brand: e.target.value }))}
                 data-testid="equipment-brand"
               />
+              <datalist id={brandListId}>
+                {brandOptions.map((value) => (
+                  <option key={value} value={value} />
+                ))}
+              </datalist>
             </div>
             <div className="space-y-1">
               <Label>Modelo</Label>
@@ -201,10 +268,16 @@ export function EquipmentFormDialog({
             <div className="space-y-1">
               <Label>Setor</Label>
               <Input
+                list={sectorListId}
                 value={form.sector || ''}
                 onChange={(e) => setForm((prev) => ({ ...prev, sector: e.target.value }))}
                 data-testid="equipment-sector"
               />
+              <datalist id={sectorListId}>
+                {sectorOptions.map((value) => (
+                  <option key={value} value={value} />
+                ))}
+              </datalist>
             </div>
             <div className="space-y-1">
               <Label>Status</Label>
