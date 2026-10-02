@@ -71,6 +71,7 @@ type AlertRow = {
   vezesSaida: number;
   valorFicha: number | null;
   itensFicha: number | null;
+  vezesNaFicha: number;
   autor: string | null;
   gravidade: "atencao" | "critico";
   situacao: "alem_da_ficha" | "ficha_confirma";
@@ -464,13 +465,12 @@ serve(async (req) => {
       const quando = formatBrt(sheet?.quandoMs ?? cartClockToUtcMs(lines[0].data_da_venda));
       const codigo = sheet?.cod ?? null;
       const autor = lancamentos.find((row) => row.autor)?.autor ?? null;
+      const aMais = Math.max(0, lancamentos.length - vezesNaFicha);
       const texto =
-        `${store.nome}: venda ${codigo ?? vendaId} em ${quando ?? "horário não informado"}. ` +
-        `${produtoNome} aparece ${cartRows.length} vezes na venda e tem ${lancamentos.length} saídas. ` +
-        (situacao === "ficha_confirma"
-          ? "A ficha lista o produto esse mesmo número de vezes."
-          : "A ficha lista o produto menos vezes do que as saídas.") +
-        ` Valor ${money(sheet?.valor ?? null)}.`;
+        `${store.nome}: venda ${codigo ?? vendaId}, ${produtoNome}. ` +
+        `Na venda o produto está escrito ${vezesNaFicha} vez(es). ` +
+        `O estoque lançou ${lancamentos.length} saída(s). ` +
+        `${aMais} a mais do que o cliente comprou. Valor ${money(sheet?.valor ?? null)}.`;
 
       alertas.push({
         id: key,
@@ -483,6 +483,7 @@ serve(async (req) => {
         vezesSaida: lancamentos.length,
         valorFicha: sheet?.valor ?? null,
         itensFicha: sheet?.itens ?? null,
+        vezesNaFicha,
         autor,
         gravidade: nivel,
         situacao,

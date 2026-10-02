@@ -43,6 +43,7 @@ type AlertRow = {
   vezesSaida: number;
   valorFicha: number | null;
   itensFicha: number | null;
+  vezesNaFicha: number;
   autor: string | null;
   gravidade: "atencao" | "critico";
   situacao: "alem_da_ficha" | "ficha_confirma";
@@ -79,9 +80,14 @@ function addDays(isoDate: string, days: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
-function money(value: number | null): string {
-  if (value == null) return "—";
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+function porque(row: AlertRow): string {
+  const escrito = row.vezesNaFicha ?? 0;
+  const saidas = row.vezesSaida;
+  const aMais = Math.max(0, saidas - escrito);
+  if (aMais > 0) {
+    return `O nome está ${escrito} vez${escrito === 1 ? "" : "es"} na venda. O estoque tirou ${saidas}. ${aMais} saída${aMais === 1 ? "" : "s"} não tem compra.`;
+  }
+  return `A venda e as saídas não fecham: ${escrito} na venda, ${saidas} no estoque.`;
 }
 
 async function loadReport(loja: Loja, inicio: string, fim: string): Promise<Report> {
@@ -161,20 +167,20 @@ function LojaReport({ loja, inicio, fim }: { loja: Loja; inicio: string; fim: st
       <div className="grid gap-3 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Saídas a mais</CardTitle>
+            <CardTitle className="text-sm font-medium">Erros</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">{report.resumo.alemDaFicha}</div>
-            <p className="text-xs text-muted-foreground">O estoque lançou mais vezes do que o produto aparece na venda</p>
+            <p className="text-xs text-muted-foreground">Vendas em que o estoque baixou mais do que o escrito na venda</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Escolha normal</CardTitle>
+            <CardTitle className="text-sm font-medium">Maior sobra</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold">{report.resumo.fichaConfirma}</div>
-            <p className="text-xs text-muted-foreground">O produto foi escolhido mais de uma vez e cada linha tem a sua saída. Não é falha</p>
+            <div className="text-2xl font-semibold">{report.resumo.maiorRepeticao}x</div>
+            <p className="text-xs text-muted-foreground">A maior quantidade de saídas num único caso</p>
           </CardContent>
         </Card>
         <Card>
@@ -183,103 +189,84 @@ function LojaReport({ loja, inicio, fim }: { loja: Loja; inicio: string; fim: st
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">{report.resumo.criticos}</div>
-            <p className="text-xs text-muted-foreground">5 ou mais saídas a mais na mesma venda</p>
+            <p className="text-xs text-muted-foreground">5 ou mais saídas além da compra</p>
           </CardContent>
         </Card>
       </div>
 
       {report.alertas.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Nenhuma saída a mais neste período. Se o produto foi escolhido três vezes, ele aparece três vezes na venda, cada um com quantidade 1, e isso fica de fora.
+          Nenhum erro neste período. Escolher o produto três vezes e ver o nome três vezes, cada um com quantidade 1, não entra na lista.
         </p>
       ) : (
-        <div className="space-y-4">
-          {report.alertas.map((row) => (
-            <Card key={row.id}>
-              <CardHeader className="pb-2">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <CardTitle className="text-base">
-                      Venda {row.codigoVenda ?? "sem código"} · {row.produtoNome}
-                    </CardTitle>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {row.dataHora ?? "horário não informado"}
-                      {row.autor ? ` · salvou ${row.autor}` : ""}
-                      {" · "}
-                      {row.itensFicha ?? "?"} itens na ficha · {money(row.valorFicha)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="destructive">Saída a mais</Badge>
-                    <Button variant="ghost" size="sm" onClick={() => copy(row.texto)}>
-                      <Copy className="h-4 w-4" />
-                      Copiar
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="grid gap-4 lg:grid-cols-2">
-                <div>
-                  <p className="text-sm font-medium">Itens dentro da venda</p>
-                  <p className="mb-2 text-xs text-muted-foreground">
-                    Onde ver: abra a venda. O código fica no topo. Estes produtos são as linhas da lista.
-                  </p>
-                  <div className="overflow-auto rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Produto na venda</TableHead>
-                          <TableHead>Qtd</TableHead>
-                          <TableHead>Hora do item</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {row.itensVenda.map((item, index) => (
-                          <TableRow key={`${row.id}-item-${index}`}>
-                            <TableCell>{item.nome}</TableCell>
-                            <TableCell>{item.qnt ?? "—"}</TableCell>
-                            <TableCell className="whitespace-nowrap">{item.dataHora ?? "—"}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Saídas de estoque ligadas a esses itens</p>
-                  <p className="mb-2 text-xs text-muted-foreground">
-                    Onde ver: no histórico de estoque do produto. O código é o desta saída. A hora é a data gravada no lançamento.
-                  </p>
-                  {row.lancamentos.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Nenhuma saída ligada a esses itens.</p>
-                  ) : (
-                    <div className="overflow-auto rounded-md border">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Código da saída</TableHead>
-                            <TableHead>Hora do lançamento</TableHead>
-                            <TableHead>Quem lançou</TableHead>
-                            <TableHead>Liga com a venda</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {row.lancamentos.map((item, index) => (
-                            <TableRow key={`${row.id}-stock-${index}`}>
-                              <TableCell>{item.codigo ?? "sem código"}</TableCell>
-                              <TableCell className="whitespace-nowrap">{item.dataHora ?? item.criadoEm ?? "—"}</TableCell>
-                              <TableCell>{item.autor ?? "não identificado"}</TableCell>
-                              <TableCell>{item.ligadoAVenda ? "Sim, esta venda" : "Não"}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="overflow-auto rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="align-top">
+                  <span className="block">Quando</span>
+                  <span className="block text-[11px] font-normal text-muted-foreground">Hora em que a venda foi salva</span>
+                </TableHead>
+                <TableHead className="align-top">
+                  <span className="block">Venda</span>
+                  <span className="block text-[11px] font-normal text-muted-foreground">Código no topo da ficha</span>
+                </TableHead>
+                <TableHead className="align-top">
+                  <span className="block">Produto</span>
+                  <span className="block text-[11px] font-normal text-muted-foreground">O item que saiu a mais</span>
+                </TableHead>
+                <TableHead className="align-top">
+                  <span className="block">Na venda</span>
+                  <span className="block text-[11px] font-normal text-muted-foreground">Vezes que o nome está escrito. Isso é a compra</span>
+                </TableHead>
+                <TableHead className="align-top">
+                  <span className="block">No estoque</span>
+                  <span className="block text-[11px] font-normal text-muted-foreground">Saídas lançadas para essa venda</span>
+                </TableHead>
+                <TableHead className="align-top">
+                  <span className="block">A mais</span>
+                  <span className="block text-[11px] font-normal text-muted-foreground">Estoque menos a compra. Este número é o erro</span>
+                </TableHead>
+                <TableHead className="align-top min-w-[240px]">
+                  <span className="block">Por que é erro</span>
+                  <span className="block text-[11px] font-normal text-muted-foreground">Resumo para mandar à loja ou ao desenvolvedor</span>
+                </TableHead>
+                <TableHead className="align-top">
+                  <span className="block">Gravidade</span>
+                  <span className="block text-[11px] font-normal text-muted-foreground">2 a 4 atenção. 5 ou mais crítico</span>
+                </TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {report.alertas.map((row) => {
+                const escrito = row.vezesNaFicha ?? 0;
+                const aMais = Math.max(0, row.vezesSaida - escrito);
+                return (
+                  <TableRow key={row.id}>
+                    <TableCell className="whitespace-nowrap align-top">{row.dataHora ?? "—"}</TableCell>
+                    <TableCell className="align-top">{row.codigoVenda ?? "sem código"}</TableCell>
+                    <TableCell className="max-w-[180px] align-top">{row.produtoNome}</TableCell>
+                    <TableCell className="align-top">{escrito} {escrito === 1 ? "vez" : "vezes"}</TableCell>
+                    <TableCell className="align-top">{row.vezesSaida} {row.vezesSaida === 1 ? "saída" : "saídas"}</TableCell>
+                    <TableCell className="align-top font-medium">{aMais}</TableCell>
+                    <TableCell className="align-top text-sm">{porque(row)}</TableCell>
+                    <TableCell className="align-top">
+                      <Badge variant={row.gravidade === "critico" ? "destructive" : "secondary"}>
+                        {row.gravidade === "critico" ? "Crítico" : "Atenção"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <Button variant="ghost" size="sm" onClick={() => copy(row.texto)}>
+                        <Copy className="h-4 w-4" />
+                        Copiar
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>
@@ -298,7 +285,7 @@ export function FalhasEstoquePanel() {
       <div>
         <h1 className="text-2xl font-bold">Falhas de estoque</h1>
         <p className="text-sm text-muted-foreground">
-          Escolher o mesmo produto três vezes não é falha: ele aparece três vezes na venda, cada linha com quantidade 1. A falha é quando o estoque lança mais saídas do que essas linhas.
+          O erro é um só: o estoque baixou mais vezes do que o produto está escrito na venda. Escolher três vezes e ver o nome três vezes, cada linha com quantidade 1, é a compra e não entra aqui. A coluna “A mais” é a sobra. É esse número que indica o erro.
         </p>
       </div>
 
