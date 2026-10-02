@@ -452,11 +452,11 @@ serve(async (req) => {
         for (const row of loaded) if (row) lancamentos.push(row);
       }
 
-      const vezesNaFicha = sheet ? listedTimes(sheet, produtoNome) : 0;
+      const vezesNaVenda = cartRows.length;
       const ligado = lancamentos.filter((row) => row.ligadoAVenda).length;
-      const escolhaNormal =
-        vezesNaFicha >= cartRows.length && ligado === cartRows.length;
-      if (escolhaNormal) {
+      const aMais = Math.max(0, lancamentos.length - vezesNaVenda);
+      const desligadas = lancamentos.length - ligado;
+      if (aMais === 0 && desligadas === 0) {
         escolhasNormais += 1;
         continue;
       }
@@ -465,10 +465,9 @@ serve(async (req) => {
       const quando = formatBrt(sheet?.quandoMs ?? cartClockToUtcMs(lines[0].data_da_venda));
       const codigo = sheet?.cod ?? null;
       const autor = lancamentos.find((row) => row.autor)?.autor ?? null;
-      const aMais = Math.max(0, lancamentos.length - vezesNaFicha);
       const texto =
         `${store.nome}: venda ${codigo ?? vendaId}, ${produtoNome}. ` +
-        `Na venda o produto está escrito ${vezesNaFicha} vez(es). ` +
+        `Na venda esse produto aparece em ${vezesNaVenda} linha(s), cada uma com quantidade 1. ` +
         `O estoque lançou ${lancamentos.length} saída(s). ` +
         `${aMais} a mais do que o cliente comprou. Valor ${money(sheet?.valor ?? null)}.`;
 
@@ -483,7 +482,7 @@ serve(async (req) => {
         vezesSaida: lancamentos.length,
         valorFicha: sheet?.valor ?? null,
         itensFicha: sheet?.itens ?? null,
-        vezesNaFicha,
+        vezesNaFicha: vezesNaVenda,
         autor,
         gravidade: nivel,
         situacao,

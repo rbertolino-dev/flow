@@ -85,7 +85,7 @@ function porque(row: AlertRow): string {
   const saidas = row.vezesSaida;
   const aMais = Math.max(0, saidas - escrito);
   if (aMais > 0) {
-    return `O nome está ${escrito} vez${escrito === 1 ? "" : "es"} na venda. O estoque tirou ${saidas}. ${aMais} saída${aMais === 1 ? "" : "s"} não tem compra.`;
+    return `A venda ${escrito === 1 ? "tem 1 linha" : `tem ${escrito} linhas`} desse produto. O estoque tirou ${saidas}. ${aMais} saída${aMais === 1 ? "" : "s"} não tem compra.`;
   }
   return `A venda e as saídas não fecham: ${escrito} na venda, ${saidas} no estoque.`;
 }
@@ -217,7 +217,7 @@ function LojaReport({ loja, inicio, fim }: { loja: Loja; inicio: string; fim: st
                 </TableHead>
                 <TableHead className="align-top">
                   <span className="block">Na venda</span>
-                  <span className="block text-[11px] font-normal text-muted-foreground">Vezes que o nome está escrito. Isso é a compra</span>
+                  <span className="block text-[11px] font-normal text-muted-foreground">Linhas desse produto nessa venda. Cada escolha é uma linha</span>
                 </TableHead>
                 <TableHead className="align-top">
                   <span className="block">No estoque</span>
