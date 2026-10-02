@@ -8,6 +8,7 @@ import {
   GET_SESSION_TIMEOUT_MS,
   clearDeadLocalSession,
 } from "@/lib/getSessionWithTimeout";
+import { rememberAuthReturnPath } from "@/lib/authReturnPath";
 
 const SUPABASE_PROJECT_REF = "ogeljmbhqxpfjbpnbwog";
 
@@ -22,6 +23,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
 
   const redirectToLogin = useCallback(() => {
+    rememberAuthReturnPath();
     navigate("/login", { replace: true });
   }, [navigate]);
 

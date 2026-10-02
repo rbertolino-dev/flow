@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSessionWithTimeout } from "@/lib/getSessionWithTimeout";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { AGILIZE_LOGO_URL } from "@/constants/branding";
 import { prefetchAppBootstrapWithTimeout } from "@/lib/prefetchAppBootstrap";
+import { takeAuthReturnPath } from "@/lib/authReturnPath";
 
 function loginErrorDescription(error: unknown): string {
   const msg =
@@ -33,7 +33,6 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
   const { toast } = useToast();
 
   // Verificar se já está autenticado ao carregar a página
@@ -41,7 +40,7 @@ export default function Login() {
     const checkSession = async () => {
       const { data: { session } } = await getSessionWithTimeout();
       if (session?.access_token) {
-        navigate('/', { replace: true });
+        window.location.replace(takeAuthReturnPath());
       }
     };
     
@@ -50,14 +49,14 @@ export default function Login() {
     // Escutar mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session && event === 'SIGNED_IN') {
-        navigate('/', { replace: true });
+        window.location.replace(takeAuthReturnPath());
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, []);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,7 +97,7 @@ export default function Login() {
 
       const sessionCheck = await supabase.auth.getSession();
       if (sessionCheck.data.session) {
-        window.location.replace("/");
+        window.location.replace(takeAuthReturnPath());
         return;
       }
 
@@ -106,7 +105,7 @@ export default function Login() {
       await new Promise((resolve) => setTimeout(resolve, 200));
       const finalCheck = await supabase.auth.getSession();
       if (finalCheck.data.session) {
-        window.location.replace("/");
+        window.location.replace(takeAuthReturnPath());
       } else {
         throw new Error("Sessão não foi salva corretamente. Tente fazer login novamente.");
       }
@@ -187,7 +186,7 @@ export default function Login() {
           title: "Conta criada e login realizado!",
           description: "Bem-vindo!",
         });
-        window.location.replace("/");
+        window.location.replace(takeAuthReturnPath());
       } else {
         throw new Error('Sessão não foi estabelecida corretamente');
       }

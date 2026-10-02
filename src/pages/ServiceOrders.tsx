@@ -64,6 +64,7 @@ import {
 } from '@/lib/serviceOrderPdfGenerator';
 import { fetchEquipmentsForOrder } from '@/hooks/useEquipments';
 import { supabase } from '@/integrations/supabase/client';
+import { AuthGuard } from '@/components/auth/AuthGuard';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -125,14 +126,16 @@ export default function ServiceOrders() {
   const [editingOrder, setEditingOrder] = useState<ServiceOrder | null>(null);
   const [nextCode, setNextCode] = useState('-----');
   const [exportingId, setExportingId] = useState<string | null>(null);
-  const [moduleTab, setModuleTab] = useState<'orders' | 'equipments'>('orders');
+  const [searchParams] = useSearchParams();
+  const openEquipmentId = searchParams.get('equipment');
+  const [moduleTab, setModuleTab] = useState<'orders' | 'equipments'>(() =>
+    openEquipmentId ? 'equipments' : 'orders'
+  );
 
   const { toast } = useToast();
   const { activeOrganization, activeOrgId } = useActiveOrganization();
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const openEquipmentId = searchParams.get('equipment');
 
   useEffect(() => {
     if (openEquipmentId) setModuleTab('equipments');
@@ -499,6 +502,7 @@ export default function ServiceOrders() {
   );
 
   return (
+    <AuthGuard>
     <CRMLayout activeView="service-orders" onViewChange={() => {}}>
       <div className="p-4 md:p-6 space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -546,11 +550,6 @@ export default function ServiceOrders() {
           <TabsContent value="equipments" className="mt-0">
             <EquipmentsTab
               openEquipmentId={openEquipmentId}
-              onEquipmentOpened={() => {
-                const next = new URLSearchParams(searchParams);
-                next.delete('equipment');
-                setSearchParams(next, { replace: true });
-              }}
               onOpenOrder={async (id) => {
                 const order = await getOrder(id);
                 if (!order) {
@@ -1000,5 +999,6 @@ export default function ServiceOrders() {
         </AlertDialogContent>
       </AlertDialog>
     </CRMLayout>
+    </AuthGuard>
   );
 }

@@ -31,6 +31,7 @@ import { Loader2, MoreHorizontal, Plus, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useEquipments, fetchEquipmentById } from '@/hooks/useEquipments';
+import { useToast } from '@/hooks/use-toast';
 import { useLeads } from '@/hooks/useLeads';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
@@ -70,7 +71,6 @@ interface EquipmentsTabProps {
   onOpenOrder?: (serviceOrderId: string) => void;
   onCreateOrder?: (equipment: Equipment) => void;
   openEquipmentId?: string | null;
-  onEquipmentOpened?: () => void;
 }
 
 type EquipmentSortKey = 'name' | 'last_service';
@@ -79,8 +79,8 @@ export function EquipmentsTab({
   onOpenOrder,
   onCreateOrder,
   openEquipmentId,
-  onEquipmentOpened,
 }: EquipmentsTabProps) {
+  const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
   const { leads } = useLeads();
   const [search, setSearch] = useState('');
@@ -205,21 +205,30 @@ export function EquipmentsTab({
     });
   };
 
-  const onEquipmentOpenedRef = useRef(onEquipmentOpened);
-  onEquipmentOpenedRef.current = onEquipmentOpened;
+  const openedKey = useRef<string | null>(null);
 
   useEffect(() => {
     if (!openEquipmentId || !activeOrgId) return;
+    const key = `${activeOrgId}:${openEquipmentId}`;
+    if (openedKey.current === key) return;
     let cancelled = false;
     void fetchEquipmentById(activeOrgId, openEquipmentId).then((item) => {
       if (cancelled) return;
-      onEquipmentOpenedRef.current?.();
-      if (item) setDetail(item);
+      openedKey.current = key;
+      if (item) {
+        setDetail(item);
+        return;
+      }
+      toast({
+        title: 'Equipamento não encontrado',
+        description: 'Esse cadastro não está na organização ativa.',
+        variant: 'destructive',
+      });
     });
     return () => {
       cancelled = true;
     };
-  }, [openEquipmentId, activeOrgId]);
+  }, [openEquipmentId, activeOrgId, toast]);
 
   return (
     <div className="space-y-4" data-testid="os-equipments-tab">
