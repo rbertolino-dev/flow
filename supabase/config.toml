@@ -344,3 +344,6 @@ verify_jwt = true
 
 [functions.agilize-eservicos-import]
 verify_jwt = true
+
+[functions.agilize-estoque-falhas]
+verify_jwt = true

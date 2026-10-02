@@ -2,7 +2,7 @@ import { useState, useEffect, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ShieldAlert, Crown, Plus, TrendingUp, Package, Sparkles, MessageSquare, GitBranch, Database, Image, FileSpreadsheet, Link2 } from "lucide-react";
+import { Loader2, ShieldAlert, Crown, Plus, TrendingUp, Package, Sparkles, MessageSquare, GitBranch, Database, Image, FileSpreadsheet, Link2, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useNavigate } from "react-router-dom";
 import { OrganizationDirectory } from "./OrganizationDirectory";
@@ -485,6 +485,14 @@ export function SuperAdminDashboard() {
               >
                 <FileSpreadsheet className="h-4 w-4 mr-2 shrink-0" />
                 <span className="truncate">Import serviços Agilize</span>
+              </Button>
+              <Button
+                onClick={() => navigate('/superadmin/agilize-falhas-estoque')}
+                variant="secondary"
+                className="w-full justify-start"
+              >
+                <AlertTriangle className="h-4 w-4 mr-2 shrink-0" />
+                <span className="truncate">Falhas de estoque Agilize</span>
               </Button>
               <Button
                 onClick={() => navigate('/superadmin/chatwoot')}
