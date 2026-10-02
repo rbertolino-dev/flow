@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,8 +14,13 @@ import { useLandingPage, useLandingPageItems } from "@/hooks/useLandingPage";
 import { useProducts } from "@/hooks/useProducts";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { LandingPageConfig } from "@/types/landing-page";
-import { Loader2, Image as ImageIcon, X, Eye, ExternalLink, Upload, Globe, MessageSquare, Settings, Palette, Layout, ShoppingBag, FileText, Zap, Video, Clock, Phone, MapPin } from "lucide-react";
+import { Loader2, X, Eye, Upload, Globe, MessageSquare, Settings, Palette, ShoppingBag, FileText, Video, Clock, Phone, MapPin, Copy, Check, ChevronUp, ChevronDown } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
+import { slugifyLandingPage } from "@/lib/landingPageAccess";
+import { buildLandingPagePreview, landingPageChecklist, landingPageDraftSnapshot, productInStock } from "@/lib/landingPagePreview";
+import { LandingPagePreviewPane } from "@/components/landing-page/LandingPagePreviewPane";
 
 const BUCKET_ID = "whatsapp-workflow-media";
 const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
@@ -24,11 +29,15 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 export function LandingPageConfigurator() {
   const { toast } = useToast();
   const { landingPage, loading, createLandingPage, updateLandingPage, toggleActive, refetch } = useLandingPage();
-  const { items, addItem, removeItem, updateItem, loading: itemsLoading } = useLandingPageItems(landingPage?.id || null);
+  const { items, addItem, removeItem, updateItem, updateItemOrder, loading: itemsLoading } = useLandingPageItems(landingPage?.id || null);
   const { products, loading: productsLoading } = useProducts();
   const { configs: evolutionConfigs } = useEvolutionConfigs();
+  const { activeOrganization } = useActiveOrganization();
   
   const [saving, setSaving] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [productSearchTerm, setProductSearchTerm] = useState('');
@@ -72,7 +81,7 @@ export function LandingPageConfigurator() {
 
   useEffect(() => {
     if (landingPage) {
-      setConfig({
+      const next: LandingPageConfig = {
         title: landingPage.title,
         slug: landingPage.slug || "",
         subtitle: landingPage.subtitle || "",
@@ -121,9 +130,17 @@ export function LandingPageConfigurator() {
         footerEnabled: landingPage.footer_enabled ?? true,
         footerText: landingPage.footer_text || undefined,
         footerLinks: landingPage.footer_links || [],
-      });
+      };
+      setConfig(next);
+      setSavedSnapshot(landingPageDraftSnapshot(next));
     }
   }, [landingPage, items]);
+
+  useEffect(() => {
+    if (!landingPage && savedSnapshot === null) {
+      setSavedSnapshot(landingPageDraftSnapshot(config));
+    }
+  }, [landingPage, savedSnapshot, config]);
 
   const handleUploadCover = async (file: File) => {
     if (!landingPage?.organization_id) {
@@ -257,9 +274,73 @@ export function LandingPageConfigurator() {
   };
 
   const getPublicUrl = () => {
-    if (!landingPage) return null;
     const baseUrl = window.location.origin;
-    return `${baseUrl}/p/${landingPage.slug}`;
+    return `${baseUrl}/p/${slugifyLandingPage(config.slug || config.title || landingPage?.slug || "landing-page")}`;
+  };
+
+  const draftDirty = savedSnapshot !== null && landingPageDraftSnapshot(config) !== savedSnapshot;
+  const catalogProducts = useMemo(
+    () => products.filter((product) => {
+      if (!product.is_active || product.is_supply) return false;
+      if (landingPage && product.organization_id !== landingPage.organization_id) return false;
+      return true;
+    }),
+    [products, landingPage],
+  );
+  const selectedCount = landingPage ? items.length : (config.selectedProductIds?.length || 0);
+  const checklist = landingPageChecklist({
+    config,
+    selectedCount,
+    isActive: Boolean(landingPage?.is_active),
+  });
+  const previewData = useMemo(
+    () => buildLandingPagePreview({
+      config,
+      products,
+      items,
+      organization: {
+        id: activeOrganization?.id || landingPage?.organization_id || "",
+        name: activeOrganization?.name || "Sua empresa",
+      },
+      pageId: landingPage?.id,
+      isActive: landingPage?.is_active,
+    }),
+    [config, products, items, activeOrganization, landingPage],
+  );
+
+  const copyPublicLink = async () => {
+    try {
+      await navigator.clipboard.writeText(getPublicUrl());
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 2000);
+      toast({
+        title: "Link copiado",
+        description: landingPage?.is_active
+          ? "O endereço público foi copiado."
+          : "O link só abre depois que a página estiver publicada.",
+      });
+    } catch {
+      toast({
+        title: "Não foi possível copiar",
+        description: getPublicUrl(),
+        variant: "destructive",
+      });
+    }
+  };
+
+  const moveSelectedItem = async (itemId: string, direction: -1 | 1) => {
+    const ordered = [...items].sort((a, b) => a.display_order - b.display_order);
+    const index = ordered.findIndex((item) => item.id === itemId);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= ordered.length) return;
+    const next = [...ordered];
+    const [moved] = next.splice(index, 1);
+    next.splice(target, 0, moved);
+    for (let position = 0; position < next.length; position += 1) {
+      if (next[position].display_order !== position) {
+        await updateItemOrder(next[position].id, position);
+      }
+    }
   };
 
   if (loading) {
@@ -271,31 +352,53 @@ export function LandingPageConfigurator() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 pb-28">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Landing Page de Vendas</h1>
           <p className="text-muted-foreground mt-1">
             Uma página pública por organização — produtos, WhatsApp e formulário
           </p>
         </div>
-        {landingPage && (
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {landingPage && (
             <Badge variant={landingPage.is_active ? "default" : "secondary"}>
               {landingPage.is_active ? "Ativa" : "Inativa"}
             </Badge>
-            {landingPage.is_active && (
-              <Button
-                variant="outline"
-                onClick={() => window.open(getPublicUrl(), '_blank')}
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                Ver Página
-              </Button>
-            )}
-          </div>
-        )}
+          )}
+          <Button variant="outline" onClick={copyPublicLink}>
+            {linkCopied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+            Copiar link
+          </Button>
+          <Button variant="outline" className="xl:hidden" onClick={() => setPreviewOpen(true)}>
+            <Eye className="h-4 w-4 mr-2" />
+            Pré-visualizar
+          </Button>
+          {landingPage?.is_active && (
+            <Button variant="outline" onClick={() => window.open(getPublicUrl(), "_blank")}>
+              <Eye className="h-4 w-4 mr-2" />
+              Ver Página
+            </Button>
+          )}
+        </div>
       </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Para publicar</CardTitle>
+          <CardDescription>
+            O link {getPublicUrl().replace(window.location.origin, "")} só abre quando a página estiver ativa.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          {checklist.map((item) => (
+            <Badge key={item.id} variant={item.done ? "default" : "outline"}>
+              {item.done ? <Check className="h-3 w-3 mr-1" /> : null}
+              {item.label}
+            </Badge>
+          ))}
+        </CardContent>
+      </Card>
 
       {!landingPage && (
         <Alert>
@@ -306,23 +409,24 @@ export function LandingPageConfigurator() {
         </Alert>
       )}
 
-      <Tabs defaultValue="general" className="space-y-4">
-        <TabsList>
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <Tabs defaultValue="general" className="space-y-4 min-w-0">
+        <TabsList className="flex h-auto flex-wrap">
           <TabsTrigger value="general">
             <Settings className="h-4 w-4 mr-2" />
             Geral
           </TabsTrigger>
           <TabsTrigger value="design">
             <Palette className="h-4 w-4 mr-2" />
-            Design
+            Aparência
           </TabsTrigger>
           <TabsTrigger value="products">
             <ShoppingBag className="h-4 w-4 mr-2" />
-            Produtos
+            Catálogo
           </TabsTrigger>
-          <TabsTrigger value="whatsapp">
+          <TabsTrigger value="contact">
             <MessageSquare className="h-4 w-4 mr-2" />
-            WhatsApp
+            Contato
           </TabsTrigger>
           <TabsTrigger value="form">
             <FileText className="h-4 w-4 mr-2" />
@@ -362,7 +466,7 @@ export function LandingPageConfigurator() {
                   placeholder="minha-empresa"
                 />
                 <p className="text-sm text-muted-foreground">
-                  Link público: /p/{(config.slug || config.title || "pagina").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "pagina"}
+                  Link público: /p/{slugifyLandingPage(config.slug || config.title || "landing-page")}
                 </p>
               </div>
 
@@ -385,30 +489,6 @@ export function LandingPageConfigurator() {
                   placeholder="Breve descrição sobre sua empresa..."
                   rows={4}
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="businessHours" className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  Horário de Atendimento
-                </Label>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">
-                    Exibir horário na página (rodapé ou seção de contato)
-                  </p>
-                  <Switch
-                    checked={config.businessHoursEnabled ?? false}
-                    onCheckedChange={(checked) => setConfig({ ...config, businessHoursEnabled: checked })}
-                  />
-                </div>
-                {config.businessHoursEnabled && (
-                  <Input
-                    id="businessHours"
-                    value={config.businessHoursText || ""}
-                    onChange={(e) => setConfig({ ...config, businessHoursText: e.target.value })}
-                    placeholder="Ex: Seg-Sex 9h-18h, Sáb 9h-13h"
-                  />
-                )}
               </div>
 
               <div className="space-y-2">
@@ -661,7 +741,34 @@ export function LandingPageConfigurator() {
                 />
               </div>
 
-              {!config.showAllItems && (
+              {config.showAllItems ? (
+                <div className="space-y-2">
+                  <Label>O que entra na vitrine</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Lista somente leitura. Título e preço personalizados valem só quando a seleção é manual.
+                  </p>
+                  {productsLoading || itemsLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : catalogProducts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhum produto ativo nesta organização.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {catalogProducts.map((product) => (
+                        <div key={product.id} className="flex items-center justify-between gap-2 rounded border p-2">
+                          <div>
+                            <p className="font-medium">{product.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {product.category}
+                              {typeof product.price === "number" ? ` · R$ ${product.price.toFixed(2).replace(".", ",")}` : ""}
+                            </p>
+                          </div>
+                          {!productInStock(product.stock_quantity) && <Badge variant="secondary">Esgotado</Badge>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Produtos Selecionados</Label>
@@ -675,33 +782,38 @@ export function LandingPageConfigurator() {
                   {productsLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {products
-                        .filter(p => p.is_active && !p.is_supply)
-                        .filter(p => {
-                          // GARANTIR que produto pertence à organização da landing page
-                          if (landingPage && p.organization_id !== landingPage.organization_id) {
-                            return false;
-                          }
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {catalogProducts
+                        .filter((product) => {
                           if (!productSearchTerm) return true;
-                          return p.name.toLowerCase().includes(productSearchTerm) || 
-                                 (p.category || '').toLowerCase().includes(productSearchTerm);
+                          return product.name.toLowerCase().includes(productSearchTerm) ||
+                            (product.category || "").toLowerCase().includes(productSearchTerm);
+                        })
+                        .sort((a, b) => {
+                          if (config.itemOrder !== "manual") return 0;
+                          const orderA = items.find((item) => item.product_id === a.id)?.display_order ?? 9999;
+                          const orderB = items.find((item) => item.product_id === b.id)?.display_order ?? 9999;
+                          return orderA - orderB;
                         })
                         .map((product) => {
                         const isSelected = config.selectedProductIds?.includes(product.id);
+                        const item = items.find((row) => row.product_id === product.id);
                         return (
-                          <div
-                            key={product.id}
-                            className="p-2 border rounded space-y-2"
-                          >
+                          <div key={product.id} className="p-2 border rounded space-y-2">
                             <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
+                              {config.itemOrder === "manual" && landingPage && isSelected && item && (
+                                <div className="flex flex-col">
+                                  <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveSelectedItem(item.id, -1)}>
+                                    <ChevronUp className="h-4 w-4" />
+                                  </Button>
+                                  <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveSelectedItem(item.id, 1)}>
+                                    <ChevronDown className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              )}
                               {product.image_url && (
-                                <img
-                                  src={product.image_url}
-                                  alt={product.name}
-                                  className="w-10 h-10 object-cover rounded"
-                                />
+                                <img src={product.image_url} alt={product.name} className="w-10 h-10 object-cover rounded" />
                               )}
                               <div>
                                 <p className="font-medium">{product.name}</p>
@@ -710,6 +822,7 @@ export function LandingPageConfigurator() {
                                   {typeof product.price === "number" ? ` · R$ ${product.price.toFixed(2).replace(".", ",")}` : ""}
                                 </p>
                               </div>
+                              {!productInStock(product.stock_quantity) && <Badge variant="secondary">Esgotado</Badge>}
                             </div>
                             <Switch
                               checked={isSelected}
@@ -723,52 +836,25 @@ export function LandingPageConfigurator() {
                                       selectedProductIds: [...(config.selectedProductIds || []), product.id],
                                     });
                                   }
+                                } else if (landingPage) {
+                                  if (item) await removeItem(item.id);
                                 } else {
-                                  if (landingPage) {
-                                    const item = items.find(i => i.product_id === product.id);
-                                    if (item) {
-                                      await removeItem(item.id);
-                                    }
-                                  } else {
-                                    setConfig({
-                                      ...config,
-                                      selectedProductIds: config.selectedProductIds?.filter(id => id !== product.id) || [],
-                                    });
-                                  }
+                                  setConfig({
+                                    ...config,
+                                    selectedProductIds: config.selectedProductIds?.filter(id => id !== product.id) || [],
+                                  });
                                 }
                               }}
                             />
                             </div>
-                            {isSelected && landingPage && (() => {
-                              const item = items.find(i => i.product_id === product.id);
-                              if (!item) return null;
-                              return (
-                                <div className="grid gap-2 sm:grid-cols-2">
-                                  <Input
-                                    placeholder="Título na página"
-                                    defaultValue={item.custom_title || ""}
-                                    onBlur={(e) => updateItem(item.id, { custom_title: e.target.value.trim() || null })}
-                                  />
-                                  <Input
-                                    placeholder="Preço na página"
-                                    type="number"
-                                    step="0.01"
-                                    defaultValue={item.custom_price ?? ""}
-                                    onBlur={(e) => updateItem(item.id, { custom_price: e.target.value === "" ? null : Number(e.target.value) })}
-                                  />
-                                  <Input
-                                    placeholder="Descrição na página"
-                                    defaultValue={item.custom_description || ""}
-                                    onBlur={(e) => updateItem(item.id, { custom_description: e.target.value.trim() || null })}
-                                  />
-                                  <Input
-                                    placeholder="URL da imagem na página"
-                                    defaultValue={item.custom_image_url || ""}
-                                    onBlur={(e) => updateItem(item.id, { custom_image_url: e.target.value.trim() || null })}
-                                  />
-                                </div>
-                              );
-                            })()}
+                            {isSelected && landingPage && item && (
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                <Input placeholder="Título na página" defaultValue={item.custom_title || ""} onBlur={(e) => updateItem(item.id, { custom_title: e.target.value.trim() || null })} />
+                                <Input placeholder="Preço na página" type="number" step="0.01" defaultValue={item.custom_price ?? ""} onBlur={(e) => updateItem(item.id, { custom_price: e.target.value === "" ? null : Number(e.target.value) })} />
+                                <Input placeholder="Descrição na página" defaultValue={item.custom_description || ""} onBlur={(e) => updateItem(item.id, { custom_description: e.target.value.trim() || null })} />
+                                <Input placeholder="URL da imagem na página" defaultValue={item.custom_image_url || ""} onBlur={(e) => updateItem(item.id, { custom_image_url: e.target.value.trim() || null })} />
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -794,6 +880,11 @@ export function LandingPageConfigurator() {
                     <SelectItem value="manual">Manual</SelectItem>
                   </SelectContent>
                 </Select>
+                {config.itemOrder === "manual" && (
+                  <p className="text-sm text-muted-foreground">
+                    Use as setas ao lado dos produtos escolhidos. Com mostrar todos, a vitrine segue o cadastro ou a categoria.
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center justify-between">
@@ -812,12 +903,12 @@ export function LandingPageConfigurator() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="whatsapp" className="space-y-4">
+        <TabsContent value="contact" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Integração WhatsApp</CardTitle>
+              <CardTitle>Contato</CardTitle>
               <CardDescription>
-                Configure o botão de orçamento via WhatsApp
+                WhatsApp, ligação, horário, vídeo e mapa da página
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -837,7 +928,7 @@ export function LandingPageConfigurator() {
               {config.whatsappEnabled && (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="whatsappInstance">Instância Evolution</Label>
+                    <Label htmlFor="whatsappInstance">WhatsApp conectado</Label>
                     <Select
                       value={config.whatsappInstanceId || ""}
                       onValueChange={(value) => setConfig({ ...config, whatsappInstanceId: value })}
@@ -907,39 +998,67 @@ export function LandingPageConfigurator() {
                     />
                   </div>
 
-                  <div className="border-t pt-6 mt-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <Label className="flex items-center gap-2">
-                          <Phone className="h-4 w-4" />
-                          Botão de Ligação
-                        </Label>
-                        <p className="text-sm text-muted-foreground">
-                          Exibir botão para ligar (além do WhatsApp)
-                        </p>
-                      </div>
-                      <Switch
-                        checked={config.callEnabled ?? false}
-                        onCheckedChange={(checked) => setConfig({ ...config, callEnabled: checked })}
-                      />
-                    </div>
-                    {config.callEnabled && (
-                      <div className="space-y-2">
-                        <Label htmlFor="callNumber">Número para Ligação</Label>
-                        <Input
-                          id="callNumber"
-                          value={config.callNumber || ""}
-                          onChange={(e) => setConfig({ ...config, callNumber: e.target.value })}
-                          placeholder="5511999999999"
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          Apenas números. Ex: 5511999999999 (DDI + DDD + número)
-                        </p>
-                      </div>
-                    )}
-                  </div>
                 </>
               )}
+
+              <div className="border-t pt-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label className="flex items-center gap-2">
+                      <Phone className="h-4 w-4" />
+                      Botão de Ligação
+                    </Label>
+                    <p className="text-sm text-muted-foreground">Exibir botão para ligar</p>
+                  </div>
+                  <Switch checked={config.callEnabled ?? false} onCheckedChange={(checked) => setConfig({ ...config, callEnabled: checked })} />
+                </div>
+                {config.callEnabled && (
+                  <Input id="callNumber" value={config.callNumber || ""} onChange={(e) => setConfig({ ...config, callNumber: e.target.value })} placeholder="5511999999999" />
+                )}
+              </div>
+
+              <div className="border-t pt-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label className="flex items-center gap-2"><Clock className="h-4 w-4" />Horário de Atendimento</Label>
+                    <p className="text-sm text-muted-foreground">Exibir horário na página</p>
+                  </div>
+                  <Switch checked={config.businessHoursEnabled ?? false} onCheckedChange={(checked) => setConfig({ ...config, businessHoursEnabled: checked })} />
+                </div>
+                {config.businessHoursEnabled && (
+                  <Input id="businessHours" value={config.businessHoursText || ""} onChange={(e) => setConfig({ ...config, businessHoursText: e.target.value })} placeholder="Ex: Seg-Sex 9h-18h, Sáb 9h-13h" />
+                )}
+              </div>
+
+              <div className="border-t pt-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label className="flex items-center gap-2"><Video className="h-4 w-4" />Vídeo</Label>
+                    <p className="text-sm text-muted-foreground">Mostra um vídeo na parte inferior da página</p>
+                  </div>
+                  <Switch checked={config.videoEnabled ?? false} onCheckedChange={(checked) => setConfig({ ...config, videoEnabled: checked })} />
+                </div>
+                {config.videoEnabled && (
+                  <Input id="videoUrl" value={config.videoUrl || ""} onChange={(e) => setConfig({ ...config, videoUrl: e.target.value })} placeholder="https://www.youtube.com/watch?v=... ou https://vimeo.com/..." />
+                )}
+              </div>
+
+              <div className="border-t pt-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label className="flex items-center gap-2"><MapPin className="h-4 w-4" />Mapa de Localização</Label>
+                    <p className="text-sm text-muted-foreground">Exibir mapa na parte inferior da página</p>
+                  </div>
+                  <Switch checked={config.mapEnabled ?? false} onCheckedChange={(checked) => setConfig({ ...config, mapEnabled: checked })} />
+                </div>
+                {config.mapEnabled && (
+                  <div className="space-y-2">
+                    <Label htmlFor="mapEmbedUrl">URL do embed do Google Maps</Label>
+                    <Input id="mapEmbedUrl" value={config.mapEmbedUrl || ""} onChange={(e) => setConfig({ ...config, mapEmbedUrl: e.target.value })} placeholder="https://www.google.com/maps/embed?pb=..." />
+                    <p className="text-sm text-muted-foreground">No Google Maps: Compartilhar, Incorporar um mapa, copie o src do iframe.</p>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1085,107 +1204,9 @@ export function LandingPageConfigurator() {
                     </div>
                   )}
 
-                  <div className="border-t pt-6 mt-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <Label className="flex items-center gap-2">
-                          <Video className="h-4 w-4" />
-                          Exibir vídeo ao lado do formulário
-                        </Label>
-                        <p className="text-sm text-muted-foreground">
-                          Mostra um vídeo na parte inferior da página, ao lado do formulário
-                        </p>
-                      </div>
-                      <Switch
-                        checked={config.videoEnabled ?? false}
-                        onCheckedChange={(checked) => setConfig({ ...config, videoEnabled: checked })}
-                      />
-                    </div>
-
-                    {config.videoEnabled && (
-                      <div className="space-y-2">
-                        <Label htmlFor="videoUrl">URL do vídeo</Label>
-                        <Input
-                          id="videoUrl"
-                          value={config.videoUrl || ""}
-                          onChange={(e) => setConfig({ ...config, videoUrl: e.target.value })}
-                          placeholder="https://www.youtube.com/watch?v=... ou https://vimeo.com/..."
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          Suporta YouTube e Vimeo. Cole o link completo do vídeo.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="border-t pt-6 mt-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <Label className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4" />
-                          Mapa de Localização
-                        </Label>
-                        <p className="text-sm text-muted-foreground">
-                          Exibir mapa na parte inferior da página
-                        </p>
-                      </div>
-                      <Switch
-                        checked={config.mapEnabled ?? false}
-                        onCheckedChange={(checked) => setConfig({ ...config, mapEnabled: checked })}
-                      />
-                    </div>
-                    {config.mapEnabled && (
-                      <div className="space-y-2">
-                        <Label htmlFor="mapEmbedUrl">URL do embed do Google Maps</Label>
-                        <Input
-                          id="mapEmbedUrl"
-                          value={config.mapEmbedUrl || ""}
-                          onChange={(e) => setConfig({ ...config, mapEmbedUrl: e.target.value })}
-                          placeholder="https://www.google.com/maps/embed?pb=..."
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          No Google Maps: Compartilhar → Incorporar um mapa → copie o src do iframe
-                        </p>
-                      </div>
-                    )}
-                  </div>
                 </>
               )}
 
-              {/* Mapa - visível mesmo sem formulário */}
-              {!config.formEnabled && (
-                <div className="border-t pt-6 mt-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <Label className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4" />
-                        Mapa de Localização
-                      </Label>
-                      <p className="text-sm text-muted-foreground">
-                        Exibir mapa na parte inferior da página
-                      </p>
-                    </div>
-                    <Switch
-                      checked={config.mapEnabled ?? false}
-                      onCheckedChange={(checked) => setConfig({ ...config, mapEnabled: checked })}
-                    />
-                  </div>
-                  {config.mapEnabled && (
-                    <div className="space-y-2">
-                      <Label htmlFor="mapEmbedUrlStandalone">URL do embed do Google Maps</Label>
-                      <Input
-                        id="mapEmbedUrlStandalone"
-                        value={config.mapEmbedUrl || ""}
-                        onChange={(e) => setConfig({ ...config, mapEmbedUrl: e.target.value })}
-                        placeholder="https://www.google.com/maps/embed?pb=..."
-                      />
-                      <p className="text-sm text-muted-foreground">
-                        No Google Maps: Compartilhar → Incorporar um mapa → copie o src do iframe
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1236,12 +1257,25 @@ export function LandingPageConfigurator() {
           </Card>
         </TabsContent>
       </Tabs>
+      <div className="hidden xl:block sticky top-4">
+        <LandingPagePreviewPane data={previewData} />
+      </div>
+      </div>
 
-      <div className="flex justify-end gap-2">
-        <Button
-          onClick={handleSave}
-          disabled={saving || !config.title.trim()}
-        >
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Pré-visualização</DialogTitle>
+          </DialogHeader>
+          <LandingPagePreviewPane data={previewData} />
+        </DialogContent>
+      </Dialog>
+
+      <div className="fixed bottom-4 left-1/2 z-40 flex w-[min(640px,calc(100%-2rem))] -translate-x-1/2 items-center justify-between gap-3 rounded-xl border bg-background px-4 py-3 shadow-lg">
+        <p className="text-sm text-muted-foreground">
+          {draftDirty ? "Alterações não salvas" : "Tudo salvo"}
+        </p>
+        <Button onClick={handleSave} disabled={saving || !config.title.trim() || (!draftDirty && Boolean(landingPage))}>
           {saving ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />

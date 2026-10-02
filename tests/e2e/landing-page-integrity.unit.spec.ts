@@ -6,6 +6,26 @@ import {
   resolveLandingPageAccess,
   slugifyLandingPage,
 } from "../../src/lib/landingPageAccess";
+import { buildLandingPagePreview, landingPageChecklist, productInStock } from "../../src/lib/landingPagePreview";
+import type { LandingPageConfig } from "../../src/types/landing-page";
+
+function draftConfig(overrides: Partial<LandingPageConfig> = {}): LandingPageConfig {
+  return {
+    title: "Loja",
+    slug: "loja",
+    template: "modern",
+    showAllItems: false,
+    selectedProductIds: [],
+    itemOrder: "manual",
+    showPrice: true,
+    whatsappEnabled: true,
+    whatsappFloatingButton: true,
+    whatsappButtonText: "Pedir",
+    formEnabled: false,
+    footerEnabled: true,
+    ...overrides,
+  };
+}
 
 function supabaseEnv(): { url: string; key: string } | null {
   const file = join(process.cwd(), ".env");
@@ -52,6 +72,55 @@ test("acesso segue feature, admin e permissão de leitura", () => {
   expect(resolveLandingPageAccess({ ...base, isOrgAdmin: true, canView: false })).toBe("allow");
   expect(resolveLandingPageAccess({ ...base, hasSavedPermissions: false, canView: false })).toBe("allow");
   expect(resolveLandingPageAccess({ ...base, canView: false })).toBe("deny");
+});
+
+test("prévia da landing usa só o catálogo da organização @human-behavior", () => {
+  expect(productInStock(0)).toBe(false);
+  expect(productInStock(2)).toBe(true);
+  expect(productInStock(null)).toBe(false);
+
+  const products = [
+    { id: "a", organization_id: "org", name: "Ativo", price: 10, category: "B", is_active: true, stock_quantity: 2, created_at: "2026-01-02" },
+    { id: "b", organization_id: "org", name: "Esgotado", price: 5, category: "A", is_active: true, stock_quantity: 0, created_at: "2026-01-03" },
+    { id: "c", organization_id: "org", name: "Insumo", price: 1, is_active: true, is_supply: true, stock_quantity: 9 },
+    { id: "d", organization_id: "outra", name: "Alheio", price: 1, is_active: true, stock_quantity: 4 },
+  ];
+  const preview = buildLandingPagePreview({
+    config: draftConfig({ showAllItems: false, itemOrder: "manual", selectedProductIds: ["b", "a"] }),
+    products,
+    items: [
+      { id: "i2", landing_page_id: "p", product_id: "b", display_order: 0, custom_title: "Oferta", is_visible: true, created_at: "", updated_at: "" },
+      { id: "i1", landing_page_id: "p", product_id: "a", display_order: 1, custom_title: "Nome da página", is_visible: true, created_at: "", updated_at: "" },
+    ],
+    organization: { id: "org", name: "Empresa" },
+  });
+  expect(preview.items.map((item) => item.product_id)).toEqual(["b", "a"]);
+  expect(preview.items[0].custom_title).toBe("Oferta");
+  expect(preview.items[0].product.in_stock).toBe(false);
+  expect(preview.items[1].product.in_stock).toBe(true);
+
+  const all = buildLandingPagePreview({
+    config: draftConfig({ showAllItems: true, itemOrder: "category" }),
+    products,
+    items: [],
+    organization: { id: "org", name: "Empresa" },
+  });
+  expect(all.items.map((item) => item.product.name)).toEqual(["Esgotado", "Ativo"]);
+  expect(all.items.every((item) => item.custom_title == null)).toBe(true);
+
+  const checks = landingPageChecklist({
+    config: draftConfig({ title: "", slug: "", whatsappEnabled: true, showAllItems: false }),
+    selectedCount: 0,
+    isActive: false,
+  });
+  expect(checks.find((item) => item.id === "title")?.done).toBe(false);
+  expect(checks.find((item) => item.id === "catalog")?.done).toBe(false);
+  expect(checks.find((item) => item.id === "whatsapp")?.done).toBe(false);
+  expect(landingPageChecklist({
+    config: draftConfig({ whatsappNumber: "5511999999999", showAllItems: true }),
+    selectedCount: 0,
+    isActive: true,
+  }).every((item) => item.done)).toBe(true);
 });
 
 test("vitrine pública não devolve custo, saldo nem dados internos @human-behavior", async ({ request }) => {

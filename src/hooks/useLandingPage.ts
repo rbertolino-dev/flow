@@ -489,7 +489,7 @@ export function useLandingPageItems(landingPageId: string | null) {
 
       if (error) throw error;
 
-      setItems(items.map(item => 
+      setItems((current) => current.map(item =>
         item.id === itemId ? { ...item, display_order: displayOrder } : item
       ));
     } catch (error: any) {
