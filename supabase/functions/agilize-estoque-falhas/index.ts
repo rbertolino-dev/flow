@@ -45,6 +45,21 @@ type StockLine = {
   creator_nome: string | null;
 };
 
+type ItemVenda = {
+  nome: string;
+  qnt: number | null;
+  dataHora: string | null;
+};
+
+type Lancamento = {
+  codigo: string | null;
+  criadoEm: string | null;
+  dataHora: string | null;
+  quantidade: number | null;
+  ligadoAVenda: boolean;
+  autor: string | null;
+};
+
 type AlertRow = {
   id: string;
   vendaId: string | null;
@@ -58,7 +73,10 @@ type AlertRow = {
   itensFicha: number | null;
   autor: string | null;
   gravidade: "atencao" | "critico";
+  situacao: "alem_da_ficha" | "ficha_confirma";
   texto: string;
+  itensVenda: ItemVenda[];
+  lancamentos: Lancamento[];
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -150,7 +168,7 @@ function cartClockToUtcMs(iso: string | null): number | null {
 }
 
 function formatBrt(ms: number | null): string | null {
-  if (ms == null) return null;
+  if (ms == null || !Number.isFinite(ms)) return null;
   return new Intl.DateTimeFormat("pt-BR", {
     timeZone: "America/Sao_Paulo",
     day: "2-digit",
@@ -200,7 +218,22 @@ type SaleSheet = {
   itens: number | null;
   lista: string;
   quandoMs: number | null;
+  produtoIds: string[];
 };
+
+async function bubbleGet(path: string): Promise<Record<string, unknown> | null> {
+  const token = Deno.env.get("BUBBLE_AGILIZE_KEY");
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(
+    `https://app.agilizetotal.com.br/api/1.1/obj/${path}`,
+    { headers },
+  );
+  if (!res.ok) return null;
+  const body = await res.json();
+  const obj = body?.response;
+  return obj && typeof obj === "object" ? obj as Record<string, unknown> : null;
+}
 
 async function loadSale(vendaId: string): Promise<SaleSheet | null> {
   const res = await fetch(
@@ -223,6 +256,7 @@ async function loadSale(vendaId: string): Promise<SaleSheet | null> {
       ? obj.lista_produtos_servicos
       : "",
     quandoMs: Number.isFinite(quando) ? quando : null,
+    produtoIds: produtos.map((id) => String(id)),
   };
 }
 
@@ -309,22 +343,8 @@ serve(async (req) => {
       `&data_da_venda=lt.${cartEnd}T00:00:00Z` +
       `&select=${cartSelect}&order=id.asc`;
 
-    const stockSelect = encodeURIComponent(
-      "id,data,produto,nome_produto,qntd,cod,creator_nome",
-    );
-    const stockPath =
-      `${encodeURIComponent("lançamento_estoque")}?empresa=eq.${empresa}` +
-      `&entrada_saida=eq.${encodeURIComponent("Saída")}` +
-      `&data=gte.${start}T03:00:00Z` +
-      `&data=lt.${cartEnd}T03:00:00Z` +
-      `&select=${stockSelect}&order=id.asc`;
-
-    const [cartRaw, stockRaw] = await Promise.all([
-      fetchAll(cartPath),
-      fetchAll(stockPath),
-    ]);
+    const cartRaw = await fetchAll(cartPath);
     const carts = cartRaw as CartLine[];
-    const stocks = stockRaw as StockLine[];
 
     const groups = new Map<string, CartLine[]>();
     for (const line of carts) {
@@ -351,31 +371,102 @@ serve(async (req) => {
       for (const [vendaId, sheet] of loaded) sheets.set(vendaId, sheet);
     }
 
+    const nomes = new Map<string, string>();
+    async function nomeUsuario(userId: string | null): Promise<string | null> {
+      if (!userId) return null;
+      if (nomes.has(userId)) return nomes.get(userId) ?? null;
+      const user = await bubbleGet(`user/${encodeURIComponent(userId)}`);
+      const nome = user?.["Nome de usuário"] ? String(user["Nome de usuário"]) : null;
+      nomes.set(userId, nome ?? "");
+      return nome;
+    }
+
     const alertas: AlertRow[] = [];
-    const windows: { produtoId: string; ms: number }[] = [];
+    let soCopia = 0;
+    const cartCache = new Map<string, Record<string, unknown>[]>();
+    async function itensDaVenda(vendaId: string): Promise<Record<string, unknown>[]> {
+      const cached = cartCache.get(vendaId);
+      if (cached) return cached;
+      const ids = sheets.get(vendaId)?.produtoIds ?? [];
+      const rows: Record<string, unknown>[] = [];
+      for (let i = 0; i < ids.length; i += 8) {
+        const loaded = await Promise.all(
+          ids.slice(i, i + 8).map((id) =>
+            bubbleGet(`produtocarrinho/${encodeURIComponent(id)}`)
+          ),
+        );
+        for (const row of loaded) if (row) rows.push(row);
+      }
+      cartCache.set(vendaId, rows);
+      return rows;
+    }
+
     for (const [key, lines] of candidates) {
       const [vendaId, produtoId] = key.split("|");
-      const produtoNome = String(lines[0]["produto nome"] || produtoId);
-      const vezesCarrinho = lines.length;
+      const produtoNome = String(lines[0]["produto nome"] || produtoId).trim();
       const sheet = sheets.get(vendaId) ?? null;
-      const vezesNaFicha = sheet ? listedTimes(sheet, produtoNome) : 0;
-      const itensFicha = sheet?.itens ?? null;
-      const quandoMs = sheet?.quandoMs ?? cartClockToUtcMs(lines[0].data_da_venda);
-      if (vezesNaFicha >= vezesCarrinho) {
-        if (quandoMs != null) windows.push({ produtoId, ms: quandoMs });
+      if (!sheet) continue;
+      const todos = await itensDaVenda(vendaId);
+      const cartRows = todos.filter((row) => {
+        if (row.vendido === false) return false;
+        const mesmoProduto = String(row["SUPABASE PRODUTO"] ?? "") === produtoId;
+        const mesmoNome = norm(String(row["produto nome"] ?? "")) === norm(produtoNome);
+        return mesmoProduto || mesmoNome;
+      });
+      if (cartRows.length < MIN_COPIAS) {
+        soCopia += 1;
         continue;
       }
-      const saida = countNear(stocks, produtoId, quandoMs);
-      const copias = Math.max(vezesCarrinho, saida.vezes);
-      const nivel = gravidade(copias);
-      const quando = formatBrt(quandoMs);
+
+      const itensVenda: ItemVenda[] = cartRows.map((row) => ({
+        nome: String(row["produto nome"] || produtoNome).trim(),
+        qnt: typeof row.qnt === "number" ? row.qnt : null,
+        dataHora: formatBrt(
+          typeof row["data da venda"] === "string" ? Date.parse(row["data da venda"]) : null,
+        ),
+      }));
+      const lancamentos: Lancamento[] = [];
+      for (let i = 0; i < cartRows.length; i += 8) {
+        const slice = cartRows.slice(i, i + 8);
+        const loaded = await Promise.all(slice.map(async (row) => {
+          const lancId = row["lançamento estoque"];
+          if (typeof lancId !== "string" || !lancId) return null;
+          const stock = await bubbleGet(
+            `${encodeURIComponent("lançamento_estoque")}/${encodeURIComponent(lancId)}`,
+          );
+          if (!stock) return null;
+          const autorId = typeof stock["Created By"] === "string" ? stock["Created By"] : null;
+          return {
+            codigo: stock.cod != null ? String(stock.cod) : null,
+            criadoEm: formatBrt(
+              typeof stock["Created Date"] === "string" ? Date.parse(stock["Created Date"]) : null,
+            ),
+            dataHora: formatBrt(typeof stock.data === "string" ? Date.parse(stock.data) : null),
+            quantidade: typeof stock.qntd === "number" ? stock.qntd : null,
+            ligadoAVenda: stock.venda === vendaId,
+            autor: await nomeUsuario(autorId),
+          } satisfies Lancamento;
+        }));
+        for (const row of loaded) if (row) lancamentos.push(row);
+      }
+
+      const vezesNaFicha = sheet ? listedTimes(sheet, produtoNome) : 0;
+      const ligado = lancamentos.filter((row) => row.ligadoAVenda).length;
+      const situacao: AlertRow["situacao"] =
+        vezesNaFicha >= cartRows.length && ligado === cartRows.length
+          ? "ficha_confirma"
+          : "alem_da_ficha";
+      const nivel = gravidade(Math.max(cartRows.length, lancamentos.length));
+      const quando = formatBrt(sheet?.quandoMs ?? cartClockToUtcMs(lines[0].data_da_venda));
       const codigo = sheet?.cod ?? null;
+      const autor = lancamentos.find((row) => row.autor)?.autor ?? null;
       const texto =
         `${store.nome}: venda ${codigo ?? vendaId} em ${quando ?? "horário não informado"}. ` +
-        `${produtoNome.trim()} repetido ${vezesCarrinho} vezes no carrinho` +
-        (saida.vezes > 0 ? ` e ${saida.vezes} saídas no mesmo segundo` : "") +
-        `. Ficha com ${itensFicha ?? "?"} itens, ${money(sheet?.valor ?? null)}. ` +
-        `Gravidade ${nivel === "critico" ? "crítica" : "atenção"}.`;
+        `${produtoNome} aparece ${cartRows.length} vezes na venda e tem ${lancamentos.length} saídas. ` +
+        (situacao === "ficha_confirma"
+          ? "A ficha lista o produto esse mesmo número de vezes."
+          : "A ficha lista o produto menos vezes do que as saídas.") +
+        ` Valor ${money(sheet?.valor ?? null)}.`;
 
       alertas.push({
         id: key,
@@ -383,74 +474,31 @@ serve(async (req) => {
         codigoVenda: codigo,
         dataHora: quando,
         produtoId,
-        produtoNome: produtoNome.trim(),
-        vezesCarrinho,
-        vezesSaida: saida.vezes,
-        valorFicha: sheet?.valor ?? null,
-        itensFicha,
-        autor: saida.autor,
-        gravidade: nivel,
-        texto,
-      });
-      if (quandoMs != null) windows.push({ produtoId, ms: quandoMs });
-    }
-
-    const bursts = new Map<string, StockLine[]>();
-    for (const line of stocks) {
-      const cod = String(line.cod || "").trim();
-      const produtoId = String(line.produto || "");
-      if (!cod || !produtoId || !line.data || Number(line.qntd) !== 1) continue;
-      const second = line.data.slice(0, 19);
-      const key = `${cod}|${produtoId}|${second}`;
-      const list = bursts.get(key) ?? [];
-      list.push(line);
-      bursts.set(key, list);
-    }
-    for (const [key, lines] of bursts) {
-      if (lines.length < MIN_COPIAS) continue;
-      const produtoId = String(lines[0].produto);
-      const quandoMs = Date.parse(lines[0].data || "");
-      const dataHora = formatBrt(Number.isFinite(quandoMs) ? quandoMs : null);
-      const already = windows.some(
-        (window) =>
-          window.produtoId === produtoId &&
-          Number.isFinite(quandoMs) &&
-          Math.abs(window.ms - quandoMs) <= MATCH_MS,
-      );
-      if (already) continue;
-      const produtoNome = String(lines[0].nome_produto || produtoId).trim();
-      const nivel = gravidade(lines.length);
-      const texto =
-        `${store.nome}: ${lines.length} saídas de ${produtoNome} no mesmo segundo` +
-        ` (${dataHora ?? "horário não informado"}), código ${lines[0].cod}. ` +
-        `Gravidade ${nivel === "critico" ? "crítica" : "atenção"}.`;
-      alertas.push({
-        id: `saida|${key}`,
-        vendaId: null,
-        codigoVenda: null,
-        dataHora,
-        produtoId,
         produtoNome,
-        vezesCarrinho: 0,
-        vezesSaida: lines.length,
-        valorFicha: null,
-        itensFicha: null,
-        autor: lines.find((line) => line.creator_nome)?.creator_nome ?? null,
+        vezesCarrinho: cartRows.length,
+        vezesSaida: lancamentos.length,
+        valorFicha: sheet?.valor ?? null,
+        itensFicha: sheet?.itens ?? null,
+        autor,
         gravidade: nivel,
+        situacao,
         texto,
+        itensVenda,
+        lancamentos,
       });
     }
 
     alertas.sort((a, b) => {
+      if (a.situacao !== b.situacao) return a.situacao === "alem_da_ficha" ? -1 : 1;
       if (a.gravidade !== b.gravidade) return a.gravidade === "critico" ? -1 : 1;
-      return Math.max(b.vezesCarrinho, b.vezesSaida) -
-        Math.max(a.vezesCarrinho, a.vezesSaida);
+      return Math.max(b.vezesCarrinho, b.vezesSaida) - Math.max(a.vezesCarrinho, a.vezesSaida);
     });
 
     const maiorRepeticao = alertas.reduce(
       (max, row) => Math.max(max, row.vezesCarrinho, row.vezesSaida),
       0,
     );
+    const alemDaFicha = alertas.filter((row) => row.situacao === "alem_da_ficha").length;
 
     return jsonResponse({
       loja,
@@ -460,8 +508,11 @@ serve(async (req) => {
       fim: end,
       resumo: {
         total: alertas.length,
-        criticos: alertas.filter((row) => row.gravidade === "critico").length,
+        criticos: alertas.filter((row) => row.gravidade === "critico" && row.situacao === "alem_da_ficha").length,
         maiorRepeticao,
+        alemDaFicha,
+        fichaConfirma: alertas.length - alemDaFicha,
+        soCopia,
       },
       alertas,
     });

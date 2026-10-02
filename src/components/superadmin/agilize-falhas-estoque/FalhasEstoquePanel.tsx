@@ -17,6 +17,21 @@ import { Copy, Loader2, RefreshCw } from "lucide-react";
 
 type Loja = "triunfo" | "crimeia";
 
+type ItemVenda = {
+  nome: string;
+  qnt: number | null;
+  dataHora: string | null;
+};
+
+type Lancamento = {
+  codigo: string | null;
+  criadoEm: string | null;
+  dataHora: string | null;
+  quantidade: number | null;
+  ligadoAVenda: boolean;
+  autor: string | null;
+};
+
 type AlertRow = {
   id: string;
   vendaId: string | null;
@@ -30,7 +45,10 @@ type AlertRow = {
   itensFicha: number | null;
   autor: string | null;
   gravidade: "atencao" | "critico";
+  situacao: "alem_da_ficha" | "ficha_confirma";
   texto: string;
+  itensVenda: ItemVenda[];
+  lancamentos: Lancamento[];
 };
 
 type Report = {
@@ -38,7 +56,14 @@ type Report = {
   empresaNome: string;
   inicio: string;
   fim: string;
-  resumo: { total: number; criticos: number; maiorRepeticao: number };
+  resumo: {
+    total: number;
+    criticos: number;
+    maiorRepeticao: number;
+    alemDaFicha: number;
+    fichaConfirma: number;
+    soCopia: number;
+  };
   alertas: AlertRow[];
 };
 
@@ -89,17 +114,6 @@ async function loadReport(loja: Loja, inicio: string, fim: string): Promise<Repo
   return data as Report;
 }
 
-function ColumnTitle({ title, hint }: { title: string; hint: string }) {
-  return (
-    <span className="block">
-      <span className="block font-medium text-foreground">{title}</span>
-      <span className="mt-0.5 block text-[11px] font-normal leading-snug text-muted-foreground">
-        {hint}
-      </span>
-    </span>
-  );
-}
-
 function LojaReport({ loja, inicio, fim }: { loja: Loja; inicio: string; fim: string }) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -147,97 +161,130 @@ function LojaReport({ loja, inicio, fim }: { loja: Loja; inicio: string; fim: st
       <div className="grid gap-3 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Casos no período</CardTitle>
+            <CardTitle className="text-sm font-medium">Repetiu além da ficha</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold">{report.resumo.total}</div>
-            <p className="text-xs text-muted-foreground">Vendas em que o mesmo produto se repetiu</p>
+            <div className="text-2xl font-semibold">{report.resumo.alemDaFicha}</div>
+            <p className="text-xs text-muted-foreground">A venda mostra o produto menos vezes do que as saídas</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Críticos</CardTitle>
+            <CardTitle className="text-sm font-medium">A ficha confirma</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold">{report.resumo.criticos}</div>
-            <p className="text-xs text-muted-foreground">5 ou mais cópias do mesmo produto</p>
+            <div className="text-2xl font-semibold">{report.resumo.fichaConfirma}</div>
+            <p className="text-xs text-muted-foreground">Mais de uma unidade, e a venda lista todas</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Maior repetição</CardTitle>
+            <CardTitle className="text-sm font-medium">Só na cópia</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold">{report.resumo.maiorRepeticao}x</div>
-            <p className="text-xs text-muted-foreground">O caso que mais repetiu neste período</p>
+            <div className="text-2xl font-semibold">{report.resumo.soCopia}</div>
+            <p className="text-xs text-muted-foreground">Parecia repetido, mas na venda real há um item só</p>
           </CardContent>
         </Card>
       </div>
 
       {report.alertas.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Nenhuma repetição de saída neste período.
+          Nenhuma venda deste período tem o mesmo produto mais de uma vez na ficha real.
+          {report.resumo.soCopia > 0
+            ? ` ${report.resumo.soCopia} suspeitas eram só da cópia dos dados.`
+            : ""}
         </p>
       ) : (
-        <div className="overflow-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="align-top">
-                  <ColumnTitle title="Quando" hint="Dia e hora do salvamento" />
-                </TableHead>
-                <TableHead className="align-top">
-                  <ColumnTitle title="Código da venda" hint="Número que aparece na ficha" />
-                </TableHead>
-                <TableHead className="align-top">
-                  <ColumnTitle title="Produto" hint="O item que se repetiu" />
-                </TableHead>
-                <TableHead className="align-top">
-                  <ColumnTitle title="No carrinho" hint="Vezes que o sistema gravou o item" />
-                </TableHead>
-                <TableHead className="align-top">
-                  <ColumnTitle title="Saídas do estoque" hint="Vezes que saiu no mesmo segundo" />
-                </TableHead>
-                <TableHead className="align-top">
-                  <ColumnTitle title="O que a ficha mostra" hint="Itens e valor reais da venda" />
-                </TableHead>
-                <TableHead className="align-top">
-                  <ColumnTitle title="Quem salvou" hint="Usuário logado na hora" />
-                </TableHead>
-                <TableHead className="align-top">
-                  <ColumnTitle title="Gravidade" hint="2 ou mais é alerta. 5 ou mais é crítico" />
-                </TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {report.alertas.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell className="whitespace-nowrap">{row.dataHora ?? "—"}</TableCell>
-                  <TableCell>{row.codigoVenda ?? "sem código"}</TableCell>
-                  <TableCell className="max-w-[220px]">{row.produtoNome}</TableCell>
-                  <TableCell>{row.vezesCarrinho ? `${row.vezesCarrinho} vezes` : "—"}</TableCell>
-                  <TableCell>{row.vezesSaida ? `${row.vezesSaida} vezes` : "não achou saída"}</TableCell>
-                  <TableCell>
-                    {row.itensFicha == null ? "ficha não lida" : `${row.itensFicha} itens na ficha`}
-                    <div className="text-xs text-muted-foreground">Valor {money(row.valorFicha)}</div>
-                  </TableCell>
-                  <TableCell>{row.autor ?? "não identificado"}</TableCell>
-                  <TableCell>
-                    <Badge variant={row.gravidade === "critico" ? "destructive" : "secondary"}>
-                      {row.gravidade === "critico" ? "Crítico" : "Atenção"}
+        <div className="space-y-4">
+          {report.alertas.map((row) => (
+            <Card key={row.id}>
+              <CardHeader className="pb-2">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base">
+                      Venda {row.codigoVenda ?? "sem código"} · {row.produtoNome}
+                    </CardTitle>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {row.dataHora ?? "horário não informado"}
+                      {row.autor ? ` · salvou ${row.autor}` : ""}
+                      {" · "}
+                      {row.itensFicha ?? "?"} itens na ficha · {money(row.valorFicha)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={row.situacao === "alem_da_ficha" ? "destructive" : "secondary"}>
+                      {row.situacao === "alem_da_ficha" ? "Além da ficha" : "Ficha confirma"}
                     </Badge>
-                  </TableCell>
-                  <TableCell>
                     <Button variant="ghost" size="sm" onClick={() => copy(row.texto)}>
                       <Copy className="h-4 w-4" />
                       Copiar
                     </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="grid gap-4 lg:grid-cols-2">
+                <div>
+                  <p className="text-sm font-medium">Itens dentro da venda</p>
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    Onde ver: abra a venda. O código fica no topo. Estes produtos são as linhas da lista.
+                  </p>
+                  <div className="overflow-auto rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Produto na venda</TableHead>
+                          <TableHead>Qtd</TableHead>
+                          <TableHead>Hora do item</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {row.itensVenda.map((item, index) => (
+                          <TableRow key={`${row.id}-item-${index}`}>
+                            <TableCell>{item.nome}</TableCell>
+                            <TableCell>{item.qnt ?? "—"}</TableCell>
+                            <TableCell className="whitespace-nowrap">{item.dataHora ?? "—"}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Saídas de estoque ligadas a esses itens</p>
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    Onde ver: no histórico de estoque do produto. O código é o desta saída. A hora é a data gravada no lançamento.
+                  </p>
+                  {row.lancamentos.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhuma saída ligada a esses itens.</p>
+                  ) : (
+                    <div className="overflow-auto rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Código da saída</TableHead>
+                            <TableHead>Hora do lançamento</TableHead>
+                            <TableHead>Quem lançou</TableHead>
+                            <TableHead>Liga com a venda</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {row.lancamentos.map((item, index) => (
+                            <TableRow key={`${row.id}-stock-${index}`}>
+                              <TableCell>{item.codigo ?? "sem código"}</TableCell>
+                              <TableCell className="whitespace-nowrap">{item.dataHora ?? item.criadoEm ?? "—"}</TableCell>
+                              <TableCell>{item.autor ?? "não identificado"}</TableCell>
+                              <TableCell>{item.ligadoAVenda ? "Sim, esta venda" : "Não"}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
     </div>
@@ -256,7 +303,7 @@ export function FalhasEstoquePanel() {
       <div>
         <h1 className="text-2xl font-bold">Falhas de estoque</h1>
         <p className="text-sm text-muted-foreground">
-          A ficha da venda continua certa. O alerta aparece quando o mesmo produto foi gravado mais de uma vez no mesmo salvamento.
+          Cada card é uma venda em que o mesmo produto aparece mais de uma vez. À esquerda está o que você vê ao abrir a venda. À direita está a saída no histórico de estoque do produto.
         </p>
       </div>
 
