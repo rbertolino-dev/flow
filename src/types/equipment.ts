@@ -24,6 +24,7 @@ export interface Equipment {
     company?: string | null;
   } | null;
   last_service_at?: string | null;
+  service_count?: number;
 }
 
 export interface EquipmentFormData {

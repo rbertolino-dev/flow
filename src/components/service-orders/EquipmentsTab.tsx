@@ -58,9 +58,12 @@ function equipmentMeta(item: Equipment): string {
 
 interface EquipmentsTabProps {
   onOpenOrder?: (serviceOrderId: string) => void;
+  onCreateOrder?: (equipment: Equipment) => void;
 }
 
-export function EquipmentsTab({ onOpenOrder }: EquipmentsTabProps) {
+type EquipmentSortKey = 'name' | 'last_service';
+
+export function EquipmentsTab({ onOpenOrder, onCreateOrder }: EquipmentsTabProps) {
   const { leads } = useLeads();
   const [search, setSearch] = useState('');
   const [leadSearch, setLeadSearch] = useState('');
@@ -90,6 +93,7 @@ export function EquipmentsTab({ onOpenOrder }: EquipmentsTabProps) {
   const [editing, setEditing] = useState<Equipment | null>(null);
   const [detail, setDetail] = useState<Equipment | null>(null);
   const [deleting, setDeleting] = useState<Equipment | null>(null);
+  const [sort, setSort] = useState<{ key: EquipmentSortKey; dir: 'asc' | 'desc' } | null>(null);
 
   const hasActiveFilter = Boolean(search.trim() || leadId || status !== 'all');
 
@@ -129,6 +133,35 @@ export function EquipmentsTab({ onOpenOrder }: EquipmentsTabProps) {
   const countLabel =
     equipments.length === 1 ? '1 equipamento' : `${equipments.length} equipamentos`;
 
+  const sortedEquipments = useMemo(() => {
+    if (!sort) return equipments;
+    const list = [...equipments];
+    list.sort((a, b) => {
+      if (sort.key === 'name') {
+        const cmp = equipmentDisplayName(a).localeCompare(equipmentDisplayName(b), 'pt-BR');
+        return sort.dir === 'asc' ? cmp : -cmp;
+      }
+      const ta = a.last_service_at ? new Date(a.last_service_at).getTime() : 0;
+      const tb = b.last_service_at ? new Date(b.last_service_at).getTime() : 0;
+      return sort.dir === 'asc' ? ta - tb : tb - ta;
+    });
+    return list;
+  }, [equipments, sort]);
+
+  const toggleSort = (key: EquipmentSortKey) => {
+    setSort((current) => {
+      if (current?.key === key) {
+        return { key, dir: current.dir === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, dir: key === 'last_service' ? 'desc' : 'asc' };
+    });
+  };
+
+  const startOrder = (item: Equipment) => {
+    setDetail(null);
+    onCreateOrder?.(item);
+  };
+
   return (
     <div className="space-y-4" data-testid="os-equipments-tab">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -150,7 +183,7 @@ export function EquipmentsTab({ onOpenOrder }: EquipmentsTabProps) {
             <Label htmlFor="equipment-search">Buscar</Label>
             <Input
               id="equipment-search"
-              placeholder="Nome, tipo, marca, modelo, série ou setor"
+              placeholder="Nome, cliente, tipo, marca, modelo, série ou setor"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               data-testid="equipment-filter-search"
@@ -251,17 +284,26 @@ export function EquipmentsTab({ onOpenOrder }: EquipmentsTabProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Equipamento</TableHead>
+                <TableHead>
+                  <button type="button" className="font-medium" onClick={() => toggleSort('name')}>
+                    Equipamento
+                  </button>
+                </TableHead>
                 <TableHead>Cliente</TableHead>
                 <TableHead>Série</TableHead>
                 <TableHead>Setor</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Último atendimento</TableHead>
+                <TableHead>Atendimentos</TableHead>
+                <TableHead>
+                  <button type="button" className="font-medium" onClick={() => toggleSort('last_service')}>
+                    Último atendimento
+                  </button>
+                </TableHead>
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {equipments.map((item) => {
+              {sortedEquipments.map((item) => {
                 const title = equipmentDisplayName(item);
                 const meta = equipmentMeta(item);
                 return (
@@ -285,6 +327,7 @@ export function EquipmentsTab({ onOpenOrder }: EquipmentsTabProps) {
                         {item.status === 'active' ? 'Ativo' : 'Inativo'}
                       </Badge>
                     </TableCell>
+                    <TableCell>{item.service_count || 0}</TableCell>
                     <TableCell>
                       {item.last_service_at
                         ? format(new Date(item.last_service_at), 'dd/MM/yyyy', { locale: ptBR })
@@ -299,6 +342,9 @@ export function EquipmentsTab({ onOpenOrder }: EquipmentsTabProps) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => setDetail(item)}>Abrir</DropdownMenuItem>
+                          {onCreateOrder && (
+                            <DropdownMenuItem onClick={() => startOrder(item)}>Nova OS</DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             onClick={() => {
                               setEditing(item);
@@ -355,6 +401,7 @@ export function EquipmentsTab({ onOpenOrder }: EquipmentsTabProps) {
               }
             : undefined
         }
+        onCreateOrder={onCreateOrder ? startOrder : undefined}
       />
 
       <AlertDialog

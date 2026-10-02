@@ -16,12 +16,12 @@ const EQUIPMENT_SELECT = `
   lead:leads(id, name, company)
 `;
 
-async function loadLastServiceDates(
+async function loadServiceStats(
   activeOrgId: string,
   equipmentIds: string[]
-): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
-  if (!equipmentIds.length) return map;
+): Promise<Map<string, { lastAt: string | null; count: number }>> {
+  const map = new Map<string, { lastAt: string | null; count: number; seen: Set<string> }>();
+  if (!equipmentIds.length) return new Map();
 
   // @ts-expect-error tabela ainda nao tipada no client gerado
   const { data, error } = await supabase
@@ -30,26 +30,38 @@ async function loadLastServiceDates(
     .eq('organization_id', activeOrgId)
     .in('equipment_id', equipmentIds);
 
-  if (error || !data) return map;
+  if (error || !data) return new Map();
 
   for (const row of data as Array<{
     equipment_id: string;
     service_order?: {
+      id?: string;
       starts_at?: string | null;
       created_at?: string;
       deleted_at?: string | null;
     } | null;
   }>) {
     const order = row.service_order;
-    if (!order || order.deleted_at) continue;
-    const at = order.starts_at || order.created_at;
-    if (!at) continue;
-    const prev = map.get(row.equipment_id);
-    if (!prev || new Date(at) > new Date(prev)) {
-      map.set(row.equipment_id, at);
+    if (!order?.id || order.deleted_at) continue;
+    const entry = map.get(row.equipment_id) || { lastAt: null, count: 0, seen: new Set<string>() };
+    if (entry.seen.has(order.id)) {
+      map.set(row.equipment_id, entry);
+      continue;
     }
+    entry.seen.add(order.id);
+    entry.count += 1;
+    const at = order.starts_at || order.created_at;
+    if (at && (!entry.lastAt || new Date(at) > new Date(entry.lastAt))) {
+      entry.lastAt = at;
+    }
+    map.set(row.equipment_id, entry);
   }
-  return map;
+
+  const result = new Map<string, { lastAt: string | null; count: number }>();
+  for (const [id, entry] of map) {
+    result.set(id, { lastAt: entry.lastAt, count: entry.count });
+  }
+  return result;
 }
 
 export async function syncServiceOrderEquipments(
@@ -164,26 +176,48 @@ export function useEquipments(filters?: EquipmentFilters, options?: { enabled?: 
         query = query.ilike('serial_number', `%${filters.serial_number.trim()}%`);
       }
       if (filters?.search?.trim()) {
-        const q = filters.search.trim();
-        query = query.or(
-          `name.ilike.%${q}%,equipment_type.ilike.%${q}%,brand.ilike.%${q}%,model.ilike.%${q}%,serial_number.ilike.%${q}%,sector.ilike.%${q}%`
-        );
+        const q = filters.search.trim().replace(/[%(),]/g, ' ').trim();
+        if (q) {
+          const pattern = `%${q}%`;
+          const { data: matchedLeads } = await supabase
+            .from('leads')
+            .select('id')
+            .eq('organization_id', activeOrgId)
+            .is('deleted_at', null)
+            .or(`name.ilike.${pattern},company.ilike.${pattern}`)
+            .limit(80);
+          const leadIds = ((matchedLeads || []) as Array<{ id: string }>).map((lead) => lead.id);
+          const clauses = [
+            `name.ilike.${pattern}`,
+            `equipment_type.ilike.${pattern}`,
+            `brand.ilike.${pattern}`,
+            `model.ilike.${pattern}`,
+            `serial_number.ilike.${pattern}`,
+            `sector.ilike.${pattern}`,
+          ];
+          if (leadIds.length) clauses.push(`lead_id.in.(${leadIds.join(',')})`);
+          query = query.or(clauses.join(','));
+        }
       }
 
       const { data, error } = await query;
       if (error) throw error;
 
       const rows = (data || []) as Equipment[];
-      const lastDates = await loadLastServiceDates(
+      const stats = await loadServiceStats(
         activeOrgId,
         rows.map((row) => row.id)
       );
 
       setEquipments(
-        rows.map((row) => ({
-          ...row,
-          last_service_at: lastDates.get(row.id) || null,
-        }))
+        rows.map((row) => {
+          const stat = stats.get(row.id);
+          return {
+            ...row,
+            last_service_at: stat?.lastAt || null,
+            service_count: stat?.count || 0,
+          };
+        })
       );
     } catch (err) {
       console.error('Erro ao carregar equipamentos:', err);

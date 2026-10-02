@@ -115,6 +115,7 @@ export default function ServiceOrders() {
   }>({});
 
   const [showCreate, setShowCreate] = useState(false);
+  const [orderDraft, setOrderDraft] = useState<Partial<ServiceOrderFormData> | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showStatuses, setShowStatuses] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
@@ -550,6 +551,15 @@ export default function ServiceOrders() {
                 }
                 openOrderDetail(order);
               }}
+              onCreateOrder={(equipment) => {
+                setEditingOrder(null);
+                setOrderDraft({
+                  lead_id: equipment.lead_id,
+                  client_name: equipment.lead?.name || undefined,
+                  equipment_ids: [equipment.id],
+                });
+                setShowCreate(true);
+              }}
             />
           </TabsContent>
 
@@ -599,7 +609,11 @@ export default function ServiceOrders() {
               MODELOS
             </Button>
             <Button
-              onClick={() => setShowCreate(true)}
+              onClick={() => {
+                setEditingOrder(null);
+                setOrderDraft(null);
+                setShowCreate(true);
+              }}
               className="bg-slate-800 hover:bg-slate-900 flex-1 sm:flex-none min-h-11"
               data-testid="os-criar-btn"
             >
@@ -707,7 +721,15 @@ export default function ServiceOrders() {
             <div className="py-16 text-center text-muted-foreground border rounded-lg bg-card px-4">
               Nenhuma ordem de serviço encontrada.
               <div className="mt-3">
-                <Button onClick={() => setShowCreate(true)}>Criar primeira OS</Button>
+                <Button
+                  onClick={() => {
+                    setEditingOrder(null);
+                    setOrderDraft(null);
+                    setShowCreate(true);
+                  }}
+                >
+                  Criar primeira OS
+                </Button>
               </div>
             </div>
           ) : (
@@ -867,7 +889,10 @@ export default function ServiceOrders() {
         open={showCreate}
         onOpenChange={(open) => {
           setShowCreate(open);
-          if (!open) setEditingOrder(null);
+          if (!open) {
+            setEditingOrder(null);
+            setOrderDraft(null);
+          }
         }}
         templates={templates}
         statuses={statuses}
@@ -875,6 +900,7 @@ export default function ServiceOrders() {
         leads={leads || []}
         nextCode={editingOrder?.code || nextCode}
         editingOrder={editingOrder}
+        initialDraft={editingOrder ? null : orderDraft}
         onSubmit={handleCreateOrUpdate}
       />
 
@@ -903,6 +929,7 @@ export default function ServiceOrders() {
         order={selectedOrder}
         exporting={!!selectedOrder && exportingId === selectedOrder.id}
         onEdit={(order) => {
+          setOrderDraft(null);
           setEditingOrder(order);
           setShowDetail(false);
           setShowCreate(true);

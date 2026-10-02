@@ -23,6 +23,7 @@ interface EquipmentDetailDialogProps {
   loadHistory: (equipmentId: string) => Promise<EquipmentServiceHistoryItem[]>;
   onEdit?: (equipment: Equipment) => void;
   onOpenOrder?: (serviceOrderId: string) => void;
+  onCreateOrder?: (equipment: Equipment) => void;
 }
 
 export function EquipmentDetailDialog({
@@ -32,6 +33,7 @@ export function EquipmentDetailDialog({
   loadHistory,
   onEdit,
   onOpenOrder,
+  onCreateOrder,
 }: EquipmentDetailDialogProps) {
   const [history, setHistory] = useState<EquipmentServiceHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -105,11 +107,18 @@ export function EquipmentDetailDialog({
           </p>
         </div>
 
-        {onEdit && (
-          <Button type="button" variant="outline" size="sm" onClick={() => onEdit(equipment)}>
-            Editar cadastro
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {onCreateOrder && (
+            <Button type="button" size="sm" onClick={() => onCreateOrder(equipment)}>
+              Nova OS
+            </Button>
+          )}
+          {onEdit && (
+            <Button type="button" variant="outline" size="sm" onClick={() => onEdit(equipment)}>
+              Editar cadastro
+            </Button>
+          )}
+        </div>
 
         <div className="space-y-3 pt-2 border-t">
           <h3 className="font-semibold">Histórico de Ordens de Serviço</h3>

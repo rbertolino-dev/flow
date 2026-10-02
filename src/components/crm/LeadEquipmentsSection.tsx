@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Wrench, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,6 +29,7 @@ interface LeadEquipmentsSectionProps {
 }
 
 export function LeadEquipmentsSection({ leadId, onChanged }: LeadEquipmentsSectionProps) {
+  const navigate = useNavigate();
   const { leads } = useLeads();
   const filters = useMemo(
     () => ({ lead_id: leadId, status: 'all' as const }),
@@ -151,6 +153,10 @@ export function LeadEquipmentsSection({ leadId, onChanged }: LeadEquipmentsSecti
           setDetail(null);
           setEditing(item);
           setShowForm(true);
+        }}
+        onOpenOrder={(serviceOrderId) => {
+          setDetail(null);
+          navigate('/service-orders', { state: { openOrderId: serviceOrderId } });
         }}
       />
     </div>
