@@ -166,7 +166,7 @@ export function useEquipments(filters?: EquipmentFilters, options?: { enabled?: 
       if (filters?.search?.trim()) {
         const q = filters.search.trim();
         query = query.or(
-          `name.ilike.%${q}%,equipment_type.ilike.%${q}%,brand.ilike.%${q}%,model.ilike.%${q}%,serial_number.ilike.%${q}%`
+          `name.ilike.%${q}%,equipment_type.ilike.%${q}%,brand.ilike.%${q}%,model.ilike.%${q}%,serial_number.ilike.%${q}%,sector.ilike.%${q}%`
         );
       }
 

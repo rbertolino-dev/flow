@@ -56,7 +56,11 @@ function equipmentMeta(item: Equipment): string {
     .join(' · ');
 }
 
-export function EquipmentsTab() {
+interface EquipmentsTabProps {
+  onOpenOrder?: (serviceOrderId: string) => void;
+}
+
+export function EquipmentsTab({ onOpenOrder }: EquipmentsTabProps) {
   const { leads } = useLeads();
   const [search, setSearch] = useState('');
   const [leadSearch, setLeadSearch] = useState('');
@@ -146,7 +150,7 @@ export function EquipmentsTab() {
             <Label htmlFor="equipment-search">Buscar</Label>
             <Input
               id="equipment-search"
-              placeholder="Nome, tipo, marca, modelo ou série"
+              placeholder="Nome, tipo, marca, modelo, série ou setor"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               data-testid="equipment-filter-search"
@@ -340,6 +344,14 @@ export function EquipmentsTab() {
           setEditing(item);
           setShowForm(true);
         }}
+        onOpenOrder={
+          onOpenOrder
+            ? (serviceOrderId) => {
+                setDetail(null);
+                onOpenOrder(serviceOrderId);
+              }
+            : undefined
+        }
       />
 
       <AlertDialog

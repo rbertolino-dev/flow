@@ -22,6 +22,7 @@ interface EquipmentDetailDialogProps {
   equipment: Equipment | null;
   loadHistory: (equipmentId: string) => Promise<EquipmentServiceHistoryItem[]>;
   onEdit?: (equipment: Equipment) => void;
+  onOpenOrder?: (serviceOrderId: string) => void;
 }
 
 export function EquipmentDetailDialog({
@@ -30,6 +31,7 @@ export function EquipmentDetailDialog({
   equipment,
   loadHistory,
   onEdit,
+  onOpenOrder,
 }: EquipmentDetailDialogProps) {
   const [history, setHistory] = useState<EquipmentServiceHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -130,7 +132,18 @@ export function EquipmentDetailDialog({
                     data-testid={`equipment-history-${item.service_order_id}`}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-medium font-mono">{item.code}</span>
+                      {onOpenOrder ? (
+                        <button
+                          type="button"
+                          className="font-medium font-mono text-primary hover:underline"
+                          onClick={() => onOpenOrder(item.service_order_id)}
+                          data-testid={`equipment-history-open-${item.service_order_id}`}
+                        >
+                          {item.code}
+                        </button>
+                      ) : (
+                        <span className="font-medium font-mono">{item.code}</span>
+                      )}
                       <span className="text-muted-foreground">
                         {format(new Date(when), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                       </span>

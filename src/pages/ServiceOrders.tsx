@@ -537,7 +537,20 @@ export default function ServiceOrders() {
           </TabsList>
 
           <TabsContent value="equipments" className="mt-0">
-            <EquipmentsTab />
+            <EquipmentsTab
+              onOpenOrder={async (id) => {
+                const order = await getOrder(id);
+                if (!order) {
+                  toast({
+                    title: 'Ordem não encontrada',
+                    description: 'Não foi possível abrir esta ordem de serviço.',
+                    variant: 'destructive',
+                  });
+                  return;
+                }
+                openOrderDetail(order);
+              }}
+            />
           </TabsContent>
 
           <TabsContent value="orders" className="mt-0 space-y-6">
