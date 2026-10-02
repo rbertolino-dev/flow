@@ -21,7 +21,7 @@ const STORES = {
 
 type Loja = keyof typeof STORES;
 
-const MIN_COPIAS = 3;
+const MIN_COPIAS = 2;
 const MAX_DIAS = 31;
 const PAGE = 1000;
 const BRT_OFFSET_MS = 3 * 60 * 60 * 1000;

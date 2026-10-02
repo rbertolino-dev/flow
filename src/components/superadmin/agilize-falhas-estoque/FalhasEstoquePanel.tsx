@@ -205,7 +205,7 @@ function LojaReport({ loja, inicio, fim }: { loja: Loja; inicio: string; fim: st
                   <ColumnTitle title="Quem salvou" hint="Usuário logado na hora" />
                 </TableHead>
                 <TableHead className="align-top">
-                  <ColumnTitle title="Gravidade" hint="3–4 atenção, 5+ crítico" />
+                  <ColumnTitle title="Gravidade" hint="2 ou mais é alerta. 5 ou mais é crítico" />
                 </TableHead>
                 <TableHead />
               </TableRow>
@@ -256,7 +256,7 @@ export function FalhasEstoquePanel() {
       <div>
         <h1 className="text-2xl font-bold">Falhas de estoque</h1>
         <p className="text-sm text-muted-foreground">
-          A ficha da venda continua certa. O problema é o salvamento gravar o mesmo produto várias vezes e tirar do estoque de novo. Duas vezes não entra: pode ser uma compra de duas unidades.
+          A ficha da venda continua certa. O alerta aparece quando o mesmo produto foi gravado mais de uma vez no mesmo salvamento.
         </p>
       </div>
 
