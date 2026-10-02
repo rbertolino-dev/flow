@@ -89,6 +89,17 @@ async function loadReport(loja: Loja, inicio: string, fim: string): Promise<Repo
   return data as Report;
 }
 
+function ColumnTitle({ title, hint }: { title: string; hint: string }) {
+  return (
+    <span className="block">
+      <span className="block font-medium text-foreground">{title}</span>
+      <span className="mt-0.5 block text-[11px] font-normal leading-snug text-muted-foreground">
+        {hint}
+      </span>
+    </span>
+  );
+}
+
 function LojaReport({ loja, inicio, fim }: { loja: Loja; inicio: string; fim: string }) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -136,21 +147,30 @@ function LojaReport({ loja, inicio, fim }: { loja: Loja; inicio: string; fim: st
       <div className="grid gap-3 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Alertas</CardTitle>
+            <CardTitle className="text-sm font-medium">Casos no período</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{report.resumo.total}</CardContent>
+          <CardContent>
+            <div className="text-2xl font-semibold">{report.resumo.total}</div>
+            <p className="text-xs text-muted-foreground">Vendas em que o mesmo produto se repetiu</p>
+          </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Críticos</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{report.resumo.criticos}</CardContent>
+          <CardContent>
+            <div className="text-2xl font-semibold">{report.resumo.criticos}</div>
+            <p className="text-xs text-muted-foreground">5 ou mais cópias do mesmo produto</p>
+          </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Maior repetição</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{report.resumo.maiorRepeticao}</CardContent>
+          <CardContent>
+            <div className="text-2xl font-semibold">{report.resumo.maiorRepeticao}x</div>
+            <p className="text-xs text-muted-foreground">O caso que mais repetiu neste período</p>
+          </CardContent>
         </Card>
       </div>
 
@@ -163,14 +183,30 @@ function LojaReport({ loja, inicio, fim }: { loja: Loja; inicio: string; fim: st
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Quando</TableHead>
-                <TableHead>Venda</TableHead>
-                <TableHead>Produto</TableHead>
-                <TableHead>Carrinho</TableHead>
-                <TableHead>Saídas</TableHead>
-                <TableHead>Ficha</TableHead>
-                <TableHead>Quem salvou</TableHead>
-                <TableHead>Gravidade</TableHead>
+                <TableHead className="align-top">
+                  <ColumnTitle title="Quando" hint="Dia e hora do salvamento" />
+                </TableHead>
+                <TableHead className="align-top">
+                  <ColumnTitle title="Código da venda" hint="Número que aparece na ficha" />
+                </TableHead>
+                <TableHead className="align-top">
+                  <ColumnTitle title="Produto" hint="O item que se repetiu" />
+                </TableHead>
+                <TableHead className="align-top">
+                  <ColumnTitle title="No carrinho" hint="Vezes que o sistema gravou o item" />
+                </TableHead>
+                <TableHead className="align-top">
+                  <ColumnTitle title="Saídas do estoque" hint="Vezes que saiu no mesmo segundo" />
+                </TableHead>
+                <TableHead className="align-top">
+                  <ColumnTitle title="O que a ficha mostra" hint="Itens e valor reais da venda" />
+                </TableHead>
+                <TableHead className="align-top">
+                  <ColumnTitle title="Quem salvou" hint="Usuário logado na hora" />
+                </TableHead>
+                <TableHead className="align-top">
+                  <ColumnTitle title="Gravidade" hint="3–4 atenção, 5+ crítico" />
+                </TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -178,23 +214,24 @@ function LojaReport({ loja, inicio, fim }: { loja: Loja; inicio: string; fim: st
               {report.alertas.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="whitespace-nowrap">{row.dataHora ?? "—"}</TableCell>
-                  <TableCell>{row.codigoVenda ?? "—"}</TableCell>
+                  <TableCell>{row.codigoVenda ?? "sem código"}</TableCell>
                   <TableCell className="max-w-[220px]">{row.produtoNome}</TableCell>
-                  <TableCell>{row.vezesCarrinho || "—"}</TableCell>
-                  <TableCell>{row.vezesSaida || "—"}</TableCell>
+                  <TableCell>{row.vezesCarrinho ? `${row.vezesCarrinho} vezes` : "—"}</TableCell>
+                  <TableCell>{row.vezesSaida ? `${row.vezesSaida} vezes` : "não achou saída"}</TableCell>
                   <TableCell>
-                    {row.itensFicha ?? "—"} itens
-                    <div className="text-xs text-muted-foreground">{money(row.valorFicha)}</div>
+                    {row.itensFicha == null ? "ficha não lida" : `${row.itensFicha} itens na ficha`}
+                    <div className="text-xs text-muted-foreground">Valor {money(row.valorFicha)}</div>
                   </TableCell>
-                  <TableCell>{row.autor ?? "—"}</TableCell>
+                  <TableCell>{row.autor ?? "não identificado"}</TableCell>
                   <TableCell>
                     <Badge variant={row.gravidade === "critico" ? "destructive" : "secondary"}>
                       {row.gravidade === "critico" ? "Crítico" : "Atenção"}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="icon" onClick={() => copy(row.texto)} title="Copiar alerta">
+                    <Button variant="ghost" size="sm" onClick={() => copy(row.texto)}>
                       <Copy className="h-4 w-4" />
+                      Copiar
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -219,7 +256,7 @@ export function FalhasEstoquePanel() {
       <div>
         <h1 className="text-2xl font-bold">Falhas de estoque</h1>
         <p className="text-sm text-muted-foreground">
-          Vendas da Eficaz Triunfo e da Eficaz Crimeia em que o mesmo produto gerou várias saídas no mesmo salvamento.
+          A ficha da venda continua certa. O problema é o salvamento gravar o mesmo produto várias vezes e tirar do estoque de novo. Duas vezes não entra: pode ser uma compra de duas unidades.
         </p>
       </div>
 
