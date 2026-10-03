@@ -233,6 +233,14 @@ export function StockModule() {
     () => uniqueNames([...products.map((p) => p.category || ""), ...categoriesCatalog.map((row) => row.name)]),
     [products, categoriesCatalog]
   );
+  const stockCategories = useMemo(
+    () => uniqueNames(products.map((product) => product.category || "")),
+    [products]
+  );
+  const stockHasUncategorized = useMemo(
+    () => products.some((product) => !(product.category || "").trim()),
+    [products]
+  );
   const brands = useMemo(
     () => uniqueNames([...products.map((p) => p.brand || ""), ...brandsCatalog.map((row) => row.name)]),
     [products, brandsCatalog]
@@ -1200,27 +1208,20 @@ export function StockModule() {
                 <Label htmlFor="movement-to">Até</Label>
                 <Input id="movement-to" type="date" value={movementTo} onChange={(event) => { setMovementTo(event.target.value); setMovementPage(0); }} />
               </div>
-              <div className="space-y-1">
-                <Label>Produto</Label>
-                <Select value={movementProductFilter} onValueChange={(value) => { setMovementProductFilter(value); setMovementPage(0); }}>
-                  <SelectTrigger><SelectValue placeholder="Todos os produtos" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os produtos</SelectItem>
-                    {[...products].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")).map((product) => (
-                      <SelectItem key={product.id} value={product.id}>{product.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <MovementProductSearch
+                products={products}
+                value={movementProductFilter}
+                onChange={(value) => { setMovementProductFilter(value); setMovementPage(0); }}
+              />
               <div className="space-y-1">
                 <Label>Categoria</Label>
                 <Select value={movementCategoryFilter} onValueChange={(value) => { setMovementCategoryFilter(value); setMovementPage(0); }}>
                   <SelectTrigger><SelectValue placeholder="Todas as categorias" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todas as categorias</SelectItem>
-                    <SelectItem value="Sem categoria">Sem categoria</SelectItem>
-                    {categoriesCatalog.filter((category) => category.name && category.name !== "Sem categoria").map((category) => (
-                      <SelectItem key={category.id} value={category.name}>{category.name}</SelectItem>
+                    {stockHasUncategorized && <SelectItem value="Sem categoria">Sem categoria</SelectItem>}
+                    {stockCategories.map((category) => (
+                      <SelectItem key={category} value={category}>{category}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1846,6 +1847,81 @@ function StatusBadge({ status }: { status: StockStatus }) {
   if (status === "falta") return <Badge className="rounded-full bg-red-500 px-2.5 font-medium text-white shadow-none hover:bg-red-500">Em falta</Badge>;
   if (status === "baixa") return <Badge className="rounded-full bg-orange-500 px-2.5 font-medium text-white shadow-none hover:bg-orange-500">Em baixa</Badge>;
   return <Badge className="rounded-full bg-emerald-500 px-2.5 font-medium text-white shadow-none hover:bg-emerald-500">Ideal</Badge>;
+}
+
+function foldText(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+function MovementProductSearch({
+  products,
+  value,
+  onChange,
+}: {
+  products: Product[];
+  value: string;
+  onChange: (productId: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const selected = products.find((product) => product.id === value);
+  const term = query.trim();
+  const matches = useMemo(() => {
+    if (term.length < 3) return [];
+    const needle = foldText(term);
+    return products
+      .filter((product) => foldText(`${product.name} ${product.sku || ""}`).includes(needle))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+      .slice(0, 20);
+  }, [products, term]);
+
+  return (
+    <div className="space-y-1">
+      <Label htmlFor="movement-product-search">Produto</Label>
+      <Input
+        id="movement-product-search"
+        value={open ? query : (selected?.name || "")}
+        placeholder="Digite 3 letras do produto"
+        onFocus={() => { setOpen(true); setQuery(""); }}
+        onBlur={() => { window.setTimeout(() => setOpen(false), 150); }}
+        onChange={(event) => setQuery(event.target.value)}
+        autoComplete="off"
+      />
+      {open && term.length > 0 && term.length < 3 && (
+        <p className="text-xs text-muted-foreground">Digite pelo menos 3 letras.</p>
+      )}
+      {open && term.length >= 3 && (
+        <div className="max-h-48 overflow-auto rounded-md border bg-background shadow-sm">
+          <button
+            type="button"
+            className="block w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => { onChange("all"); setQuery(""); setOpen(false); }}
+          >
+            Todos os produtos
+          </button>
+          {matches.length === 0 ? (
+            <p className="px-3 py-2 text-sm text-muted-foreground">Nenhum produto com essas letras.</p>
+          ) : matches.map((product) => (
+            <button
+              key={product.id}
+              type="button"
+              className="block w-full truncate px-3 py-2 text-left text-sm hover:bg-accent"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => { onChange(product.id); setQuery(""); setOpen(false); }}
+            >
+              {product.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {selected && !open && (
+        <button type="button" className="text-xs text-blue-600" onClick={() => onChange("all")}>
+          Limpar produto
+        </button>
+      )}
+    </div>
+  );
 }
 
 function currentMonthRange() {
