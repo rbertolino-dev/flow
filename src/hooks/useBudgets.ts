@@ -339,6 +339,10 @@ export function useBudgets(filters?: BudgetFilters) {
           
           // Buscar na empresa do cliente
           if (clientData?.company?.toLowerCase().includes(searchLower)) return true;
+
+          const totalText = String(budget.total ?? '');
+          if (totalText.includes(searchLower.replace(/\s/g, '').replace(',', '.'))) return true;
+          if (totalText.includes(searchLower)) return true;
           
           return false;
         });

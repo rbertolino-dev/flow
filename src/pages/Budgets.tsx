@@ -10,7 +10,7 @@ import { CreateBudgetDialog } from '@/components/budgets/CreateBudgetDialog';
 import { EditBudgetDialog } from '@/components/budgets/EditBudgetDialog';
 import { useBudgets, BUDGETS_PAGE_SIZE } from '@/hooks/useBudgets';
 import { Budget, Service, type Budget as BudgetType } from '@/types/budget';
-import { Plus, Search, X, Loader2, Wrench, Edit, Check, Receipt, Trash2, ChevronDown, ChevronUp, ImagePlus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, X, Loader2, Wrench, Edit, Check, Receipt, Trash2, ImagePlus, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink } from '@/components/ui/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,6 +29,7 @@ import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { useServices } from '@/hooks/useServices';
 import { useLeads } from '@/hooks/useLeads';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -96,7 +97,6 @@ export default function Budgets() {
   const [budgetExpiresFrom, setBudgetExpiresFrom] = useState<string>('');
   const [budgetExpiresTo, setBudgetExpiresTo] = useState<string>('');
   const [budgetStatusFilter, setBudgetStatusFilter] = useState<'all' | 'valid' | 'expired' | 'expiring_soon' | 'approved'>('all');
-  const [filtersExpanded, setFiltersExpanded] = useState<boolean>(false);
   const [budgetsPage, setBudgetsPage] = useState(1);
   
   // Estados para serviços
@@ -535,169 +535,139 @@ export default function Budgets() {
 
   return (
     <CRMLayout activeView="budgets" onViewChange={() => {}}>
-      <div className="space-y-6 p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Orçamentos</h1>
-            <p className="text-muted-foreground">
-              Gerencie seus orçamentos e serviços
-            </p>
-          </div>
-          <div className="flex gap-2">
-            {activeTab === 'budgets' && (
-              <Button onClick={() => setShowCreateDialog(true)} size="lg" className="h-12 px-6 text-base font-semibold">
-                <Plus className="w-5 h-5 mr-2" />
-                Novo Orçamento
-              </Button>
-            )}
-            {activeTab === 'services' && (
-              <Button onClick={() => handleOpenServiceDialog()}>
-                <Plus className="w-4 h-4 mr-2" />
-                Novo Serviço
-              </Button>
-            )}
-          </div>
-        </div>
+      <div className="space-y-5 bg-[#f5f7fb] p-5 md:p-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-[28px] font-bold tracking-tight text-slate-900">
+                  {activeTab === 'services' ? 'Serviços' : 'Orçamentos'}
+                </h1>
+                {activeTab === 'budgets' && (
+                  <span className="inline-flex min-w-8 items-center justify-center rounded-full bg-slate-200/80 px-2 py-0.5 text-sm font-semibold text-slate-600">
+                    {budgetsTotalCount}
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-sm text-slate-500">
+                {activeTab === 'services'
+                  ? 'Cadastre e organize os serviços usados nos orçamentos.'
+                  : 'Gerencie seus orçamentos, acompanhe vencimentos e status.'}
+              </p>
+              <TabsList className="mt-3 h-9 bg-white">
+                <TabsTrigger value="budgets" className="gap-1.5 px-3 text-sm">
+                  <Receipt className="h-3.5 w-3.5" />
+                  Orçamentos
+                </TabsTrigger>
+                <TabsTrigger value="services" className="gap-1.5 px-3 text-sm">
+                  <Wrench className="h-3.5 w-3.5" />
+                  Serviços
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="budgets" className="flex items-center gap-2">
-              <Receipt className="w-4 h-4" />
-              Orçamentos
-            </TabsTrigger>
-            <TabsTrigger value="services" className="flex items-center gap-2">
-              <Wrench className="w-4 h-4" />
-              Serviços
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="budgets" className="space-y-6">
-            {/* Filtros */}
-            {!selectedBudget && (
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Filtros</CardTitle>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setFiltersExpanded(!filtersExpanded)}
-                    className="h-8 w-8 p-0"
-                  >
-                    {filtersExpanded ? (
-                      <ChevronUp className="w-4 h-4" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4" />
-                    )}
-                  </Button>
-                </CardHeader>
-                {filtersExpanded && (
-                  <CardContent className="pt-2">
-                    <div className="space-y-4">
-                      {/* Busca */}
-                      <div className="flex gap-4 items-center">
-                        <div className="flex-1 relative">
-                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                          <Input
-                            placeholder="Buscar por número ou cliente..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-10"
-                          />
-                        </div>
-                        {(searchQuery || budgetClientFilter !== 'all' || budgetDateFrom || budgetDateTo || budgetExpiresFrom || budgetExpiresTo || budgetStatusFilter !== 'all') && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSearchQuery('');
-                              setBudgetClientFilter('all');
-                              setBudgetDateFrom('');
-                              setBudgetDateTo('');
-                              setBudgetExpiresFrom('');
-                              setBudgetExpiresTo('');
-                              setBudgetStatusFilter('all');
-                            }}
-                          >
-                            <X className="w-4 h-4 mr-2" />
-                            Limpar Filtros
-                          </Button>
-                        )}
+            {activeTab === 'budgets' && !selectedBudget && (
+              <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center xl:w-auto">
+                <div className="relative min-w-0 flex-1 xl:w-[320px]">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    placeholder="Buscar por número, cliente ou valor..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-10 rounded-xl border-slate-200 bg-white pl-9 shadow-sm"
+                  />
+                </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="h-10 rounded-xl border-slate-200 bg-white px-3 shadow-sm">
+                      <SlidersHorizontal className="mr-2 h-4 w-4" />
+                      Filtros
+                      {(budgetClientFilter !== 'all' || budgetDateFrom || budgetDateTo || budgetExpiresFrom || budgetExpiresTo || budgetStatusFilter !== 'all') && (
+                        <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[11px] font-semibold text-white">
+                          {[budgetClientFilter !== 'all', budgetStatusFilter !== 'all', Boolean(budgetDateFrom || budgetDateTo), Boolean(budgetExpiresFrom || budgetExpiresTo)].filter(Boolean).length}
+                        </span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-[340px] space-y-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="budget-client-filter">Cliente</Label>
+                      <Select value={budgetClientFilter} onValueChange={setBudgetClientFilter}>
+                        <SelectTrigger id="budget-client-filter">
+                          <SelectValue placeholder="Todos os clientes" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos os clientes</SelectItem>
+                          {(leads || []).map((lead) => (
+                            <SelectItem key={lead.id} value={lead.id}>
+                              {lead.name || lead.phone}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="budget-status-filter">Status</Label>
+                      <Select value={budgetStatusFilter} onValueChange={(value: 'all' | 'valid' | 'expired' | 'expiring_soon' | 'approved') => setBudgetStatusFilter(value)}>
+                        <SelectTrigger id="budget-status-filter">
+                          <SelectValue placeholder="Todos os status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos os status</SelectItem>
+                          <SelectItem value="valid">Válido</SelectItem>
+                          <SelectItem value="expired">Expirado</SelectItem>
+                          <SelectItem value="expiring_soon">Próximo</SelectItem>
+                          <SelectItem value="approved">Aprovado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="budget-date-from">Criação de</Label>
+                        <Input id="budget-date-from" type="date" value={budgetDateFrom} onChange={(e) => setBudgetDateFrom(e.target.value)} />
                       </div>
-                      {/* Filtros Avançados */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="budget-client-filter">Cliente</Label>
-                        <Select value={budgetClientFilter} onValueChange={setBudgetClientFilter}>
-                          <SelectTrigger id="budget-client-filter">
-                            <SelectValue placeholder="Todos os clientes" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Todos os clientes</SelectItem>
-                            {(leads || []).map((lead) => (
-                              <SelectItem key={lead.id} value={lead.id}>
-                                {lead.name || lead.phone}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="budget-date-to">Criação até</Label>
+                        <Input id="budget-date-to" type="date" value={budgetDateTo} onChange={(e) => setBudgetDateTo(e.target.value)} />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="budget-status-filter">Status</Label>
-                        <Select value={budgetStatusFilter} onValueChange={(value: 'all' | 'valid' | 'expired' | 'expiring_soon' | 'approved') => setBudgetStatusFilter(value)}>
-                          <SelectTrigger id="budget-status-filter">
-                            <SelectValue placeholder="Todos os status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Todos os status</SelectItem>
-                            <SelectItem value="valid">Válido</SelectItem>
-                            <SelectItem value="expired">Expirado</SelectItem>
-                            <SelectItem value="expiring_soon">Próximo</SelectItem>
-                            <SelectItem value="approved">Aprovado</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="budget-expires-from">Validade de</Label>
+                        <Input id="budget-expires-from" type="date" value={budgetExpiresFrom} onChange={(e) => setBudgetExpiresFrom(e.target.value)} />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="budget-date-from">Data de Criação (De)</Label>
-                        <Input
-                          id="budget-date-from"
-                          type="date"
-                          value={budgetDateFrom}
-                          onChange={(e) => setBudgetDateFrom(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="budget-date-to">Data de Criação (Até)</Label>
-                        <Input
-                          id="budget-date-to"
-                          type="date"
-                          value={budgetDateTo}
-                          onChange={(e) => setBudgetDateTo(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="budget-expires-from">Validade (De)</Label>
-                        <Input
-                          id="budget-expires-from"
-                          type="date"
-                          value={budgetExpiresFrom}
-                          onChange={(e) => setBudgetExpiresFrom(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="budget-expires-to">Validade (Até)</Label>
-                        <Input
-                          id="budget-expires-to"
-                          type="date"
-                          value={budgetExpiresTo}
-                          onChange={(e) => setBudgetExpiresTo(e.target.value)}
-                        />
+                      <div className="space-y-1.5">
+                        <Label htmlFor="budget-expires-to">Validade até</Label>
+                        <Input id="budget-expires-to" type="date" value={budgetExpiresTo} onChange={(e) => setBudgetExpiresTo(e.target.value)} />
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-                )}
-              </Card>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setBudgetClientFilter('all');
+                        setBudgetDateFrom('');
+                        setBudgetDateTo('');
+                        setBudgetExpiresFrom('');
+                        setBudgetExpiresTo('');
+                        setBudgetStatusFilter('all');
+                      }}
+                    >
+                      <X className="mr-2 h-4 w-4" />
+                      Limpar filtros
+                    </Button>
+                  </PopoverContent>
+                </Popover>
+                <Button onClick={() => setShowCreateDialog(true)} className="h-10 rounded-xl bg-blue-600 px-4 font-semibold hover:bg-blue-700">
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  Novo orçamento
+                </Button>
+              </div>
             )}
+
+          </div>
+
+          <TabsContent value="budgets" className="mt-0 space-y-5">
 
             {/* Indicadores */}
             {!selectedBudget && (
