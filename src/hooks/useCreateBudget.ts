@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
 import { generateBudgetPDF } from '@/lib/budgetPdfGenerator';
 import { SupabaseStorageService } from '@/services/contractStorage';
+import { budgetPdfFileNameFromRecord } from '@/lib/budgetPdfFileName';
 
 export function useCreateBudget() {
   const { activeOrgId } = useActiveOrganization();
@@ -145,7 +146,12 @@ export function useCreateBudget() {
 
         // Upload do PDF
         const storageService = new SupabaseStorageService(activeOrgId);
-        const pdfUrl = await storageService.uploadPDF(pdfBlob, data.id, 'budget');
+        const pdfUrl = await storageService.uploadPDF(
+          pdfBlob,
+          data.id,
+          'budget',
+          budgetPdfFileNameFromRecord(data as Budget)
+        );
 
         // Atualizar orçamento com URL do PDF
         const { error: updateError } = await (supabase as any)

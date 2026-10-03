@@ -8,6 +8,7 @@ import { broadcastRefreshEvent } from '@/utils/forceRefreshAfterMutation';
 // Usar módulo antigo que estava funcionando
 import { generateBudgetPDF } from '@/lib/budgetPdfGenerator';
 import { SupabaseStorageService } from '@/services/contractStorage';
+import { budgetPdfFileNameFromRecord } from '@/lib/budgetPdfFileName';
 import { format, addDays } from 'date-fns';
 import { buildBudgetPosSalePayload, createPosSaleFromBudget } from '@/lib/budgetPosSale';
 
@@ -506,7 +507,12 @@ export function useBudgets(filters?: BudgetFilters) {
 
       // Upload do PDF
       const storageService = new SupabaseStorageService(activeOrgId);
-      const pdfUrl = await storageService.uploadPDF(pdfBlob, data.id, 'budget');
+      const pdfUrl = await storageService.uploadPDF(
+        pdfBlob,
+        data.id,
+        'budget',
+        budgetPdfFileNameFromRecord(data as Budget)
+      );
 
       // Atualizar orçamento com URL do PDF
       // @ts-ignore - Tabela budgets existe
@@ -613,7 +619,12 @@ export function useBudgets(filters?: BudgetFilters) {
 
       // Upload do PDF
       const storageService = new SupabaseStorageService(uploadOrgId);
-      const pdfUrl = await storageService.uploadPDF(pdfBlob, budgetId, 'budget');
+      const pdfUrl = await storageService.uploadPDF(
+        pdfBlob,
+        budgetId,
+        'budget',
+        budgetPdfFileNameFromRecord(budget as Budget)
+      );
 
       // Atualizar orçamento com URL do PDF
       // @ts-ignore - Tabela budgets existe

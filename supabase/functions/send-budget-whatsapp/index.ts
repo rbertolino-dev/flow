@@ -7,6 +7,12 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 };
 
+function budgetPdfFileName(clientName: string | null | undefined, budgetNumber: string | null | undefined): string {
+  const clean = (value: string | null | undefined, fallback: string) =>
+    (value || '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim() || fallback;
+  return `Orçamento - ${clean(clientName, 'Cliente').slice(0, 80)} - ${clean(budgetNumber, 'sem-numero').slice(0, 40)}.pdf`;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -201,12 +207,13 @@ Olá ${leadName}, segue o orçamento para sua análise.
 
 Para mais informações, entre em contato conosco.`;
 
+    const pdfFileName = budgetPdfFileName(lead.name, budget.budget_number);
     const evolutionPayload = {
       number: whatsappNumber,
       mediatype: 'document',
       mimetype: 'application/pdf',
       media: pdfUrl,
-      fileName: `Orcamento_${budget.budget_number}.pdf`,
+      fileName: pdfFileName,
       caption: caption,
     };
 

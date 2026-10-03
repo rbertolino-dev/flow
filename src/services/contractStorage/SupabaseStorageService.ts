@@ -12,18 +12,25 @@ export class SupabaseStorageService implements StorageService {
     this.organizationId = organizationId;
   }
 
-  async uploadPDF(pdf: Blob, contractId: string, type: 'contract' | 'budget' = 'contract'): Promise<string> {
+  async uploadPDF(
+    pdf: Blob,
+    contractId: string,
+    type: 'contract' | 'budget' = 'contract',
+    displayFileName?: string
+  ): Promise<string> {
     const bucketId = type === 'budget' ? BUCKET_BUDGET_PDFS : BUCKET_CONTRACTS;
     const fileExt = 'pdf';
-    const fileName = `${contractId}-${Date.now()}.${fileExt}`;
+    const fileName = displayFileName || `${contractId}-${Date.now()}.${fileExt}`;
     const folder = type === 'budget' ? 'budgets' : 'contracts';
-    const filePath = `${this.organizationId}/${folder}/${fileName}`;
+    const filePath = displayFileName
+      ? `${this.organizationId}/${folder}/${contractId}/${fileName}`
+      : `${this.organizationId}/${folder}/${fileName}`;
 
     // Upload para Supabase Storage
     const { error: uploadError } = await supabase.storage
       .from(bucketId)
       .upload(filePath, pdf, {
-        upsert: false,
+        upsert: Boolean(displayFileName),
         cacheControl: '86400', // 24 horas
         contentType: 'application/pdf',
       });

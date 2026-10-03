@@ -45,6 +45,7 @@ import { ServiceBulkImport } from '@/components/budgets/ServiceBulkImport';
 import { ServiceCategoriesManager } from '@/components/budgets/ServiceCategoriesManager';
 import { BudgetIndicators } from '@/components/budgets/BudgetIndicators';
 import { BudgetApproveFinanceDialog } from '@/components/budgets/BudgetApproveFinanceDialog';
+import { budgetPdfFileNameFromRecord, downloadNamedPdf } from '@/lib/budgetPdfFileName';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -423,14 +424,23 @@ export default function Budgets() {
     setShowSendDialog(true);
   };
 
-  const handleDownload = (budget: Budget) => {
+  const handleDownload = async (budget: Budget) => {
     const pdfUrl = budget.pdf_url;
-    if (pdfUrl) {
-      window.open(pdfUrl, '_blank');
-    } else {
+    if (!pdfUrl) {
       toast({
         title: 'PDF não encontrado',
         description: 'Regenere o PDF primeiro',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      await downloadNamedPdf(pdfUrl, budgetPdfFileNameFromRecord(budget));
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao baixar PDF',
+        description: error.message || 'Não foi possível baixar o arquivo',
         variant: 'destructive',
       });
     }

@@ -13,6 +13,7 @@ import { Plus, Search, X, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { generateBudgetPDF } from '@/lib/budgetPdfModule';
+import { budgetPdfFileNameFromRecord, downloadNamedPdf } from '@/lib/budgetPdfFileName';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 
@@ -67,12 +68,7 @@ export default function BudgetsModule() {
     }
 
     try {
-      const link = document.createElement('a');
-      link.href = budget.pdf_url;
-      link.download = `Orcamento_${budget.budget_number}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      await downloadNamedPdf(budget.pdf_url, budgetPdfFileNameFromRecord(budget));
     } catch (error: any) {
       toast({
         title: 'Erro',
@@ -119,8 +115,8 @@ export default function BudgetsModule() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
-      const fileName = `budget-${selectedBudget.id}.pdf`;
-      const filePath = `${selectedBudget.organization_id}/budgets/${fileName}`;
+      const fileName = budgetPdfFileNameFromRecord(selectedBudget);
+      const filePath = `${selectedBudget.organization_id}/budgets/${selectedBudget.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('budget-pdfs')

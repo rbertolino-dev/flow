@@ -7,6 +7,12 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
+function budgetPdfFileName(clientName: string | null | undefined, budgetNumber: string | null | undefined): string {
+  const clean = (value: string | null | undefined, fallback: string) =>
+    (value || '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim() || fallback;
+  return `Orçamento - ${clean(clientName, 'Cliente').slice(0, 80)} - ${clean(budgetNumber, 'sem-numero').slice(0, 40)}.pdf`;
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -139,7 +145,7 @@ serve(async (req) => {
       mediatype: 'document',
       mimetype: 'application/pdf',
       media: budget.pdf_url,
-      fileName: `Orcamento_${budget.budget_number}.pdf`,
+      fileName: budgetPdfFileName(lead.name, budget.budget_number),
       caption: '', // Sem mensagem de texto, apenas PDF
     };
 
