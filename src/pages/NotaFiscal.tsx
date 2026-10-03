@@ -13,12 +13,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -144,16 +138,12 @@ export default function NotaFiscal() {
   const [moveTime, setMoveTime] = useState(() => new Date().toTimeString().slice(0, 5));
   const [complemento, setComplemento] = useState("");
   const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [companyOpen, setCompanyOpen] = useState(false);
+  const [pageTab, setPageTab] = useState<"notas" | "product" | "service" | "avulsa" | "sales" | "cce" | "company" | "export">("notas");
   const [empresaId, setEmpresaId] = useState("");
   const [ambiente, setAmbiente] = useState("2");
   const [modeloPadrao, setModeloPadrao] = useState("nfe");
-  const [taxesOpen, setTaxesOpen] = useState<"product" | "service" | null>(null);
-  const [salesOpen, setSalesOpen] = useState(false);
   const [salesLoading, setSalesLoading] = useState(false);
   const [sales, setSales] = useState<{ id: string; sale_number: number; customer_name: string; created_at: string; total?: number; has_product: boolean | string; has_service: boolean | string }[]>([]);
-  const [cceOpen, setCceOpen] = useState(false);
-  const [avulsaOpen, setAvulsaOpen] = useState(false);
   const [avulsa, setAvulsa] = useState({ description: "", amount: "", tax: "", name: "", document: "", email: "" });
   const [saving, setSaving] = useState(false);
 
@@ -206,9 +196,16 @@ export default function NotaFiscal() {
     return value === true || value === "t" || value === "true";
   }
 
+  function openFiscalTab(tab: "notas" | "product" | "service" | "avulsa" | "sales" | "cce" | "company" | "export") {
+    setPageTab(tab);
+    if (tab === "product" || tab === "service" || tab === "avulsa") {
+      void ensureClasses().catch((error) => toast({ title: error instanceof Error ? error.message : "Não foi possível listar as classes", variant: "destructive" }));
+    }
+    if (tab === "sales") openLastSales();
+  }
+
   function openLastSales() {
     if (!activeOrgId) return;
-    setSalesOpen(true);
     setSalesLoading(true);
     void fiscalCall(activeOrgId, `sales&from=${from}&to=${to}&q=${encodeURIComponent(query)}`)
       .then((data) => setSales(data.sales || []))
@@ -229,7 +226,6 @@ export default function NotaFiscal() {
         toast({ title: nextKind === "nfse" ? "Esta venda não tem serviço" : "Esta venda não tem produto", variant: "destructive" });
         return;
       }
-      setSalesOpen(false);
       openEmit(nextKind, items.map((item: Record<string, unknown>, index: number) => ({
         key: String(item.id || index),
         product_id: item.item_type === "product" ? String(item.item_id || "") : undefined,
@@ -284,7 +280,7 @@ export default function NotaFiscal() {
     setSaving(true);
     try {
       await fiscalCall(activeOrgId, "settings", { method: "POST", body: JSON.stringify({ empresa_id: empresaId, ambiente: Number(ambiente), modelo: modeloPadrao, natureza }) });
-      setCompanyOpen(false);
+      setPageTab("notas");
       await loadSettings();
       toast({ title: "Empresa fiscal salva" });
     } catch (error) {
@@ -398,26 +394,28 @@ export default function NotaFiscal() {
                 <p className="text-xs text-slate-500">Última emissão: {company?.lastEmission || "—"}</p>
                 <p className="text-sm text-red-600">Até {company?.limit || 50} notas no mês sem custo extra; a partir da {(company?.limit || 50)}ª, R$ 0,45 por nota. Neste mês: {monthCount}.</p>
               </div>
-              <Button variant="outline" onClick={() => setCompanyOpen(true)}>Editar empresa</Button>
+              <Button variant="outline" onClick={() => openFiscalTab("company")}>Editar empresa</Button>
             </div>
-            <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-wrap gap-1 border-b">
+              {([
+                ["notas", "Notas"],
+                ["product", "Imposto de produto"],
+                ["service", "Impostos de Serviços"],
+                ["avulsa", "NFSe Avulsa"],
+                ["sales", "Últimas vendas"],
+                ["cce", "Carta de Correção"],
+                ["company", "Alternar Empresa"],
+                ["export", "Exportar Notas"],
+              ] as const).map(([id, label]) => (
+                <button key={id} type="button" className={`border-b-2 px-3 py-2 text-sm ${pageTab === id ? "border-blue-700 font-medium text-blue-700" : "border-transparent text-slate-600"}`} onClick={() => openFiscalTab(id)}>{label}</button>
+              ))}
+            </div>
+            {pageTab === "notas" ? <div className="flex flex-wrap items-end gap-2">
               <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className="w-40" />
               <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} className="w-40" />
               <Input placeholder="Contato" value={query} onChange={(event) => setQuery(event.target.value)} className="w-56" />
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger asChild><Button variant="outline">Opções</Button></DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onSelect={() => window.setTimeout(() => { setTaxesOpen("service"); void ensureClasses().catch((error) => toast({ title: error instanceof Error ? error.message : "Não foi possível listar as classes", variant: "destructive" })); }, 0)}>Impostos de Serviços</DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => window.setTimeout(() => { setTaxesOpen("product"); void ensureClasses().catch((error) => toast({ title: error instanceof Error ? error.message : "Não foi possível listar as classes", variant: "destructive" })); }, 0)}>Minhas classes de imposto para produto</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { void ensureClasses(); setAvulsaOpen(true); }}>NFSe Avulsa</DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => window.setTimeout(openLastSales, 0)}>Últimas vendas</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setCceOpen(true)}>Carta de Correção</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setCompanyOpen(true)}>Alternar Empresa</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { if (!activeOrgId) return; void fiscalCall(activeOrgId, `export&from=${from}&to=${to}&q=${encodeURIComponent(query)}`).then((csv) => { const blob = new Blob([String(csv)], { type: "text/csv" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "notas.csv"; link.click(); }); }}>Exportar Notas</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <div className="overflow-auto rounded border">
+            </div> : null}
+            {pageTab === "notas" ? <><div className="overflow-auto rounded border">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-left"><tr><th className="p-2">Tipo</th><th>Nº</th><th>Cliente</th><th>Data de envio</th><th>Valor</th><th>Status</th><th>Arquivos</th></tr></thead>
                 <tbody>
@@ -440,7 +438,88 @@ export default function NotaFiscal() {
                 </tbody>
               </table>
             </div>
-            <div className="flex justify-between text-sm"><span>Emitidas: {issued}</span><span>Total: {money(total)}</span></div>
+            <div className="flex justify-between text-sm"><span>Emitidas: {issued}</span><span>Total: {money(total)}</span></div></> : null}
+            {pageTab === "product" || pageTab === "service" ? (
+              <TaxClassDialogs
+                orgId={activeOrgId || ""}
+                which={pageTab}
+                classes={classes}
+                embedded
+                onClose={() => setPageTab("notas")}
+                onSaved={async () => { await ensureClasses(); }}
+                toast={toast}
+              />
+            ) : null}
+            {pageTab === "sales" ? (
+              <div className="space-y-3">
+                {salesLoading ? <p className="text-sm text-slate-500">Carregando vendas...</p> : null}
+                {!salesLoading && !sales.length ? <p className="text-sm text-slate-500">Nenhuma venda concluída entre {from} e {to}.</p> : null}
+                {sales.map((sale) => (
+                  <div key={sale.id} className="rounded border p-2">
+                    <p>Venda {sale.sale_number} - {sale.customer_name || "Consumidor"} em {new Date(sale.created_at).toLocaleDateString("pt-BR")} · {money(Number(sale.total || 0))}</p>
+                    <div className="mt-2 flex gap-2">
+                      {saleFlag(sale.has_product) ? <Button size="sm" disabled={salesLoading} onClick={() => void openSale(sale.id, company?.modelo === "nfce" ? "nfce" : "nfe")}>Emitir NF-e ou NFC-e</Button> : null}
+                      {saleFlag(sale.has_service) ? <Button size="sm" variant="outline" disabled={salesLoading} onClick={() => void openSale(sale.id, "nfse")}>Emitir NFS-e</Button> : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {pageTab === "avulsa" ? (
+              <div className="max-w-xl space-y-2">
+                <h2 className="text-lg font-semibold">NFSe Avulsa</h2>
+                <Textarea placeholder="Discriminação" value={avulsa.description} onChange={(event) => setAvulsa({ ...avulsa, description: event.target.value })} />
+                <Input placeholder="Valor" value={avulsa.amount} onChange={(event) => setAvulsa({ ...avulsa, amount: event.target.value })} />
+                <Select value={avulsa.tax || "none"} onValueChange={(value) => setAvulsa({ ...avulsa, tax: value === "none" ? "" : value })}>
+                  <SelectTrigger><SelectValue placeholder="Classe" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Classe de imposto</SelectItem>
+                    {serviceClasses.filter((item) => item.ref).map((item) => <SelectItem key={item.ref} value={item.ref}>{item.ref}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Input placeholder="Nome do tomador" value={avulsa.name} onChange={(event) => setAvulsa({ ...avulsa, name: event.target.value })} />
+                <Input placeholder="CPF/CNPJ" value={avulsa.document} onChange={(event) => setAvulsa({ ...avulsa, document: event.target.value })} />
+                <Input placeholder="E-mail" value={avulsa.email} onChange={(event) => setAvulsa({ ...avulsa, email: event.target.value })} />
+                <Button onClick={() => {
+                  openEmit("nfse", [{ key: "avulsa", item_type: "service", name: avulsa.description || "Serviço", code: "", ncm: "", origem: "0", quantity: 1, price: Number(avulsa.amount || 0), tax_class_ref: avulsa.tax, description: avulsa.description }], "avulsa", null, avulsa.name);
+                  setCustomer((prev) => ({ ...prev, name: avulsa.name, document: avulsa.document, email: avulsa.email }));
+                  setPageTab("notas");
+                }}>Continuar</Button>
+              </div>
+            ) : null}
+            {pageTab === "cce" ? (
+              <div>
+                <h2 className="text-lg font-semibold">Carta de Correção</h2>
+                <p className="text-sm text-slate-600">A correção de uma nota aprovada fica para a próxima etapa.</p>
+              </div>
+            ) : null}
+            {pageTab === "company" ? (
+              <div className="max-w-xl space-y-3">
+                <h2 className="text-lg font-semibold">Alternar Empresa</h2>
+                <p className="text-sm">{company?.name || "Nome vem do Agilize Total"} {company?.cnpj ? `· ${company.cnpj}` : ""}</p>
+                {company?.bubbleEnv === "test" ? <p className="text-xs text-amber-700">Esta empresa está na versão de desenvolvimento do Agilize Total.</p> : null}
+                <div><Label>ID da empresa no Agilize Total</Label><Input value={empresaId} onChange={(event) => setEmpresaId(event.target.value)} /></div>
+                <div><Label>Ambiente</Label>
+                  <Select value={ambiente} onValueChange={setAmbiente}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="2">Homologação</SelectItem><SelectItem value="1">Produção</SelectItem></SelectContent></Select>
+                </div>
+                <div><Label>Modelo padrão do produto</Label>
+                  <Select value={modeloPadrao} onValueChange={setModeloPadrao}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="nfe">NF-e</SelectItem><SelectItem value="nfce">NFC-e</SelectItem></SelectContent></Select>
+                </div>
+                <div><Label>Natureza padrão</Label><Input value={natureza} onChange={(event) => setNatureza(event.target.value)} /></div>
+                <Button onClick={() => void saveCompany()} disabled={saving}>Salvar</Button>
+              </div>
+            ) : null}
+            {pageTab === "export" ? (
+              <div className="space-y-3">
+                <h2 className="text-lg font-semibold">Exportar Notas</h2>
+                <div className="flex flex-wrap items-end gap-2">
+                  <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className="w-40" />
+                  <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} className="w-40" />
+                  <Input placeholder="Contato" value={query} onChange={(event) => setQuery(event.target.value)} className="w-56" />
+                </div>
+                <Button onClick={() => { if (!activeOrgId) return; void fiscalCall(activeOrgId, `export&from=${from}&to=${to}&q=${encodeURIComponent(query)}`).then((csv) => { const blob = new Blob([String(csv)], { type: "text/csv" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "notas.csv"; link.click(); }); }}>Baixar CSV</Button>
+              </div>
+            ) : null}
           </>
         ) : null}
       </div>
@@ -562,85 +641,6 @@ export default function NotaFiscal() {
               <Button className="bg-blue-700 px-8 hover:bg-blue-800" onClick={() => void emit()} disabled={saving}>{saving ? "Emitindo..." : "EMITIR NOTA"}</Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={companyOpen} onOpenChange={setCompanyOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Editar empresa</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm">{company?.name || "Nome vem do Agilize Total"} {company?.cnpj ? `· ${company.cnpj}` : ""}</p>
-            {company?.bubbleEnv === "test" ? <p className="text-xs text-amber-700">Esta empresa está na versão de desenvolvimento do Agilize Total.</p> : null}
-            <div><Label>ID da empresa no Agilize Total</Label><Input value={empresaId} onChange={(event) => setEmpresaId(event.target.value)} /></div>
-            <div><Label>Ambiente</Label>
-              <Select value={ambiente} onValueChange={setAmbiente}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="2">Homologação</SelectItem><SelectItem value="1">Produção</SelectItem></SelectContent></Select>
-            </div>
-            <div><Label>Modelo padrão do produto</Label>
-              <Select value={modeloPadrao} onValueChange={setModeloPadrao}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="nfe">NF-e</SelectItem><SelectItem value="nfce">NFC-e</SelectItem></SelectContent></Select>
-            </div>
-            <div><Label>Natureza padrão</Label><Input value={natureza} onChange={(event) => setNatureza(event.target.value)} /></div>
-            <Button onClick={() => void saveCompany()} disabled={saving}>Salvar</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <TaxClassDialogs
-        orgId={activeOrgId || ""}
-        which={taxesOpen}
-        classes={classes}
-        onClose={() => setTaxesOpen(null)}
-        onSaved={async () => { await ensureClasses(); }}
-        toast={toast}
-      />
-
-      <Dialog open={salesOpen} onOpenChange={setSalesOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Últimas vendas</DialogTitle></DialogHeader>
-          <div className="max-h-[60vh] space-y-3 overflow-auto">
-            {salesLoading ? <p className="text-sm text-slate-500">Carregando vendas...</p> : null}
-            {!salesLoading && !sales.length ? <p className="text-sm text-slate-500">Nenhuma venda concluída entre {from} e {to}.</p> : null}
-            {sales.map((sale) => (
-              <div key={sale.id} className="rounded border p-2">
-                <p>Venda {sale.sale_number} - {sale.customer_name || "Consumidor"} em {new Date(sale.created_at).toLocaleDateString("pt-BR")} · {money(Number(sale.total || 0))}</p>
-                <div className="mt-2 flex gap-2">
-                  {saleFlag(sale.has_product) ? <Button size="sm" disabled={salesLoading} onClick={() => void openSale(sale.id, company?.modelo === "nfce" ? "nfce" : "nfe")}>Emitir NF-e ou NFC-e</Button> : null}
-                  {saleFlag(sale.has_service) ? <Button size="sm" variant="outline" disabled={salesLoading} onClick={() => void openSale(sale.id, "nfse")}>Emitir NFS-e</Button> : null}
-                </div>
-              </div>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={avulsaOpen} onOpenChange={setAvulsaOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>NFSe Avulsa</DialogTitle></DialogHeader>
-          <div className="space-y-2">
-            <Textarea placeholder="Discriminação" value={avulsa.description} onChange={(event) => setAvulsa({ ...avulsa, description: event.target.value })} />
-            <Input placeholder="Valor" value={avulsa.amount} onChange={(event) => setAvulsa({ ...avulsa, amount: event.target.value })} />
-            <Select value={avulsa.tax || "none"} onValueChange={(value) => setAvulsa({ ...avulsa, tax: value === "none" ? "" : value })}>
-              <SelectTrigger><SelectValue placeholder="Classe" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Classe de imposto</SelectItem>
-                {serviceClasses.filter((item) => item.ref).map((item) => <SelectItem key={item.ref} value={item.ref}>{item.ref}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Input placeholder="Nome do tomador" value={avulsa.name} onChange={(event) => setAvulsa({ ...avulsa, name: event.target.value })} />
-            <Input placeholder="CPF/CNPJ" value={avulsa.document} onChange={(event) => setAvulsa({ ...avulsa, document: event.target.value })} />
-            <Input placeholder="E-mail" value={avulsa.email} onChange={(event) => setAvulsa({ ...avulsa, email: event.target.value })} />
-            <Button onClick={() => {
-              openEmit("nfse", [{ key: "avulsa", item_type: "service", name: avulsa.description || "Serviço", code: "", ncm: "", origem: "0", quantity: 1, price: Number(avulsa.amount || 0), tax_class_ref: avulsa.tax, description: avulsa.description }], "avulsa", null, avulsa.name);
-              setCustomer((prev) => ({ ...prev, name: avulsa.name, document: avulsa.document, email: avulsa.email }));
-              setAvulsaOpen(false);
-            }}>Continuar</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={cceOpen} onOpenChange={setCceOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Carta de Correção</DialogTitle></DialogHeader>
-          <p>A correção de uma nota aprovada fica para a próxima etapa.</p>
         </DialogContent>
       </Dialog>
       <FileText className="hidden" />

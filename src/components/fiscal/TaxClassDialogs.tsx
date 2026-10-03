@@ -190,13 +190,14 @@ function UfList({ title, rows, amount, onAdd, onEdit }: { title: string; rows: U
   );
 }
 
-export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast }: {
+export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast, embedded = false }: {
   orgId: string;
   which: "product" | "service" | null;
   classes: FiscalClass[];
   onClose: () => void;
   onSaved: () => Promise<void>;
   toast: Toast;
+  embedded?: boolean;
 }) {
   const [step, setStep] = useState<"choice" | "simples" | "manual" | "service" | null>(null);
   const [saving, setSaving] = useState(false);
@@ -298,15 +299,13 @@ export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast
 
   return (
     <>
-      <Dialog open={which !== null} onOpenChange={(open) => { if (!open) { onClose(); setStep(null); } }}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center justify-between gap-3 pr-6">
-              <span>{which === "service" ? "Minhas classes de imposto para serviço" : "Minhas Classes de Impostos para Produto"}</span>
-              <Button onClick={() => { resetCreate(); setStep(which === "service" ? "service" : "choice"); }}>{which === "service" ? "Nova classe" : "Nova Classe"}</Button>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="max-h-[65vh] space-y-4 overflow-auto">
+      {embedded && which ? (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">{which === "service" ? "Impostos de Serviços" : "Imposto de produto"}</h2>
+            <Button onClick={() => { resetCreate(); setStep(which === "service" ? "service" : "choice"); }}>{which === "service" ? "Nova classe" : "Nova Classe"}</Button>
+          </div>
+          <div className="space-y-4">
             {!visible.length ? <p className="text-sm text-slate-500">Nenhuma classe nesta empresa.</p> : null}
             {visible.map((item) => {
               const groups = { icms: item.icms, ipi: item.ipi, pis: item.pis, cofins: item.cofins, ibs: item.ibs };
@@ -345,8 +344,58 @@ export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast
               );
             })}
           </div>
+        </div>
+      ) : (
+      <Dialog open={which !== null} onOpenChange={(open) => { if (!open) { onClose(); setStep(null); } }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between gap-3 pr-6">
+              <span>{which === "service" ? "Impostos de Serviços" : "Imposto de produto"}</span>
+              <Button onClick={() => { resetCreate(); setStep(which === "service" ? "service" : "choice"); }}>{which === "service" ? "Nova classe" : "Nova Classe"}</Button>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[65vh] space-y-4 overflow-auto">
+            {!visible.length ? <p className="text-sm text-slate-500">Nenhuma classe nesta empresa.</p> : null}
+            {visible.map((item) => {
+              const groups = { icms: item.icms, ipi: item.ipi, pis: item.pis, cofins: item.cofins, ibs: item.ibs };
+              const current = groups[tab as keyof typeof groups] || [];
+              return (
+                <div key={item.ref} className="rounded border p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="font-medium uppercase">{item.description || item.ref}</p>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" className="bg-teal-600 hover:bg-teal-700" onClick={() => which === "service" ? editService(item) : editProduct(item)}>Editar Classe</Button>
+                      <Button size="icon" variant="ghost" aria-label="Excluir classe" onClick={() => setRemoveRef(item.ref)}><Trash2 className="h-4 w-4 text-red-600" /></Button>
+                    </div>
+                  </div>
+                  {which === "product" ? (
+                    <>
+                      <div className="mb-2 flex flex-wrap gap-1">
+                        {[["icms", "ICMS"], ["ipi", "IPI"], ["pis", "PIS"], ["cofins", "COFINS"], ["ibs", "CBS/IBS"]].map(([key, label]) => (
+                          <button key={key} type="button" className={`rounded-t px-3 py-1 text-xs text-white ${tab === key ? "bg-blue-800" : "bg-blue-600"}`} onClick={() => setTab(key)}>{label}</button>
+                        ))}
+                      </div>
+                      <div className="space-y-2">
+                        {current.map((row, index) => (
+                          <div key={`${item.ref}-${index}`} className="grid grid-cols-2 gap-2 rounded bg-slate-100 p-2 text-xs md:grid-cols-5">
+                            <p><span className="block text-slate-500">Tipo trib.</span>{row.tipo || "—"}</p>
+                            <p><span className="block text-slate-500">Cenário</span>{labelOf(CENARIOS, row.name)}</p>
+                            <p><span className="block text-slate-500">Pessoa</span>{row.person === "juridica" ? "jurídica" : row.person || "—"}</p>
+                            <p><span className="block text-slate-500">CFOP</span>{row.cfop || "—"}</p>
+                            <p><span className="block text-slate-500">Situação Trib.</span>{row.cst || "—"}</p>
+                          </div>
+                        ))}
+                        {!current.length ? <p className="text-xs text-slate-500">Nenhum cenário nesta aba.</p> : null}
+                      </div>
+                    </>
+                  ) : <p className="text-sm text-slate-600">{item.ref} · serviço {item.service?.codigo_servico || ""}</p>}
+                </div>
+              );
+            })}
+          </div>
         </DialogContent>
       </Dialog>
+      )}
 
       <Dialog open={step === "choice"} onOpenChange={(open) => !open && setStep(null)}>
         <DialogContent>
