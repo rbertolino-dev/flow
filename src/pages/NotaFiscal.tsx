@@ -23,7 +23,7 @@ import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, Trash2 } from "lucide-react";
+import { Building2, Download, FilePenLine, FilePlus2, FileText, Package, Receipt, ShoppingBag, Trash2, Wrench, type LucideIcon } from "lucide-react";
 import { TaxClassDialogs, type FiscalClass } from "@/components/fiscal/TaxClassDialogs";
 
 type Company = {
@@ -88,6 +88,17 @@ const FORMAS = [
   { code: "90", label: "90 - Sem pagamento", method: "sem_pagamento" },
   { code: "91", label: "91 - Pagamento posterior", method: "pagamento_posterior" },
   { code: "99", label: "99 - Outros", method: "outros" },
+];
+
+const PAGE_TABS: { id: "notas" | "product" | "service" | "avulsa" | "sales" | "cce" | "company" | "export"; label: string; caption: string; icon: LucideIcon }[] = [
+  { id: "notas", label: "Notas", caption: "Notas emitidas no período", icon: Receipt },
+  { id: "product", label: "Imposto de produto", caption: "Classes de imposto dos produtos", icon: Package },
+  { id: "service", label: "Impostos de Serviços", caption: "Classes de imposto dos serviços", icon: Wrench },
+  { id: "avulsa", label: "NFSe Avulsa", caption: "Serviço emitido sem uma venda", icon: FilePlus2 },
+  { id: "sales", label: "Últimas vendas", caption: "Vendas do PDV prontas para emitir", icon: ShoppingBag },
+  { id: "cce", label: "Carta de Correção", caption: "Correção de dados acessórios da NF-e", icon: FilePenLine },
+  { id: "company", label: "Alternar Empresa", caption: "Empresa, ambiente e modelo padrão", icon: Building2 },
+  { id: "export", label: "Exportar Notas", caption: "Planilha das notas do período", icon: Download },
 ];
 
 function money(value: number) {
@@ -234,7 +245,7 @@ export default function NotaFiscal() {
     return value === true || value === "t" || value === "true";
   }
 
-  function openFiscalTab(tab: "notas" | "product" | "service" | "avulsa" | "sales" | "cce" | "company" | "export") {
+  function openFiscalTab(tab: (typeof PAGE_TABS)[number]["id"]) {
     setPageTab(tab);
     if (tab === "product" || tab === "service" || tab === "avulsa") {
       void ensureClasses().catch((error) => toast({ title: error instanceof Error ? error.message : "Não foi possível listar as classes", variant: "destructive" }));
@@ -513,28 +524,42 @@ export default function NotaFiscal() {
         {screen === "list" ? (
           <>
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h1 className="text-2xl font-semibold">Nota Fiscal</h1>
-                <p className="text-sm text-slate-600">{company?.name || "Empresa não configurada"} {company?.cnpj ? `· ${company.cnpj}` : ""}</p>
-                <p className="text-xs text-slate-500">Última emissão: {company?.lastEmission || "—"}</p>
-                <p className="text-sm text-red-600">Até {company?.limit || 50} notas no mês sem custo extra; a partir da {(company?.limit || 50)}ª, R$ 0,45 por nota. Neste mês: {monthCount}.</p>
+              <div className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm">
+                  <FileText className="h-5 w-5" />
+                </span>
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight">Nota Fiscal</h1>
+                  <p className="text-sm text-slate-600">{company?.name || "Empresa não configurada"} {company?.cnpj ? `· ${company.cnpj}` : ""}</p>
+                  <p className="text-xs text-slate-500">Última emissão: {company?.lastEmission || "—"}</p>
+                  <p className="text-sm text-red-600">Até {company?.limit || 50} notas no mês sem custo extra; a partir da {(company?.limit || 50)}ª, R$ 0,45 por nota. Neste mês: {monthCount}.</p>
+                </div>
               </div>
               <Button variant="outline" onClick={() => openFiscalTab("company")}>Editar empresa</Button>
             </div>
-            <div className="flex flex-wrap gap-1 border-b">
-              {([
-                ["notas", "Notas"],
-                ["product", "Imposto de produto"],
-                ["service", "Impostos de Serviços"],
-                ["avulsa", "NFSe Avulsa"],
-                ["sales", "Últimas vendas"],
-                ["cce", "Carta de Correção"],
-                ["company", "Alternar Empresa"],
-                ["export", "Exportar Notas"],
-              ] as const).map(([id, label]) => (
-                <button key={id} type="button" className={`border-b-2 px-3 py-2 text-sm ${pageTab === id ? "border-blue-700 font-medium text-blue-700" : "border-transparent text-slate-600"}`} onClick={() => openFiscalTab(id)}>{label}</button>
-              ))}
-            </div>
+            <nav className="overflow-x-auto rounded-2xl bg-slate-100/90 p-1.5" aria-label="Seções da nota fiscal">
+              <div className="flex min-w-max gap-1">
+                {PAGE_TABS.map(({ id, label, icon: Icon }) => {
+                  const active = pageTab === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-current={active ? "page" : undefined}
+                      className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition-all duration-200 ${active ? "bg-white font-medium text-slate-900 shadow-sm" : "text-slate-500 hover:bg-white/70 hover:text-slate-800"}`}
+                      onClick={() => openFiscalTab(id)}
+                    >
+                      <span className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors duration-200 ${active ? "bg-blue-600 text-white" : "bg-white text-slate-400"}`}>
+                        <Icon className="h-3.5 w-3.5" />
+                      </span>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </nav>
+            <div key={pageTab} className="animate-in fade-in slide-in-from-bottom-2 space-y-4 duration-300">
+            <p className="text-sm text-slate-500">{PAGE_TABS.find((tab) => tab.id === pageTab)?.caption}</p>
             {pageTab === "notas" ? <div className="flex flex-wrap items-end gap-2">
               <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className="w-40" />
               <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} className="w-40" />
@@ -655,6 +680,7 @@ export default function NotaFiscal() {
                 <Button onClick={() => { if (!activeOrgId) return; void fiscalCall(activeOrgId, `export&from=${from}&to=${to}&q=${encodeURIComponent(query)}`).then((csv) => { const blob = new Blob([String(csv)], { type: "text/csv" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "notas.csv"; link.click(); }); }}>Baixar CSV</Button>
               </div>
             ) : null}
+            </div>
           </>
         ) : null}
       </div>
@@ -835,7 +861,6 @@ export default function NotaFiscal() {
           <Button disabled={saving || returnCfop.length !== 4} onClick={() => void confirmReturn()}>{saving ? "Enviando..." : "Emitir devolução"}</Button>
         </DialogContent>
       </Dialog>
-      <FileText className="hidden" />
     </CRMLayout>
   );
 }
