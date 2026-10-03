@@ -8,6 +8,7 @@ import {
 } from "../../src/lib/landingPageAccess";
 import { buildLandingPagePreview, landingPageChecklist, productInStock } from "../../src/lib/landingPagePreview";
 import { buildLandingCartItemText, buildLandingCartMessage } from "../../src/lib/landingPageCart";
+import { filterLandingItems, sortLandingItems } from "../../src/lib/landingPageCatalogFilters";
 import type { LandingPageConfig } from "../../src/types/landing-page";
 
 test("mensagem do carrinho lista todos os itens no lugar de {item}", () => {
@@ -36,6 +37,21 @@ test("mensagem do carrinho lista todos os itens no lugar de {item}", () => {
   });
   expect(withoutPlaceholder).toContain("Olá Loja");
   expect(withoutPlaceholder).toContain("• 2x Detergente");
+});
+
+test("ordenação e filtro de categoria da vitrine", () => {
+  const items = [
+    { id: "1", created_at: "2026-01-02", product: { name: "Detergente", price: 9, category: "Limpeza" } },
+    { id: "2", created_at: "2026-03-01", product: { name: "Esponja", price: 3.5, category: "Cozinha" } },
+    { id: "3", created_at: "2026-01-01", product: { name: "Balde", price: 12, category: "Limpeza" } },
+  ];
+  expect(sortLandingItems(items, "alpha").map((item) => item.product.name)).toEqual(["Balde", "Detergente", "Esponja"]);
+  expect(sortLandingItems(items, "price-asc").map((item) => item.product.name)).toEqual(["Esponja", "Detergente", "Balde"]);
+  expect(sortLandingItems(items, "price-desc").map((item) => item.product.name)).toEqual(["Balde", "Detergente", "Esponja"]);
+  expect(sortLandingItems(items, "newest").map((item) => item.id)).toEqual(["2", "1", "3"]);
+  expect(sortLandingItems(items, "oldest").map((item) => item.id)).toEqual(["3", "1", "2"]);
+  expect(filterLandingItems(items, "Cozinha", "").map((item) => item.id)).toEqual(["2"]);
+  expect(filterLandingItems(items, null, "balde").map((item) => item.id)).toEqual(["3"]);
 });
 
 function draftConfig(overrides: Partial<LandingPageConfig> = {}): LandingPageConfig {

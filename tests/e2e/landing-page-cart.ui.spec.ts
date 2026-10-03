@@ -19,24 +19,25 @@ function pagePayload(template: "modern" | "catalog") {
     organization: { id: "22222222-2222-2222-2222-222222222222", name: "Loja Teste" },
     items: [
       item("a", "Detergente", 9, true),
-      item("b", "Esponja", 3.5, true),
+      item("b", "Esponja", 3.5, true, "Cozinha"),
       item("c", "Balde", 12, false),
     ],
   };
 }
 
-function item(id: string, name: string, price: number, inStock: boolean) {
+function item(id: string, name: string, price: number, inStock: boolean, category = "Limpeza") {
   return {
     id: `item-${id}`,
     product_id: id,
     is_visible: true,
     display_order: 0,
+    created_at: id === "b" ? "2026-03-01" : id === "a" ? "2026-01-02" : "2026-01-01",
     product: {
       id,
       name,
       description: name,
       price,
-      category: "Limpeza",
+      category,
       in_stock: inStock,
       is_active: true,
     },
@@ -96,4 +97,21 @@ test("botão geral abre conversa sem a lista do carrinho", async ({ page }) => {
   expect(text).not.toContain("Detergente");
   expect(text).not.toContain("•");
   await popup.close();
+});
+
+test("ordenar e filtrar categoria no topo da vitrine", async ({ page }) => {
+  await openFixture(page, "catalog");
+  await page.getByRole("button", { name: "Ordenar" }).click();
+  await page.getByRole("radio", { name: "Menor preço" }).click();
+  await expect(page.locator("h3").nth(0)).toHaveText("Esponja");
+  await expect(page.locator("h3").nth(1)).toHaveText("Detergente");
+  await expect(page.locator("h3").nth(2)).toHaveText("Balde");
+
+  await page.getByRole("button", { name: "Categorias" }).click();
+  await page.getByPlaceholder("Busque por uma opção").fill("coz");
+  await page.getByRole("radio", { name: "Cozinha" }).click();
+  await page.getByRole("button", { name: "Confirmar" }).click();
+  await expect(page.locator("h3")).toHaveCount(1);
+  await expect(page.locator("h3")).toHaveText("Esponja");
+  await expect(page.getByRole("button", { name: "Limpar todos" })).toBeVisible();
 });

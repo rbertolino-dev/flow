@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
 import { LandingPagePublicData } from "@/types/landing-page";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { MessageSquare, ShoppingBag, CheckCircle, Search, Phone, Clock } from "lucide-react";
+import { MessageSquare, ShoppingBag, CheckCircle, Phone, Clock } from "lucide-react";
 import { LandingPageForm } from "@/components/landing-page/LandingPageForm";
 import { LandingPageMapEmbed } from "@/components/landing-page/LandingPageMapEmbed";
 import {
@@ -11,6 +10,8 @@ import {
   LandingPageCartDock,
 } from "@/components/landing-page/LandingPageCart";
 import { useLandingPageCart } from "@/hooks/useLandingPageCart";
+import { LandingPageCatalogToolbar } from "@/components/landing-page/LandingPageCatalogToolbar";
+import { useLandingCatalogFilters } from "@/hooks/useLandingCatalogFilters";
 
 function parseVideoEmbedUrl(url: string): string | null {
   if (!url?.trim()) return null;
@@ -44,20 +45,9 @@ interface LandingPageTemplateCatalogProps {
 
 export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateCatalogProps) {
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
   const primaryColor = landingPage.primary_color || '#3b82f6';
   const cart = useLandingPageCart(landingPage);
-
-  const productsByCategory = landingPage.items.reduce((acc, item) => {
-    if (!item.product) return acc;
-    const category = item.product.category || 'Outros';
-    if (!acc[category]) acc[category] = [];
-    acc[category].push(item);
-    return acc;
-  }, {} as Record<string, typeof landingPage.items>);
-
-  const categories = Object.keys(productsByCategory);
+  const catalog = useLandingCatalogFilters(landingPage.items || []);
 
   const handleWhatsAppClick = async (productId?: string, productName?: string) => {
     const matched = landingPage.items.find(i => i.product_id === productId);
@@ -75,18 +65,7 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
     window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${encodedMessage}`, '_blank');
   };
 
-  const filterBySearch = (item: typeof landingPage.items[0]): boolean => {
-    if (!searchTerm) return true;
-    const product = item.product;
-    if (!product) return false;
-    const s = searchTerm.toLowerCase();
-    return (item.custom_title || product.name).toLowerCase().includes(s) ||
-      (item.custom_description || product.description || '').toLowerCase().includes(s) ||
-      (product.category || '').toLowerCase().includes(s);
-  };
-
-  const filteredItemsByCategory = selectedCategory ? productsByCategory[selectedCategory] || [] : landingPage.items;
-  const filteredItems = filteredItemsByCategory.filter(filterBySearch);
+  const filteredItems = catalog.filtered;
 
   const isServiceCategory = (category: string | null | undefined): boolean => {
     if (!category) return false;
@@ -190,65 +169,18 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
         </div>
       </section>
 
-      {/* Search Bar - Estilo moderno */}
       {landingPage.items && landingPage.items.length > 0 && (
-        <section className="py-6 sm:py-8 bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="max-w-2xl mx-auto">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <Input
-                  type="text"
-                  placeholder="Buscar produtos ou serviços..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-12 pr-4 py-4 sm:py-5 text-base border-2 border-gray-200 focus:border-gray-400 rounded-xl bg-gray-50 focus:bg-white transition-colors min-h-[48px]"
-                />
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Categories - Pills modernas */}
-      {categories.length > 1 && (
-        <section className="py-6 bg-gray-50/50 border-b border-gray-100">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-              <Button
-                variant={selectedCategory === null ? "default" : "outline"}
-                onClick={() => setSelectedCategory(null)}
-                size="sm"
-                className="rounded-full px-4 py-2 text-sm font-medium"
-                style={selectedCategory === null ? { backgroundColor: primaryColor } : {}}
-              >
-                Todos
-              </Button>
-              {categories.map((category) => (
-                <Button
-                  key={category}
-                  variant={selectedCategory === category ? "default" : "outline"}
-                  onClick={() => setSelectedCategory(category)}
-                  size="sm"
-                  className="rounded-full px-4 py-2 text-sm font-medium"
-                  style={selectedCategory === category ? { backgroundColor: primaryColor } : {}}
-                >
-                  {category}
-                </Button>
-              ))}
-            </div>
-          </div>
-        </section>
+        <LandingPageCatalogToolbar filters={catalog} primaryColor={primaryColor} />
       )}
 
       {/* Products Grid - Vitrine estilo WooCommerce */}
       {landingPage.items && landingPage.items.length > 0 && (
         <>
-          {searchTerm && filteredItems.length === 0 && (
+          {filteredItems.length === 0 && (
             <section className="py-20 bg-white">
               <div className="container mx-auto px-4 text-center">
-                <p className="text-xl text-gray-600 mb-2">Nenhum resultado encontrado para</p>
-                <p className="text-2xl font-bold text-gray-900">"{searchTerm}"</p>
+                <p className="text-xl text-gray-600 mb-2">Nenhum resultado encontrado</p>
+                {catalog.search && <p className="text-2xl font-bold text-gray-900">"{catalog.search}"</p>}
               </div>
             </section>
           )}
@@ -257,7 +189,7 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
             <section className="py-12 sm:py-16 bg-white">
               <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                 <h2 className="text-2xl sm:text-3xl font-bold mb-8 text-gray-900">
-                  {selectedCategory ? selectedCategory : 'Nossos Produtos'}
+                  {catalog.category ? catalog.category : 'Nossos Produtos'}
                 </h2>
                 <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
                   {products.map((item, i) => renderItemCard(item, i))}
@@ -291,11 +223,11 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
             </section>
           )}
 
-          {products.length === 0 && services.length === 0 && !searchTerm && (
+          {products.length === 0 && services.length === 0 && filteredItems.length > 0 && (
             <section className="py-12 sm:py-16 bg-white">
               <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                 <h2 className="text-2xl sm:text-3xl font-bold mb-8 text-gray-900 text-center">
-                  {selectedCategory ? selectedCategory : 'Nossos Produtos e Serviços'}
+                  {catalog.category ? catalog.category : 'Nossos Produtos e Serviços'}
                 </h2>
                 <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
                   {filteredItems.map((item, i) => renderItemCard(item, i))}

@@ -10,6 +10,8 @@ import {
   LandingPageCartDock,
 } from "@/components/landing-page/LandingPageCart";
 import { useLandingPageCart } from "@/hooks/useLandingPageCart";
+import { LandingPageCatalogToolbar } from "@/components/landing-page/LandingPageCatalogToolbar";
+import { useLandingCatalogFilters } from "@/hooks/useLandingCatalogFilters";
 
 function parseVideoEmbedUrl(url: string): string | null {
   if (!url?.trim()) return null;
@@ -45,6 +47,7 @@ export function LandingPageTemplateModern({ landingPage }: LandingPageTemplateMo
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const primaryColor = landingPage.primary_color || '#3b82f6';
   const cart = useLandingPageCart(landingPage);
+  const catalog = useLandingCatalogFilters(landingPage.items || []);
 
   const handleWhatsAppClick = async (productId?: string, productName?: string) => {
     const matched = landingPage.items.find(i => i.product_id === productId);
@@ -74,9 +77,9 @@ export function LandingPageTemplateModern({ landingPage }: LandingPageTemplateMo
     return serviceKeywords.some(keyword => category.toLowerCase().includes(keyword.toLowerCase()));
   };
 
-  const products = landingPage.items?.filter(item => !isServiceCategory(item.product?.category)) || [];
-  const services = landingPage.items?.filter(item => isServiceCategory(item.product?.category)) || [];
-  const itemsToShow = products.length > 0 || services.length > 0 ? landingPage.items : [];
+  const products = catalog.filtered.filter(item => !isServiceCategory(item.product?.category));
+  const services = catalog.filtered.filter(item => isServiceCategory(item.product?.category));
+  const itemsToShow = landingPage.items || [];
 
   const renderItemCard = (item: typeof landingPage.items[0], index: number) => {
     const product = item.product;
@@ -191,6 +194,10 @@ export function LandingPageTemplateModern({ landingPage }: LandingPageTemplateMo
         </div>
       </section>
 
+      {itemsToShow.length > 0 && (
+        <LandingPageCatalogToolbar filters={catalog} primaryColor={primaryColor} />
+      )}
+
       {/* About Section */}
       {landingPage.about_text && (
         <section className="py-16 sm:py-20 bg-gradient-to-b from-gray-50 to-white">
@@ -225,6 +232,14 @@ export function LandingPageTemplateModern({ landingPage }: LandingPageTemplateMo
       {/* Products Section */}
       {itemsToShow.length > 0 && (
         <>
+          {catalog.filtered.length === 0 && (
+            <section className="py-16 bg-white">
+              <div className="container mx-auto px-4 text-center">
+                <p className="text-xl text-gray-600">Nenhum resultado encontrado</p>
+                {catalog.search && <p className="mt-2 text-2xl font-bold text-gray-900">"{catalog.search}"</p>}
+              </div>
+            </section>
+          )}
           {products.length > 0 && (
             <section className="py-16 sm:py-20 lg:py-24 bg-gradient-to-b from-white to-gray-50">
               <div className="container mx-auto px-4 sm:px-6 lg:px-8">
