@@ -25,6 +25,7 @@ interface Product {
   cost?: number | null;
   category?: string | null;
   is_active: boolean;
+  sale_paused?: boolean;
   stock_quantity?: number | null;
   min_stock?: number | null;
   ideal_stock?: number | null;
@@ -252,7 +253,7 @@ async function ensureStockSchema(client: any) {
 
 const CATALOG_FIELDS = [
   'name', 'description', 'sku', 'barcode', 'price', 'wholesale_price', 'cost', 'category',
-  'brand', 'unit', 'min_stock', 'ideal_stock', 'is_active', 'is_supply',
+  'brand', 'unit', 'min_stock', 'ideal_stock', 'is_active', 'is_supply', 'sale_paused',
 ];
 
 function catalogSnapshot(row: Record<string, unknown> | null) {
@@ -534,10 +535,13 @@ serve(async (req) => {
         if (ids.length > 500) {
           return jsonResponse(400, { error: 'Máximo de 500 produtos por operação' });
         }
-        if (typeof body.is_active !== 'boolean') {
-          return jsonResponse(400, { error: 'is_active (boolean) é obrigatório' });
+        const hasActive = typeof body.is_active === 'boolean';
+        const hasPaused = typeof body.sale_paused === 'boolean';
+        if (!hasActive && !hasPaused) {
+          return jsonResponse(400, { error: 'Informe is_active ou sale_paused (boolean)' });
         }
         const nextActive = body.is_active === true;
+        const nextPaused = body.sale_paused === true;
         const userName = await getUserName(supabase, user.id);
 
         await client.queryArray('BEGIN');
@@ -550,28 +554,44 @@ serve(async (req) => {
           return jsonResponse(404, { error: 'Nenhum produto encontrado' });
         }
         const foundIds = beforeRows.rows.map((row) => row.id);
+        const sets = ['updated_at = now()', 'updated_by = $1', 'updated_by_name = $2'];
+        const updateParams: unknown[] = [user.id, userName];
+        if (hasActive) {
+          updateParams.push(nextActive);
+          sets.push(`is_active = $${updateParams.length}`);
+        }
+        if (hasPaused) {
+          updateParams.push(nextPaused);
+          sets.push(`sale_paused = $${updateParams.length}`);
+        }
+        updateParams.push(organizationId, foundIds);
         await client.queryArray(
           `UPDATE products
-           SET is_active = $1, updated_at = now(), updated_by = $2, updated_by_name = $3
-           WHERE organization_id = $4 AND id = ANY($5::uuid[])`,
-          [nextActive, user.id, userName, organizationId, foundIds]
+           SET ${sets.join(', ')}
+           WHERE organization_id = $${updateParams.length - 1} AND id = ANY($${updateParams.length}::uuid[])`,
+          updateParams
         );
         const afterRows = await client.queryObject<Product>(
           `SELECT * FROM products WHERE organization_id = $1 AND id = ANY($2::uuid[])`,
           [organizationId, foundIds]
         );
         const afterById = new Map(afterRows.rows.map((row) => [row.id, row]));
-        const actionName = nextActive ? 'activate' : 'inactivate';
         for (const before of beforeRows.rows) {
           const after = afterById.get(before.id);
           if (!after) continue;
-          const wasActive = before.is_active !== false;
-          if (wasActive === nextActive) continue;
+          const actions: string[] = [];
+          if (hasActive && (before.is_active !== false) !== nextActive) {
+            actions.push(nextActive ? 'activate' : 'inactivate');
+          }
+          if (hasPaused && (before.sale_paused === true) !== nextPaused) {
+            actions.push(nextPaused ? 'pause_sale' : 'resume_sale');
+          }
+          if (!actions.length) continue;
           await writeProductAudit(client, {
             organizationId,
             productId: before.id,
             userId: user.id,
-            action: actionName,
+            action: actions.join(','),
             before: before as unknown as Record<string, unknown>,
             after: after as unknown as Record<string, unknown>,
           });
@@ -580,7 +600,8 @@ serve(async (req) => {
         return jsonResponse(200, {
           data: afterRows.rows,
           updated: afterRows.rows.length,
-          is_active: nextActive,
+          is_active: hasActive ? nextActive : undefined,
+          sale_paused: hasPaused ? nextPaused : undefined,
         });
       } catch (bulkError: any) {
         try { await client.queryArray('ROLLBACK'); } catch (_rollbackError) { /* sem transação */ }

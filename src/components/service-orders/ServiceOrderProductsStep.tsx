@@ -7,6 +7,7 @@ import { Package, Plus, ShoppingCart, Trash2 } from 'lucide-react';
 import { Product } from '@/types/product';
 import { ServiceOrderItem } from '@/types/serviceOrder';
 import { cn } from '@/lib/utils';
+import { isListedForSale } from '@/lib/productAvailability';
 
 interface ServiceOrderProductsStepProps {
   products: Product[];
@@ -62,7 +63,7 @@ export function ServiceOrderProductsStep({
   const [priceMode, setPriceMode] = useState<'price' | 'cost'>('price');
 
   const activeProducts = useMemo(
-    () => products.filter((product) => product.is_active),
+    () => products.filter((product) => isListedForSale(product)),
     [products]
   );
 

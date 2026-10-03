@@ -11,6 +11,7 @@ import {
   Search,
   Loader2,
   Ban,
+  Pause,
   RotateCcw,
   Tag,
   ArrowDownAZ,
@@ -36,6 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useProducts } from "@/hooks/useProducts";
+import { isSalePaused } from "@/lib/productAvailability";
 import { usePosSales } from "@/hooks/usePosSales";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { PosSale } from "@/types/pos";
@@ -169,7 +171,7 @@ function ListPager({
 }
 
 export function StockModule() {
-  const { products, loading, refetch, setProductsActive } = useProducts();
+  const { products, loading, refetch, setProductsActive, setProductsSalePaused } = useProducts();
   const wholesaleEnabled = useWholesalePriceEnabled();
   const { listSalesDetailed, cancelSale } = usePosSales();
   const { activeOrgId } = useActiveOrganization();
@@ -186,6 +188,7 @@ export function StockModule() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkConfirm, setBulkConfirm] = useState<"inactivate" | "activate" | null>(null);
+  const [saleConfirm, setSaleConfirm] = useState<"pause" | "resume" | null>(null);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [movementsLoading, setMovementsLoading] = useState(false);
   const initialMovementRange = currentMonthRange();
@@ -604,6 +607,22 @@ export function StockModule() {
       products.filter((product) => selectedLabelIds.has(product.id) && product.is_active === false).length,
     [products, selectedLabelIds]
   );
+  const selectedPausableCount = useMemo(
+    () =>
+      products.filter(
+        (product) =>
+          selectedLabelIds.has(product.id) && product.is_active !== false && !isSalePaused(product)
+      ).length,
+    [products, selectedLabelIds]
+  );
+  const selectedPausedCount = useMemo(
+    () =>
+      products.filter(
+        (product) =>
+          selectedLabelIds.has(product.id) && product.is_active !== false && isSalePaused(product)
+      ).length,
+    [products, selectedLabelIds]
+  );
 
   const confirmBulkStatus = async () => {
     if (!bulkConfirm || !selectedLabelIds.size) return;
@@ -623,6 +642,31 @@ export function StockModule() {
       await setProductsActive(ids, activate);
       setSelectedLabelIds(new Set());
       setBulkConfirm(null);
+    } catch {
+      /* toast já exibido no hook */
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const confirmSaleStatus = async () => {
+    if (!saleConfirm || !selectedLabelIds.size) return;
+    const pause = saleConfirm === "pause";
+    const ids = products
+      .filter((product) => {
+        if (!selectedLabelIds.has(product.id) || product.is_active === false) return false;
+        return pause ? !isSalePaused(product) : isSalePaused(product);
+      })
+      .map((product) => product.id);
+    if (!ids.length) {
+      setSaleConfirm(null);
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      await setProductsSalePaused(ids, pause);
+      setSelectedLabelIds(new Set());
+      setSaleConfirm(null);
     } catch {
       /* toast já exibido no hook */
     } finally {
@@ -915,6 +959,30 @@ export function StockModule() {
                 <Printer className="mr-2 h-4 w-4" /> Etiquetas
                 {labelQueueProducts.length > 0 ? ` (${labelQueueProducts.length})` : ""}
               </Button>
+              {selectedPausableCount > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-full border-slate-300 bg-white text-slate-900 hover:bg-slate-50"
+                  disabled={bulkBusy}
+                  onClick={() => setSaleConfirm("pause")}
+                >
+                  <Pause className="mr-2 h-4 w-4" />
+                  Pausar Venda
+                </Button>
+              )}
+              {selectedPausedCount > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-full border-slate-300 bg-white text-slate-900 hover:bg-slate-50"
+                  disabled={bulkBusy}
+                  onClick={() => setSaleConfirm("resume")}
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Retomar Venda
+                </Button>
+              )}
               {selectedActiveCount > 0 && (
                 <Button
                   variant="destructive"
@@ -1152,6 +1220,9 @@ export function StockModule() {
                                   <div className="font-medium text-slate-900">{product.name}</div>
                                   {product.is_supply && <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100">Insumo</Badge>}
                                   {inactive && <Badge variant="secondary">Inativo</Badge>}
+                                  {!inactive && isSalePaused(product) && (
+                                    <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Venda pausada</Badge>
+                                  )}
                                 </div>
                                 {product.sku && <div className="text-xs text-slate-400">{product.sku}</div>}
                               </div>
@@ -1656,6 +1727,43 @@ export function StockModule() {
           });
         }}
       />
+      <Dialog open={!!saleConfirm} onOpenChange={(open) => { if (!open && !bulkBusy) setSaleConfirm(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl text-slate-900">
+              {saleConfirm === "resume" ? "Retomar Venda" : "Pausar Venda"}
+            </DialogTitle>
+            <DialogDescription className="text-base leading-relaxed text-slate-600">
+              {saleConfirm === "resume"
+                ? selectedPausedCount > 1
+                  ? "Os produtos voltam a aparecer na lista da Venda Rápida, em Criar Orçamento e na Ordem de Serviço."
+                  : "O produto volta a aparecer na lista da Venda Rápida, em Criar Orçamento e na Ordem de Serviço."
+                : selectedPausableCount > 1
+                  ? "Pausar a venda fará com que estes produtos não apareçam na lista de produtos da Venda Rápida, Criar Orçamento e Ordem de Serviço. Você poderá vê-los no Estoque e desfazer essa ação a qualquer momento."
+                  : "Pausar a venda fará com que este produto não apareça na lista de produtos da Venda Rápida, Criar Orçamento e Ordem de Serviço. Você poderá vê-lo no Estoque e desfazer essa ação a qualquer momento."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <Button
+              type="button"
+              className="h-12 bg-slate-500 text-white hover:bg-slate-600"
+              disabled={bulkBusy}
+              onClick={() => setSaleConfirm(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              className="h-12 bg-green-600 text-white hover:bg-green-700"
+              disabled={bulkBusy}
+              onClick={() => void confirmSaleStatus()}
+            >
+              {bulkBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Confirmar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <Dialog open={!!bulkConfirm} onOpenChange={(open) => { if (!open && !bulkBusy) setBulkConfirm(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

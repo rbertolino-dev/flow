@@ -12,6 +12,7 @@ import { CreateProductDialog } from '@/components/shared/CreateProductDialog';
 import { useProducts } from '@/hooks/useProducts';
 import { useWholesalePriceEnabled } from '@/hooks/useWholesalePriceEnabled';
 import { resolveProductUnitPrice, type ProductPriceTier } from '@/lib/productPricing';
+import { isListedForSale } from '@/lib/productAvailability';
 
 interface ProductSelectorProps {
   products: Product[];
@@ -30,7 +31,7 @@ export function ProductSelector({ products, selectedProducts, onProductsChange }
   const wholesaleEnabled = useWholesalePriceEnabled();
 
   const filteredProducts = products.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) && p.is_active
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()) && isListedForSale(p)
   );
 
   const handleAddProduct = () => {

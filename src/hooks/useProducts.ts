@@ -2,7 +2,12 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { Product, ProductFormData } from "@/types/product";
+import { isListedForSale } from "@/lib/productAvailability";
 import { useToast } from "@/hooks/use-toast";
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Erro desconhecido";
+}
 
 async function getAccessTokenWithRetry(attempts = 3): Promise<string | null> {
   for (let i = 0; i < attempts; i++) {
@@ -72,7 +77,7 @@ export function useProducts(options?: { enabled?: boolean }) {
       const data = result.data || [];
 
       // Map database fields to Product interface
-      const mappedProducts: Product[] = data.map((item: any) => ({
+      const mappedProducts: Product[] = (data as Product[]).map((item) => ({
         id: item.id,
         organization_id: item.organization_id,
         name: item.name,
@@ -94,6 +99,7 @@ export function useProducts(options?: { enabled?: boolean }) {
         unit: item.unit,
         image_url: item.image_url,
         is_active: item.is_active,
+        sale_paused: item.sale_paused === true,
         is_supply: Boolean(item.is_supply),
         commission_percentage: item.commission_percentage,
         commission_fixed: item.commission_fixed,
@@ -104,11 +110,11 @@ export function useProducts(options?: { enabled?: boolean }) {
       }));
 
       setProducts(mappedProducts);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao buscar produtos:", error);
       toast({
         title: "Erro ao carregar produtos",
-        description: error.message,
+        description: errorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -156,11 +162,11 @@ export function useProducts(options?: { enabled?: boolean }) {
       });
 
       return data as Product;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao criar produto:", error);
       toast({
         title: "Erro ao criar produto",
-        description: error.message,
+        description: errorMessage(error),
         variant: "destructive",
       });
       throw error;
@@ -202,11 +208,11 @@ export function useProducts(options?: { enabled?: boolean }) {
         title: "Produto atualizado",
         description: "O produto foi atualizado com sucesso.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao atualizar produto:", error);
       toast({
         title: "Erro ao atualizar produto",
-        description: error.message,
+        description: errorMessage(error),
         variant: "destructive",
       });
       throw error;
@@ -245,11 +251,11 @@ export function useProducts(options?: { enabled?: boolean }) {
         description: `${result.updated ?? ids.length} produto(s) ${isActive ? "reativado(s)" : "inativado(s)"}. Eles ${isActive ? "voltam a aparecer" : "deixam de aparecer"} no estoque, PDV e orçamento.`,
       });
       return result;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao atualizar status em lote:", error);
       toast({
         title: "Erro ao atualizar produtos",
-        description: error.message,
+        description: errorMessage(error),
         variant: "destructive",
       });
       throw error;
@@ -287,11 +293,11 @@ export function useProducts(options?: { enabled?: boolean }) {
         title: "Produto excluído",
         description: "O produto foi excluído com sucesso.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao excluir produto:", error);
       toast({
         title: "Erro ao excluir produto",
-        description: error.message,
+        description: errorMessage(error),
         variant: "destructive",
       });
       throw error;
@@ -310,7 +316,52 @@ export function useProducts(options?: { enabled?: boolean }) {
   };
 
   const getActiveProducts = () => {
-    return products.filter((p) => p.is_active);
+    return products.filter((p) => isListedForSale(p));
+  };
+
+  const setProductsSalePaused = async (productIds: string[], salePaused: boolean) => {
+    if (!activeOrgId) throw new Error("Organização não encontrada");
+    const ids = [...new Set(productIds.filter(Boolean))];
+    if (!ids.length) throw new Error("Selecione ao menos um produto");
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Usuário não autenticado");
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/products/bulk`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+          "X-Organization-Id": activeOrgId,
+        },
+        body: JSON.stringify({ ids, sale_paused: salePaused }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json().catch(() => ({}));
+      await fetchProducts();
+      toast({
+        title: salePaused ? "Venda pausada" : "Venda retomada",
+        description: salePaused
+          ? `${result.updated ?? ids.length} produto(s) saíram da Venda Rápida, do orçamento e da ordem de serviço. Continuam no estoque.`
+          : `${result.updated ?? ids.length} produto(s) voltaram para as listas de venda.`,
+      });
+      return result;
+    } catch (error: unknown) {
+      console.error("Erro ao pausar venda:", error);
+      toast({
+        title: "Erro ao atualizar a venda",
+        description: errorMessage(error),
+        variant: "destructive",
+      });
+      throw error;
+    }
   };
 
   const createProductsBulk = async (productsData: ProductFormData[]) => {
@@ -352,11 +403,11 @@ export function useProducts(options?: { enabled?: boolean }) {
       });
 
       return result.data as Product[];
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao importar produtos:", error);
       toast({
         title: "Erro ao importar produtos",
-        description: error.message,
+        description: errorMessage(error),
         variant: "destructive",
       });
       throw error;
@@ -371,6 +422,7 @@ export function useProducts(options?: { enabled?: boolean }) {
     createProductsBulk,
     updateProduct,
     setProductsActive,
+    setProductsSalePaused,
     deleteProduct,
     getProductsByCategory,
     getActiveProducts,

@@ -17,6 +17,7 @@ import {
 import { useProducts } from "@/hooks/useProducts";
 import { useWholesalePriceEnabled } from "@/hooks/useWholesalePriceEnabled";
 import { resolveProductUnitPrice, productHasWholesalePrice, type ProductPriceTier } from "@/lib/productPricing";
+import { isListedForSale, isSalePaused } from "@/lib/productAvailability";
 import { useServices } from "@/hooks/useServices";
 import { usePosSales } from "@/hooks/usePosSales";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
@@ -292,14 +293,14 @@ export default function Pos() {
     const names = new Set<string>();
     for (const product of products) {
       const name = (product.category || "").trim();
-      if (product.is_active && name) names.add(name);
+      if (isListedForSale(product) && name) names.add(name);
     }
     return Array.from(names).sort((a, b) => a.localeCompare(b, "pt-BR"));
   }, [products]);
 
   const filteredProducts = useMemo(() => {
     const active = products.filter((p) => {
-      if (!p.is_active) return false;
+      if (!isListedForSale(p)) return false;
       if (wholesaleEnabled && priceTier === "wholesale" && !productHasWholesalePrice(p)) return false;
       if (catalogCategory && (p.category || "").trim() !== catalogCategory) return false;
       if (!posSettings.block_out_of_stock) return true;
@@ -406,7 +407,7 @@ export default function Pos() {
 
   const addProductToCart = (productId: string) => {
     const product = products.find((p) => p.id === productId);
-    if (!product) return;
+    if (!product || !isListedForSale(product)) return;
     const tier: ProductPriceTier =
       wholesaleEnabled && priceTier === "wholesale" ? "wholesale" : "retail";
     const unitPrice = resolveProductUnitPrice(product, tier);
@@ -561,10 +562,12 @@ export default function Pos() {
     const matchesField = (field: "barcode" | "sku") =>
       products.find((p) => (p[field] || "").replace(/\s/g, "").toLowerCase() === norm);
     const product = matchesField(primaryField) || matchesField(secondaryField);
-    if (!product) {
+    if (!product || !isListedForSale(product)) {
       toast({
-        title: "Código não encontrado",
-        description: `Nenhum produto com código ${code}`,
+        title: product && isSalePaused(product) ? "Venda pausada" : "Código não encontrado",
+        description: product && isSalePaused(product)
+          ? `${product.name} não entra na Venda Rápida enquanto a venda estiver pausada.`
+          : `Nenhum produto com código ${code}`,
         variant: "destructive",
       });
       setBarcodeDraft("");
