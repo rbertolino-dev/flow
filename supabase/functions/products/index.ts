@@ -206,6 +206,7 @@ async function ensureStockSchema(client: any) {
   `);
   await client.queryArray(`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS source TEXT`);
   await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_supply BOOLEAN NOT NULL DEFAULT false`);
+  await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS sale_paused BOOLEAN NOT NULL DEFAULT false`);
   await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS wholesale_price NUMERIC(12,2)`);
   await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS ncm TEXT`);
   await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS fiscal_origin TEXT`);
