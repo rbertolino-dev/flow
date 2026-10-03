@@ -473,11 +473,17 @@ export function StockModule() {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(`${supabaseUrl}/functions/v1/products/${kind}`, { headers });
       const result = await response.json().catch(() => ({ data: [] }));
+      if (!response.ok) throw new Error(result.error || "Não foi possível carregar");
       const rows = (result.data || []) as CatalogRow[];
       if (kind === "categories") setCategoriesCatalog(rows);
       else setBrandsCatalog(rows);
     } catch (error) {
       console.error(error);
+      toast({
+        title: kind === "brands" ? "Erro ao carregar marcas" : "Erro ao carregar categorias",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
     }
   };
 
@@ -1360,7 +1366,8 @@ export function StockModule() {
             onRename={(from, to) => mutateCatalog("categories", "PUT", { from, to })}
             onDelete={(name) => mutateCatalog("categories", "DELETE", { name })}
             onOpen={(name) => {
-              setCategoryFilter(name);
+              setListFilters((current) => ({ ...current, category: name }));
+              setDraftFilters((current) => ({ ...current, category: name }));
               setShowFilters(true);
               setTab("cadastro");
             }}
@@ -1380,7 +1387,8 @@ export function StockModule() {
             onRename={(from, to) => mutateCatalog("brands", "PUT", { from, to })}
             onDelete={(name) => mutateCatalog("brands", "DELETE", { name })}
             onOpen={(name) => {
-              setBrandFilter(name);
+              setListFilters((current) => ({ ...current, brand: name }));
+              setDraftFilters((current) => ({ ...current, brand: name }));
               setShowFilters(true);
               setTab("cadastro");
             }}

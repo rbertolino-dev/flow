@@ -960,8 +960,8 @@ serve(async (req) => {
         if (req.method === 'GET') {
           await client.queryArray(
             `INSERT INTO ${table} (organization_id, name)
-             SELECT DISTINCT $1, btrim(${column}) FROM products
-             WHERE organization_id = $1 AND ${column} IS NOT NULL AND btrim(${column}) <> ''
+             SELECT DISTINCT $1::uuid, btrim(${column}) FROM products
+             WHERE organization_id = $1::uuid AND ${column} IS NOT NULL AND btrim(${column}) <> ''
              ON CONFLICT (organization_id, name) DO NOTHING`,
             [organizationId]
           );
