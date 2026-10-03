@@ -53,6 +53,8 @@ async function openFixture(page: Page, template: "modern" | "catalog") {
   });
   await page.goto("/p/carrinho-teste");
   await expect(page.getByRole("button", { name: "Adicionar ao carrinho" })).toHaveCount(2);
+  const box = await page.getByRole("button", { name: "Adicionar ao carrinho" }).first().boundingBox();
+  expect(box?.height ?? 99).toBeLessThanOrEqual(36);
   await expect(page.getByText("Esgotado")).toBeVisible();
 }
 

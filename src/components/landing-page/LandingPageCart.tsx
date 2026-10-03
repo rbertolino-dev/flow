@@ -20,24 +20,25 @@ export function LandingPageCartControls({
   if (quantity <= 0) {
     return (
       <Button
-        className="w-full landing-page-premium btn-cta-lift rounded-xl py-6 text-base font-semibold"
+        size="sm"
+        className="h-8 w-full rounded-md px-3 text-xs font-medium shadow-none"
         style={{ backgroundColor: primaryColor, color: "white" }}
         onClick={onAdd}
       >
-        <ShoppingCart className="h-5 w-5 mr-2" />
+        <ShoppingCart className="h-3.5 w-3.5" />
         {label}
       </Button>
     );
   }
 
   return (
-    <div className="flex items-center justify-between gap-2 rounded-xl border px-2 py-2">
-      <Button type="button" variant="outline" size="icon" onClick={() => onChange(quantity - 1)} aria-label="Diminuir quantidade">
-        <Minus className="h-4 w-4" />
+    <div className="flex h-8 w-full items-center justify-between rounded-md border px-1">
+      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => onChange(quantity - 1)} aria-label="Diminuir quantidade">
+        <Minus className="h-3.5 w-3.5" />
       </Button>
-      <span className="min-w-8 text-center font-semibold">{quantity}</span>
-      <Button type="button" variant="outline" size="icon" onClick={() => onChange(quantity + 1)} aria-label="Aumentar quantidade">
-        <Plus className="h-4 w-4" />
+      <span className="min-w-6 text-center text-sm font-medium">{quantity}</span>
+      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => onChange(quantity + 1)} aria-label="Aumentar quantidade">
+        <Plus className="h-3.5 w-3.5" />
       </Button>
     </div>
   );
