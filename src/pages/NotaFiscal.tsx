@@ -49,6 +49,7 @@ type Invoice = {
   pdf_url: string | null;
   xml_url: string | null;
   access_key: string | null;
+  cce_url?: string | null;
 };
 
 
@@ -68,13 +69,25 @@ type EmitLine = {
 };
 
 const FORMAS = [
-  { code: "01", label: "Dinheiro", method: "dinheiro" },
-  { code: "17", label: "PIX", method: "pix" },
-  { code: "03", label: "Cartão de crédito", method: "cartao_credito" },
-  { code: "04", label: "Cartão de débito", method: "cartao_debito" },
-  { code: "15", label: "Boleto", method: "boleto" },
-  { code: "16", label: "Transferência", method: "transferencia_bancaria" },
-  { code: "99", label: "Outros", method: "outros" },
+  { code: "01", label: "01 - Dinheiro", method: "dinheiro" },
+  { code: "02", label: "02 - Cheque", method: "cheque" },
+  { code: "03", label: "03 - Cartão de crédito", method: "cartao_credito" },
+  { code: "04", label: "04 - Cartão de débito", method: "cartao_debito" },
+  { code: "05", label: "05 - Crediário", method: "crediario" },
+  { code: "10", label: "10 - Vale alimentação", method: "vale_alimentacao" },
+  { code: "11", label: "11 - Vale refeição", method: "vale_refeicao" },
+  { code: "12", label: "12 - Vale presente", method: "vale_presente" },
+  { code: "13", label: "13 - Vale combustível", method: "vale_combustivel" },
+  { code: "14", label: "14 - Duplicata", method: "duplicata" },
+  { code: "15", label: "15 - Boleto", method: "boleto" },
+  { code: "16", label: "16 - Transferência", method: "transferencia_bancaria" },
+  { code: "17", label: "17 - PIX", method: "pix" },
+  { code: "18", label: "18 - TED", method: "ted" },
+  { code: "20", label: "20 - PIX estático", method: "pix_estatico" },
+  { code: "21", label: "21 - Crédito em loja", method: "credito_loja" },
+  { code: "90", label: "90 - Sem pagamento", method: "sem_pagamento" },
+  { code: "91", label: "91 - Pagamento posterior", method: "pagamento_posterior" },
+  { code: "99", label: "99 - Outros", method: "outros" },
 ];
 
 function money(value: number) {
@@ -121,9 +134,10 @@ export default function NotaFiscal() {
   const [source, setSource] = useState("avulsa");
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [customer, setCustomer] = useState({
-    name: "", document: "", email: "", phone: "", ie: "", street: "", number: "", district: "", city: "", uf: "", cep: "", isCompany: false,
+    name: "", document: "", email: "", phone: "", ie: "", street: "", number: "", district: "", city: "", uf: "", cep: "", isCompany: false, foreign: false,
   });
   const [natureza, setNatureza] = useState("Venda de Mercadoria");
+  const [operacao, setOperacao] = useState("1");
   const [presenca, setPresenca] = useState("1");
   const [freteModo, setFreteModo] = useState("9");
   const [frete, setFrete] = useState("0");
@@ -131,6 +145,7 @@ export default function NotaFiscal() {
   const [pagamento, setPagamento] = useState("0");
   const [forma, setForma] = useState("01");
   const [referenciar, setReferenciar] = useState(false);
+  const [chaveReferencia, setChaveReferencia] = useState("");
   const [emitOpen, setEmitOpen] = useState(false);
   const [issuedDate, setIssuedDate] = useState(todayIso());
   const [issuedTime, setIssuedTime] = useState(() => new Date().toTimeString().slice(0, 5));
@@ -141,6 +156,16 @@ export default function NotaFiscal() {
   const [carrierOn, setCarrierOn] = useState(false);
   const [carrierName, setCarrierName] = useState("");
   const [carrierCnpj, setCarrierCnpj] = useState("");
+  const [carrierExtra, setCarrierExtra] = useState({ ie: "", endereco: "", uf: "", cidade: "", cep: "" });
+  const [cancelTarget, setCancelTarget] = useState<Invoice | null>(null);
+  const [cancelMotivo, setCancelMotivo] = useState("");
+  const [returnTarget, setReturnTarget] = useState<Invoice | null>(null);
+  const [returnCfop, setReturnCfop] = useState("1202");
+  const [returnNatureza, setReturnNatureza] = useState("Devolução de mercadoria");
+  const [returnItens, setReturnItens] = useState("");
+  const [returnQtds, setReturnQtds] = useState("");
+  const [cceKey, setCceKey] = useState("");
+  const [cceText, setCceText] = useState("");
   const [volumes, setVolumes] = useState({ quantidade: "", especie: "", marca: "", numeracao: "", pesoLiquido: "", pesoBruto: "", lacres: "" });
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [pageTab, setPageTab] = useState<"notas" | "product" | "service" | "avulsa" | "sales" | "cce" | "company" | "export">("notas");
@@ -192,10 +217,13 @@ export default function NotaFiscal() {
     setSourceId(nextSourceId);
     setCustomer((prev) => ({ ...prev, name }));
     setReferenciar(false);
+    setChaveReferencia("");
+    setOperacao("1");
     setEmitTab("geral");
     setCarrierOn(false);
     setCarrierName("");
     setCarrierCnpj("");
+    setCarrierExtra({ ie: "", endereco: "", uf: "", cidade: "", cep: "" });
     setVolumes({ quantidade: "", especie: "", marca: "", numeracao: "", pesoLiquido: "", pesoBruto: "", lacres: "" });
     setScreen("list");
     setEmitOpen(true);
@@ -318,8 +346,8 @@ export default function NotaFiscal() {
 
   async function emit() {
     if (!activeOrgId) return;
-    if (referenciar) {
-      toast({ title: "A devolução por referência fica para a próxima etapa", variant: "destructive" });
+    if (referenciar && chaveReferencia.replace(/\D/g, "").length !== 44) {
+      toast({ title: "Informe a chave de 44 dígitos da NF-e referenciada", variant: "destructive" });
       return;
     }
     const missing = lines.find((line) => line.item_type === "product" && (line.origem === "" || line.ncm.replace(/\D/g, "").length !== 8 || !line.tax_class_ref));
@@ -332,7 +360,13 @@ export default function NotaFiscal() {
       toast({ title: "Informe a classe de imposto do serviço", variant: "destructive" });
       return;
     }
-    if (kind !== "nfce" && customer.document.replace(/\D/g, "").length < 11) {
+    if (customer.foreign) {
+      const foreignId = customer.document.trim();
+      if (foreignId.length < 5 || foreignId.length > 20) {
+        toast({ title: "Informe o documento do cliente estrangeiro (5 a 20 caracteres)", variant: "destructive" });
+        return;
+      }
+    } else if (kind !== "nfce" && customer.document.replace(/\D/g, "").length < 11) {
       toast({ title: "Informe o CPF ou CNPJ do cliente", variant: "destructive" });
       return;
     }
@@ -343,8 +377,9 @@ export default function NotaFiscal() {
       const data = await fiscalCall(activeOrgId, "emit", {
         method: "POST",
         body: JSON.stringify({
-          kind, source, source_id: sourceId, customer, natureza, presenca: Number(presenca), modalidade_frete: Number(freteModo),
-          frete: Number(frete), desconto: Number(desconto), pagamento: Number(pagamento), modelo: kind === "nfce" ? "2" : "1", referenciar,
+          kind, source, source_id: sourceId, customer, natureza, operacao: Number(operacao), presenca: Number(presenca), modalidade_frete: Number(freteModo),
+          frete: Number(frete), desconto: Number(desconto), pagamento: Number(pagamento), modelo: kind === "nfce" ? "2" : "1",
+          nfe_referenciada: referenciar ? chaveReferencia.replace(/\D/g, "") : "",
           data_emissao: `${issuedDate} ${issuedTime}:00`,
           data_entrada_saida: `${moveDate} ${moveTime}:00`,
           complemento,
@@ -352,6 +387,11 @@ export default function NotaFiscal() {
             incluir_transportadora: carrierOn,
             razao_social: carrierOn ? carrierName : "",
             cnpj: carrierOn ? carrierCnpj : "",
+            ie: carrierOn ? carrierExtra.ie : "",
+            endereco: carrierOn ? carrierExtra.endereco : "",
+            uf: carrierOn ? carrierExtra.uf : "",
+            cidade: carrierOn ? carrierExtra.cidade : "",
+            cep: carrierOn ? carrierExtra.cep : "",
             volume: volumes.quantidade,
             especie: volumes.especie,
             marca: volumes.marca,
@@ -372,6 +412,69 @@ export default function NotaFiscal() {
       await loadSettings();
     } catch (error) {
       toast({ title: error instanceof Error ? error.message : "Falha ao emitir", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmCancel() {
+    if (!activeOrgId || !cancelTarget) return;
+    setSaving(true);
+    try {
+      await fiscalCall(activeOrgId, "cancel", { method: "POST", body: JSON.stringify({ id: cancelTarget.id, motivo: cancelMotivo.trim() }) });
+      toast({ title: "Nota cancelada" });
+      setCancelTarget(null);
+      setCancelMotivo("");
+      await loadInvoices();
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : "Falha ao cancelar", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmReturn() {
+    if (!activeOrgId || !returnTarget?.access_key) return;
+    setSaving(true);
+    try {
+      const produtos = returnItens.split(/[,;\s]+/).map((item) => Number(item)).filter((item) => item > 0);
+      const quantidade = returnQtds.split(/[,;\s]+/).map((item) => Number(item.replace(",", "."))).filter((item) => !Number.isNaN(item) && item > 0);
+      if (quantidade.length && quantidade.length !== produtos.length) {
+        toast({ title: "Informe uma quantidade para cada item devolvido", variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+      const data = await fiscalCall(activeOrgId, "return", {
+        method: "POST",
+        body: JSON.stringify({
+          chave: returnTarget.access_key,
+          codigo_cfop: returnCfop,
+          natureza: returnNatureza,
+          amount: returnTarget.amount,
+          customer_name: returnTarget.customer_name,
+          ...(produtos.length ? { produtos, ...(quantidade.length ? { quantidade } : {}) } : {}),
+        }),
+      });
+      toast({ title: data.status ? `Devolução ${data.status}` : "Devolução enviada" });
+      setReturnTarget(null);
+      await loadInvoices();
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : "Falha na devolução", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function sendCce() {
+    if (!activeOrgId) return;
+    setSaving(true);
+    try {
+      const data = await fiscalCall(activeOrgId, "cce", { method: "POST", body: JSON.stringify({ chave: cceKey, correcao: cceText.trim() }) });
+      toast({ title: data.status ? `Carta ${data.status}` : "Carta enviada" });
+      setCceText("");
+      await loadInvoices();
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : "Falha na carta de correção", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -452,6 +555,9 @@ export default function NotaFiscal() {
                       <td className="flex gap-2 p-2">
                         {invoice.pdf_url ? <a className="text-blue-700" href={invoice.pdf_url} target="_blank" rel="noreferrer">PDF</a> : null}
                         {invoice.xml_url ? <a className="text-blue-700" href={invoice.xml_url} target="_blank" rel="noreferrer">XML</a> : null}
+                        {invoice.cce_url ? <a className="text-blue-700" href={invoice.cce_url} target="_blank" rel="noreferrer">CC-e</a> : null}
+                        {invoice.status === "aprovado" ? <button className="text-blue-700" onClick={() => { setCancelTarget(invoice); setCancelMotivo(""); }}>Cancelar</button> : null}
+                        {invoice.kind === "nfe" && invoice.status === "aprovado" && invoice.access_key ? <button className="text-blue-700" onClick={() => { setReturnTarget(invoice); setReturnCfop("1202"); setReturnNatureza("Devolução de mercadoria"); setReturnItens(""); setReturnQtds(""); }}>Devolver</button> : null}
                         {!["aprovado", "cancelado", "processado"].includes(invoice.status) ? <button onClick={() => void remove(invoice.id)} aria-label="Excluir"><Trash2 className="h-4 w-4" /></button> : null}
                       </td>
                     </tr>
@@ -510,9 +616,16 @@ export default function NotaFiscal() {
               </div>
             ) : null}
             {pageTab === "cce" ? (
-              <div>
+              <div className="max-w-xl space-y-3">
                 <h2 className="text-lg font-semibold">Carta de Correção</h2>
-                <p className="text-sm text-slate-600">A correção de uma nota aprovada fica para a próxima etapa.</p>
+                <p className="text-sm text-slate-600">A carta corrige dados acessórios da NF-e. Não altera valor, quantidade, destinatário, data de emissão nem o número da nota.</p>
+                <div><Label>NF-e</Label>
+                  <Select value={cceKey || undefined} onValueChange={setCceKey}><SelectTrigger><SelectValue placeholder="Escolha a nota" /></SelectTrigger><SelectContent>
+                    {invoices.filter((invoice) => invoice.kind === "nfe" && invoice.access_key).map((invoice) => <SelectItem key={invoice.id} value={invoice.access_key || invoice.id}>{invoice.number || "s/n"} · {invoice.customer_name}</SelectItem>)}
+                  </SelectContent></Select>
+                </div>
+                <div><Label>Correção</Label><Textarea value={cceText} onChange={(event) => setCceText(event.target.value)} placeholder="Descreva a correção, entre 15 e 1000 caracteres" /></div>
+                <Button disabled={saving} onClick={() => void sendCce()}>{saving ? "Enviando..." : "Emitir carta"}</Button>
               </div>
             ) : null}
             {pageTab === "company" ? (
@@ -627,12 +740,14 @@ export default function NotaFiscal() {
                         <Select value={kind} onValueChange={(value) => setKind(value as "nfe" | "nfce")}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="nfe">1 - NF-e</SelectItem><SelectItem value="nfce">2 - NFC-e</SelectItem></SelectContent></Select>
                       </div>
                       <div><p className="text-[11px]">Finalidade:</p><Input className="h-8" value="1 - Normal" readOnly /></div>
-                      <div><p className="text-[11px]">Operação:</p><Input className="h-8" value="1 - Saída" readOnly /></div>
+                      <div><p className="text-[11px]">Operação:</p>
+                        <Select value={operacao} onValueChange={setOperacao}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">1 - Saída</SelectItem><SelectItem value="0">0 - Entrada</SelectItem></SelectContent></Select>
+                      </div>
                       <div><p className="text-[11px]">Presença:</p>
-                        <Select value={presenca} onValueChange={setPresenca}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent><SelectItem value="1">1 - Operação presencial</SelectItem><SelectItem value="2">2 - Internet</SelectItem><SelectItem value="4">4 - Entrega</SelectItem><SelectItem value="9">9 - Outros</SelectItem></SelectContent></Select>
+                        <Select value={presenca} onValueChange={setPresenca}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent><SelectItem value="0">0 - Não se aplica</SelectItem><SelectItem value="1">1 - Operação presencial</SelectItem><SelectItem value="2">2 - Internet</SelectItem><SelectItem value="3">3 - Teleatendimento</SelectItem><SelectItem value="4">4 - Entrega</SelectItem><SelectItem value="5">5 - Presencial fora do estabelecimento</SelectItem><SelectItem value="9">9 - Outros</SelectItem></SelectContent></Select>
                       </div>
                       <div><p className="text-[11px]">Modalidade frete:</p>
-                        <Select value={freteModo} onValueChange={setFreteModo}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent><SelectItem value="9">9 - Sem frete</SelectItem><SelectItem value="0">0 - Emitente</SelectItem><SelectItem value="1">1 - Destinatário</SelectItem><SelectItem value="2">2 - Terceiros</SelectItem></SelectContent></Select>
+                        <Select value={freteModo} onValueChange={setFreteModo}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent><SelectItem value="9">9 - Sem frete</SelectItem><SelectItem value="0">0 - Emitente</SelectItem><SelectItem value="1">1 - Destinatário</SelectItem><SelectItem value="2">2 - Terceiros</SelectItem><SelectItem value="3">3 - Transporte próprio do remetente</SelectItem><SelectItem value="4">4 - Transporte próprio do destinatário</SelectItem></SelectContent></Select>
                       </div>
                       <div><p className="text-[11px]">Frete:</p><Input className="h-8" value={frete} onChange={(event) => setFrete(event.target.value)} /></div>
                       <div><p className="text-[11px]">Forma de pagamento:</p>
@@ -644,6 +759,7 @@ export default function NotaFiscal() {
                       <div><p className="text-[11px]">Desconto:</p><Input className="h-8" value={desconto} onChange={(event) => setDesconto(event.target.value)} /></div>
                     </div>
                     <div className="flex items-center gap-2"><Switch checked={referenciar} onCheckedChange={setReferenciar} /><span>Referenciar outra NF-e</span></div>
+                    {referenciar ? <Input className="h-8" placeholder="Chave de 44 dígitos" value={chaveReferencia} onChange={(event) => setChaveReferencia(event.target.value.replace(/\D/g, "").slice(0, 44))} /> : null}
                   </div>
                 ) : (
                   <div className="space-y-3 p-4">
@@ -652,8 +768,17 @@ export default function NotaFiscal() {
                       <span className="text-sm">Adicionar informações da transportadora</span>
                     </div>
                     <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-                      <Input className="h-9 bg-slate-100" placeholder="Buscar transportadora" disabled={!carrierOn} value={carrierName} onChange={(event) => setCarrierName(event.target.value)} />
+                      <Input className="h-9 bg-slate-100" placeholder="Nome da transportadora" disabled={!carrierOn} value={carrierName} onChange={(event) => setCarrierName(event.target.value)} />
                       <Input className="h-9 bg-slate-100" placeholder="CNPJ transportadora" disabled={!carrierOn} value={carrierCnpj} onChange={(event) => setCarrierCnpj(event.target.value)} />
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <Input className="h-9 bg-slate-100" placeholder="Inscrição estadual" disabled={!carrierOn} value={carrierExtra.ie} onChange={(event) => setCarrierExtra({ ...carrierExtra, ie: event.target.value })} />
+                      <Input className="h-9 bg-slate-100" placeholder="Endereço" disabled={!carrierOn} value={carrierExtra.endereco} onChange={(event) => setCarrierExtra({ ...carrierExtra, endereco: event.target.value })} />
+                      <Input className="h-9 bg-slate-100" placeholder="Cidade" disabled={!carrierOn} value={carrierExtra.cidade} onChange={(event) => setCarrierExtra({ ...carrierExtra, cidade: event.target.value })} />
+                      <div className="grid grid-cols-[80px_1fr] gap-3">
+                        <Input className="h-9 bg-slate-100" placeholder="UF" disabled={!carrierOn} value={carrierExtra.uf} onChange={(event) => setCarrierExtra({ ...carrierExtra, uf: event.target.value.toUpperCase().slice(0, 2) })} />
+                        <Input className="h-9 bg-slate-100" placeholder="CEP" disabled={!carrierOn} value={carrierExtra.cep} onChange={(event) => setCarrierExtra({ ...carrierExtra, cep: event.target.value })} />
+                      </div>
                     </div>
                     <p className="text-sm">Volumes</p>
                     <div className="grid gap-3 md:grid-cols-3">
@@ -672,14 +797,15 @@ export default function NotaFiscal() {
             <p className="border-t pt-2 font-medium">Informações do cliente:</p>
             <div className="grid gap-2 md:grid-cols-3">
               <div className="flex items-center gap-2"><Switch checked={customer.isCompany} onCheckedChange={(checked) => setCustomer({ ...customer, isCompany: checked })} /><span>Nota fiscal para empresa</span></div>
+              <div className="flex items-center gap-2"><Switch checked={customer.foreign} onCheckedChange={(checked) => setCustomer({ ...customer, foreign: checked, uf: checked ? "EX" : customer.uf === "EX" ? "" : customer.uf })} /><span>Cliente no exterior</span></div>
               <div><p className="text-[11px]">Nome do contato</p><Input className="h-8" value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} /></div>
-              <div><p className="text-[11px]">CPF/CNPJ</p><Input className="h-8" value={customer.document} onChange={(event) => setCustomer({ ...customer, document: event.target.value })} /></div>
+              <div><p className="text-[11px]">{customer.foreign ? "Documento estrangeiro" : "CPF/CNPJ"}</p><Input className="h-8" value={customer.document} onChange={(event) => setCustomer({ ...customer, document: event.target.value })} /></div>
               <div className="md:col-span-2"><p className="text-[11px]">Logradouro</p><Input className="h-8" value={customer.street} onChange={(event) => setCustomer({ ...customer, street: event.target.value })} /></div>
               <div><p className="text-[11px]">CEP</p><Input className="h-8" value={customer.cep} onChange={(event) => setCustomer({ ...customer, cep: event.target.value })} /></div>
               <div><p className="text-[11px]">Cidade</p><Input className="h-8" value={customer.city} onChange={(event) => setCustomer({ ...customer, city: event.target.value })} /></div>
               <div><p className="text-[11px]">Bairro</p><Input className="h-8" value={customer.district} onChange={(event) => setCustomer({ ...customer, district: event.target.value })} /></div>
               <div><p className="text-[11px]">Número</p><Input className="h-8" value={customer.number} onChange={(event) => setCustomer({ ...customer, number: event.target.value })} /></div>
-              <div><p className="text-[11px]">UF</p><Input className="h-8" value={customer.uf} onChange={(event) => setCustomer({ ...customer, uf: event.target.value })} /></div>
+              <div><p className="text-[11px]">UF</p><Input className="h-8" value={customer.foreign ? "EX" : customer.uf} readOnly={customer.foreign} onChange={(event) => setCustomer({ ...customer, uf: event.target.value.toUpperCase().slice(0, 2) })} /></div>
               <div className="md:col-span-2"><p className="text-[11px]">Email</p><Input className="h-8" value={customer.email} onChange={(event) => setCustomer({ ...customer, email: event.target.value })} /><p className="text-[11px] text-slate-500">O PDF e o XML da nota emitida serão enviados para o email informado.</p></div>
               {kind !== "nfse" ? <div><p className="text-[11px]">Inscrição Estadual</p><Input className="h-8" value={customer.ie} onChange={(event) => setCustomer({ ...customer, ie: event.target.value })} /><p className="text-[11px] text-slate-500">Obrigatório caso o cliente tiver Inscrição Estadual</p></div> : null}
               <div className="md:col-span-3"><p className="text-[11px]">Informações Complementares (opcional)</p><Textarea value={complemento} onChange={(event) => setComplemento(event.target.value)} /></div>
@@ -688,6 +814,25 @@ export default function NotaFiscal() {
               <Button className="bg-blue-700 px-8 hover:bg-blue-800" onClick={() => void emit()} disabled={saving}>{saving ? "Emitindo..." : "EMITIR NOTA"}</Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(cancelTarget)} onOpenChange={(open) => { if (!open) setCancelTarget(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Cancelar nota</DialogTitle></DialogHeader>
+          <p className="text-sm text-slate-600">Informe o motivo do cancelamento, entre 15 e 255 caracteres.</p>
+          <Textarea value={cancelMotivo} onChange={(event) => setCancelMotivo(event.target.value.slice(0, 255))} />
+          <Button disabled={saving || cancelMotivo.trim().length < 15} onClick={() => void confirmCancel()}>{saving ? "Cancelando..." : "Confirmar cancelamento"}</Button>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(returnTarget)} onOpenChange={(open) => { if (!open) setReturnTarget(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Devolver NF-e</DialogTitle></DialogHeader>
+          <p className="text-sm text-slate-600">A Webmania monta o vínculo com a nota de origem. Deixe os itens em branco para devolver a nota inteira.</p>
+          <div><Label>CFOP</Label><Input value={returnCfop} onChange={(event) => setReturnCfop(event.target.value.replace(/\D/g, "").slice(0, 4))} /></div>
+          <div><Label>Natureza</Label><Input value={returnNatureza} onChange={(event) => setReturnNatureza(event.target.value)} /></div>
+          <div><Label>Itens parciais</Label><Input placeholder="Números dos itens, começando em 1" value={returnItens} onChange={(event) => setReturnItens(event.target.value)} /></div>
+          <div><Label>Quantidades</Label><Input placeholder="Uma quantidade para cada item" value={returnQtds} onChange={(event) => setReturnQtds(event.target.value)} /></div>
+          <Button disabled={saving || returnCfop.length !== 4} onClick={() => void confirmReturn()}>{saving ? "Enviando..." : "Emitir devolução"}</Button>
         </DialogContent>
       </Dialog>
       <FileText className="hidden" />

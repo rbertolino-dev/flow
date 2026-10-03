@@ -33,6 +33,7 @@ export type ClassScenario = {
   classificacao: string;
   codigo_enquadramento: string;
   aliquota_credito: string;
+  aliquota_importacao: string;
   aliquota_reducao: string;
   aliquota_mva: { estado?: string; aliquota?: string }[];
   beneficio_fiscal: { estado?: string; codigo?: string }[];
@@ -74,6 +75,7 @@ type IcmsCard = {
   codigo_cfop: string;
   tipo_tributacao: string;
   aliquota_credito: string;
+  aliquota_importacao: string;
   aliquota_reducao: string;
   mva: UfRow[];
   beneficio: UfRow[];
@@ -88,7 +90,22 @@ const CENARIOS = [
   { value: "saida_fora_estado", label: "Saída fora do estado" },
   { value: "entrada_dentro_estado", label: "Entrada dentro do estado" },
   { value: "entrada_fora_estado", label: "Entrada fora do estado" },
+  { value: "saida_exterior", label: "Saída para o exterior" },
+  { value: "entrada_exterior", label: "Entrada do exterior" },
 ];
+const IBS_CST = [
+  ["000", "000 - Tributação integral"],
+  ["200", "200 - Tributação com redução de alíquota"],
+  ["410", "410 - Imunidade e não incidência"],
+  ["510", "510 - Diferimento"],
+  ["550", "550 - Suspensão"],
+  ["620", "620 - Tributação monofásica"],
+  ["800", "800 - Transferência de crédito"],
+  ["810", "810 - Ajuste de IBS na ZFM"],
+  ["820", "820 - Ajuste de crédito"],
+  ["830", "830 - Exclusão da base de cálculo"],
+];
+const IBS_CLASS = ["000001", "000002", "200001", "410001"];
 const CSOSN = [
   ["101", "101 - Tributada com permissão de crédito"],
   ["102", "102 - Tributada sem permissão de crédito"],
@@ -114,13 +131,55 @@ const CST_NORMAL = [
   ["70", "70 - Com redução de base de cálculo e cobrança do ICMS por substituição tributária"],
   ["90", "90 - Outros"],
 ];
-const IPI = [["00", "00"], ["01", "01"], ["02", "02"], ["03", "03"], ["04", "04"], ["05", "05"], ["49", "49"], ["50", "50"], ["51", "51"], ["52", "52"], ["53", "53"], ["54", "54"], ["55", "55"], ["99", "99"]];
-const PIS = ["01", "02", "04", "05", "06", "07", "08", "09", "49", "50", "70", "98", "99"].map((code) => [code, code]);
+const IPI = [
+  ["00", "00 - Entrada com recuperação de crédito"],
+  ["01", "01 - Entrada tributada com alíquota zero"],
+  ["02", "02 - Entrada isenta"],
+  ["03", "03 - Entrada não tributada"],
+  ["04", "04 - Entrada imune"],
+  ["05", "05 - Entrada com suspensão"],
+  ["49", "49 - Outras entradas"],
+  ["50", "50 - Saída tributada"],
+  ["51", "51 - Saída tributada com alíquota zero"],
+  ["52", "52 - Saída isenta"],
+  ["53", "53 - Saída não tributada"],
+  ["54", "54 - Saída imune"],
+  ["55", "55 - Saída com suspensão"],
+  ["99", "99 - Outras saídas"],
+];
+const PIS = [
+  ["01", "01 - Tributável, alíquota básica"],
+  ["02", "02 - Tributável, alíquota diferenciada"],
+  ["03", "03 - Tributável, alíquota por unidade"],
+  ["04", "04 - Tributável, monofásica, alíquota zero"],
+  ["05", "05 - Tributável por substituição tributária"],
+  ["06", "06 - Tributável, alíquota zero"],
+  ["07", "07 - Isenta"],
+  ["08", "08 - Sem incidência"],
+  ["09", "09 - Com suspensão"],
+  ["49", "49 - Outras operações de saída"],
+  ["50", "50 - Com direito a crédito, vinculada exclusivamente a receita tributada"],
+  ["70", "70 - Operação de aquisição sem direito a crédito"],
+  ["73", "73 - Operação de aquisição a alíquota zero"],
+  ["74", "74 - Operação de aquisição sem incidência"],
+  ["75", "75 - Operação de aquisição por suspensão"],
+  ["98", "98 - Outras operações de entrada"],
+  ["99", "99 - Outras operações"],
+];
+const ISS_EXIG = [
+  ["1", "1 - Exigível"],
+  ["2", "2 - Não incidência"],
+  ["3", "3 - Isenção"],
+  ["4", "4 - Exportação"],
+  ["5", "5 - Imunidade"],
+  ["6", "6 - Suspensa por decisão judicial"],
+  ["7", "7 - Suspensa por processo administrativo"],
+];
 
 function emptyCard(cenario: string, pessoa: string, cfop: string): IcmsCard {
   return {
     cenario, tipo_pessoa: pessoa, situacao_tributaria: "102", codigo_cfop: cfop, tipo_tributacao: "simples_nacional",
-    aliquota_credito: "", aliquota_reducao: "", mva: [], beneficio: [], credito: [],
+    aliquota_credito: "", aliquota_importacao: "", aliquota_reducao: "", mva: [], beneficio: [], credito: [],
   };
 }
 
@@ -150,6 +209,7 @@ function extrasFrom(row: ClassScenario): Pick<IcmsCard, "aliquota_reducao" | "mv
 function payloadExtras(card: IcmsCard) {
   return {
     aliquota_credito: card.aliquota_credito,
+    aliquota_importacao: card.aliquota_importacao,
     aliquota_reducao: card.aliquota_reducao,
     aliquota_mva: card.mva.filter((row) => row.estado && row.aliquota).map((row) => ({ estado: row.estado, aliquota: row.aliquota })),
     beneficio_fiscal: card.beneficio.filter((row) => row.estado && row.codigo).map((row) => ({ estado: row.estado, codigo: row.codigo })),
@@ -225,13 +285,20 @@ export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast
   function editProduct(item: FiscalClass) {
     setReferencia(item.ref);
     setNome(item.description);
-    const simples = item.icms.length > 0 && item.icms.every((row) => row.tipo === "simples_nacional" && row.name.startsWith("saida_"));
+    const simples = item.icms.length > 0 && item.icms.every((row) => row.tipo === "simples_nacional" && (row.name.startsWith("saida_") || row.name === "entrada_exterior"));
     if (simples) {
       const next = defaultSimples().map((card) => {
         const found = item.icms.find((row) => row.name === card.cenario && row.person === card.tipo_pessoa);
-        return found ? { ...card, situacao_tributaria: found.cst || "102", codigo_cfop: found.cfop || card.codigo_cfop, ...extrasFrom(found) } : card;
+        return found ? { ...card, situacao_tributaria: found.cst || "102", codigo_cfop: found.cfop || card.codigo_cfop, ...extrasFrom(found), aliquota_importacao: found.aliquota_importacao || "" } : card;
       });
-      setCards(next);
+      const extras = item.icms.filter((row) => row.name === "saida_exterior" || row.name === "entrada_exterior").map((found) => ({
+        ...emptyCard(found.name, found.person || (found.name === "saida_exterior" ? "estrangeira" : "juridica"), found.cfop || (found.name === "saida_exterior" ? "7102" : "3102")),
+        situacao_tributaria: found.cst || "102",
+        codigo_cfop: found.cfop || "",
+        ...extrasFrom(found),
+        aliquota_importacao: found.aliquota_importacao || "",
+      }));
+      setCards([...next, ...extras]);
       setStep("simples");
       return;
     }
@@ -251,6 +318,7 @@ export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast
       classificacao_tributaria: row.classificacao || "",
       codigo_enquadramento: row.codigo_enquadramento || "999",
       ...extrasFrom(row),
+      aliquota_importacao: row.aliquota_importacao || "",
     })));
     setStep("manual");
   }
@@ -280,19 +348,32 @@ export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast
 
   function addManual() {
     const count = rows.filter((row) => row.tax === draft.tax).length;
-    if (count >= 4) {
-      toast({ title: "Cada imposto aceita até 4 cenários", variant: "destructive" });
+    if (count >= 6) {
+      toast({ title: "Cada imposto aceita até 6 cenários", variant: "destructive" });
       return;
     }
     if (draft.tax === "icms" && draft.cenario === "padrao") {
       toast({ title: "ICMS não usa o cenário padrão", variant: "destructive" });
       return;
     }
+    if (draft.cenario === "saida_exterior" && draft.tipo_pessoa !== "estrangeira") {
+      toast({ title: "Saída para o exterior aceita somente pessoa estrangeira", variant: "destructive" });
+      return;
+    }
+    if (draft.cenario !== "saida_exterior" && draft.tipo_pessoa === "estrangeira") {
+      toast({ title: "Pessoa estrangeira só vale na saída para o exterior", variant: "destructive" });
+      return;
+    }
+    if (draft.tax === "icms" && draft.cenario === "entrada_exterior" && !draft.aliquota_importacao) {
+      toast({ title: "Informe a alíquota de importação do ICMS", variant: "destructive" });
+      return;
+    }
     if (draft.tax === "ibs_cbs" && !/^\d{6}$/.test(draft.classificacao_tributaria)) {
       toast({ title: "A classificação tributária do IBS/CBS tem 6 dígitos", variant: "destructive" });
       return;
     }
-    setRows([...rows, draft]);
+    const tipo_pessoa = draft.cenario === "saida_exterior" ? "estrangeira" : draft.tipo_pessoa === "estrangeira" ? "fisica" : draft.tipo_pessoa;
+    setRows([...rows, { ...draft, tipo_pessoa }]);
   }
 
   const cstOptions = draft.tipo_tributacao === "tributacao_normal" ? CST_NORMAL : CSOSN;
@@ -422,15 +503,20 @@ export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast
             <p className="font-medium">ICMS</p>
             {cards.map((card, index) => (
               <div key={`${card.cenario}-${card.tipo_pessoa}-${index}`} className="space-y-2 rounded border bg-slate-50 p-3">
-                <div><p>Cenário *</p><Select value={card.cenario} onValueChange={(value) => setCards(cards.map((item, i) => i === index ? { ...item, cenario: value, codigo_cfop: value.includes("fora") ? "6102" : "5102" } : item))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CENARIOS.filter((item) => item.value !== "padrao").map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
-                <div><p>Pessoa *</p><Select value={card.tipo_pessoa} onValueChange={(value) => setCards(cards.map((item, i) => i === index ? { ...item, tipo_pessoa: value } : item))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="juridica">Jurídica</SelectItem><SelectItem value="fisica">Física</SelectItem></SelectContent></Select></div>
+                <div><p>Cenário *</p><Select value={card.cenario} onValueChange={(value) => setCards(cards.map((item, i) => i === index ? { ...item, cenario: value, tipo_pessoa: value === "saida_exterior" ? "estrangeira" : item.tipo_pessoa === "estrangeira" ? "juridica" : item.tipo_pessoa, codigo_cfop: value === "saida_exterior" ? "7102" : value === "entrada_exterior" ? "3102" : value.includes("fora") ? "6102" : "5102" } : item))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CENARIOS.filter((item) => item.value !== "padrao").map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
+                <div><p>Pessoa *</p><Select value={card.cenario === "saida_exterior" ? "estrangeira" : card.tipo_pessoa} onValueChange={(value) => setCards(cards.map((item, i) => i === index ? { ...item, tipo_pessoa: value } : item))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{(card.cenario === "saida_exterior" ? [["estrangeira", "Estrangeira"]] : [["juridica", "Jurídica"], ["fisica", "Física"]]).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
                 <div><p>Situação tributária *</p><Select value={card.situacao_tributaria} onValueChange={(value) => setCards(cards.map((item, i) => i === index ? { ...item, situacao_tributaria: value } : item))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CSOSN.map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
                 {(card.situacao_tributaria === "101" || card.situacao_tributaria === "201") ? <div><p>Alíquota de crédito *</p><Input value={card.aliquota_credito} onChange={(event) => setCards(cards.map((item, i) => i === index ? { ...item, aliquota_credito: event.target.value } : item))} /></div> : null}
+                {card.cenario === "entrada_exterior" ? <div><p>Alíquota de importação *</p><Input value={card.aliquota_importacao} onChange={(event) => setCards(cards.map((item, i) => i === index ? { ...item, aliquota_importacao: event.target.value } : item))} /></div> : null}
                 <div><p>CFOP *</p><Input value={card.codigo_cfop} onChange={(event) => setCards(cards.map((item, i) => i === index ? { ...item, codigo_cfop: event.target.value.replace(/\D/g, "").slice(0, 4) } : item))} /></div>
                 <Extras card={card} onChange={(next) => setCards(cards.map((item, i) => i === index ? next : item))} />
               </div>
             ))}
-            <div className="flex justify-center"><Button disabled={saving} onClick={() => void save({ kind: "product", mode: "simples", referencia, descricao: nome, icms: cards.map((card) => ({ ...card, ...payloadExtras(card) })) })}>{saving ? "Salvando..." : "Finalizar"}</Button></div>
+            <div className="flex flex-wrap gap-2">
+              {!cards.some((card) => card.cenario === "saida_exterior") ? <Button type="button" variant="outline" onClick={() => setCards([...cards, emptyCard("saida_exterior", "estrangeira", "7102")])}>Adicionar saída para o exterior</Button> : null}
+              {!cards.some((card) => card.cenario === "entrada_exterior") ? <Button type="button" variant="outline" onClick={() => setCards([...cards, emptyCard("entrada_exterior", "juridica", "3102")])}>Adicionar entrada do exterior</Button> : null}
+            </div>
+            <div className="flex justify-center"><Button disabled={saving} onClick={() => void save({ kind: "product", mode: "simples", referencia, descricao: nome, icms: cards.map((card) => ({ ...card, tipo_pessoa: card.cenario === "saida_exterior" ? "estrangeira" : card.tipo_pessoa, ...payloadExtras(card) })) })}>{saving ? "Salvando..." : "Finalizar"}</Button></div>
           </div>
         </DialogContent>
       </Dialog>
@@ -439,20 +525,21 @@ export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast
         <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle className="text-center">Criar Classe de Impostos para NFe/NFCe</DialogTitle></DialogHeader>
           <div className="max-h-[70vh] space-y-3 overflow-auto text-sm">
-            <p>Crie pelo menos 1 cenário para cada imposto. Você pode criar até 4 cenários para cada imposto dentro de uma mesma classe.</p>
+            <p>Crie pelo menos 1 cenário para cada imposto. Você pode criar até 6 cenários para cada imposto dentro de uma mesma classe.</p>
             <div><p>Descrição da classe:</p><Input value={nome} placeholder="Digite" onChange={(event) => setNome(event.target.value)} /></div>
             <div className="space-y-2 rounded bg-slate-100 p-3">
               <div><p>Selecione o imposto:</p><Select value={draft.tax} onValueChange={(value) => setDraft({ ...draft, tax: value, cenario: value === "icms" && draft.cenario === "padrao" ? "saida_dentro_estado" : draft.cenario, situacao_tributaria: value === "icms" ? "102" : value === "ibs_cbs" ? "000" : "99" })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="icms">ICMS</SelectItem><SelectItem value="ipi">IPI</SelectItem><SelectItem value="pis">PIS</SelectItem><SelectItem value="cofins">COFINS</SelectItem><SelectItem value="ibs_cbs">IBS/CBS</SelectItem></SelectContent></Select></div>
-              <div><p>Criar cenário para:</p><Select value={draft.cenario} onValueChange={(value) => setDraft({ ...draft, cenario: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CENARIOS.filter((item) => draft.tax !== "icms" || item.value !== "padrao").map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
+              <div><p>Criar cenário para:</p><Select value={draft.cenario} onValueChange={(value) => setDraft({ ...draft, cenario: value, tipo_pessoa: value === "saida_exterior" ? "estrangeira" : draft.tipo_pessoa === "estrangeira" ? "fisica" : draft.tipo_pessoa })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CENARIOS.filter((item) => draft.tax !== "icms" || item.value !== "padrao").map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
               <div className="grid gap-2 md:grid-cols-3">
-                <div><p>Pessoa:</p><Select value={draft.tipo_pessoa} onValueChange={(value) => setDraft({ ...draft, tipo_pessoa: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="fisica">Física</SelectItem><SelectItem value="juridica">Jurídica</SelectItem></SelectContent></Select></div>
-                <div><p>Situação tributária:</p>{draft.tax === "ibs_cbs" ? <Input value={draft.situacao_tributaria} onChange={(event) => setDraft({ ...draft, situacao_tributaria: event.target.value.replace(/\D/g, "").slice(0, 3) })} /> : <Select value={draft.situacao_tributaria || "102"} onValueChange={(value) => setDraft({ ...draft, situacao_tributaria: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{(draft.tax === "icms" ? cstOptions : draft.tax === "ipi" ? IPI : PIS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>}</div>
+                <div><p>Pessoa:</p><Select value={draft.cenario === "saida_exterior" ? "estrangeira" : draft.tipo_pessoa} onValueChange={(value) => setDraft({ ...draft, tipo_pessoa: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{(draft.cenario === "saida_exterior" ? [["estrangeira", "Estrangeira"]] : draft.cenario === "entrada_exterior" ? [["fisica", "Física"], ["juridica", "Jurídica"]] : [["fisica", "Física"], ["juridica", "Jurídica"]]).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
+                <div><p>Situação tributária:</p>{draft.tax === "ibs_cbs" ? <Select value={IBS_CST.some(([value]) => value === draft.situacao_tributaria) ? draft.situacao_tributaria : "000"} onValueChange={(value) => setDraft({ ...draft, situacao_tributaria: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{IBS_CST.map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select> : <Select value={draft.situacao_tributaria || "102"} onValueChange={(value) => setDraft({ ...draft, situacao_tributaria: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{(draft.tax === "icms" ? cstOptions : draft.tax === "ipi" ? IPI : PIS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>}</div>
                 {draft.tax !== "icms" && draft.tax !== "ibs_cbs" ? <div><p>Alíquota:</p><Input value={draft.aliquota} onChange={(event) => setDraft({ ...draft, aliquota: event.target.value })} /></div> : null}
               </div>
               {draft.tax === "icms" ? <div><p>Tipo de tributação</p><Select value={draft.tipo_tributacao} onValueChange={(value) => setDraft({ ...draft, tipo_tributacao: value, situacao_tributaria: value === "tributacao_normal" ? "00" : "102" })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="simples_nacional">Simples Nacional</SelectItem><SelectItem value="simples_nacional_sublimite">Simples Nacional sublimite</SelectItem><SelectItem value="tributacao_normal">Tributação normal</SelectItem></SelectContent></Select></div> : null}
               {draft.tax === "icms" ? <div><p>CFOP</p><Input value={draft.codigo_cfop} onChange={(event) => setDraft({ ...draft, codigo_cfop: event.target.value.replace(/\D/g, "").slice(0, 4) })} /></div> : null}
               {(draft.tax === "icms" && (draft.situacao_tributaria === "101" || draft.situacao_tributaria === "201")) ? <div><p>Alíquota de crédito</p><Input value={draft.aliquota_credito} onChange={(event) => setDraft({ ...draft, aliquota_credito: event.target.value })} /></div> : null}
-              {draft.tax === "ibs_cbs" ? <div><p>Classificação tributária</p><Input value={draft.classificacao_tributaria} placeholder="000001" onChange={(event) => setDraft({ ...draft, classificacao_tributaria: event.target.value.replace(/\D/g, "").slice(0, 6) })} /></div> : null}
+              {draft.tax === "icms" && draft.cenario === "entrada_exterior" ? <div><p>Alíquota de importação</p><Input value={draft.aliquota_importacao} onChange={(event) => setDraft({ ...draft, aliquota_importacao: event.target.value })} /></div> : null}
+              {draft.tax === "ibs_cbs" ? <div><p>Classificação tributária</p><Input list="ibs-classificacao" value={draft.classificacao_tributaria} placeholder="000001" onChange={(event) => setDraft({ ...draft, classificacao_tributaria: event.target.value.replace(/\D/g, "").slice(0, 6) })} /><datalist id="ibs-classificacao">{IBS_CLASS.map((code) => <option key={code} value={code} />)}</datalist></div> : null}
               {draft.tax === "icms" ? <Extras card={draft} onChange={(next) => setDraft({ ...draft, ...next })} /> : null}
               <div className="flex justify-end"><Button type="button" onClick={addManual}>Criar cenário</Button></div>
             </div>
@@ -476,12 +563,12 @@ export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast
             <div className="md:col-span-2"><p>Descrição</p><Input value={nome} onChange={(event) => setNome(event.target.value)} /></div>
             <div><p>Código do serviço</p><Input value={service.codigo_servico} onChange={(event) => setService({ ...service, codigo_servico: event.target.value })} /></div>
             <div><p>Natureza da operação</p><Select value={service.natureza_operacao} onValueChange={(value) => setService({ ...service, natureza_operacao: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">1 - Tributação no município</SelectItem><SelectItem value="2">2 - Tributação fora do município</SelectItem><SelectItem value="3">3 - Isenção</SelectItem><SelectItem value="4">4 - Imune</SelectItem><SelectItem value="5">5 - Exigibilidade suspensa judicial</SelectItem><SelectItem value="6">6 - Exigibilidade suspensa administrativa</SelectItem></SelectContent></Select></div>
-            <div><p>Exigibilidade do ISS</p><Select value={service.exigibilidade_iss} onValueChange={(value) => setService({ ...service, exigibilidade_iss: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["1", "2", "3", "4", "5", "6", "7"].map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></div>
+            <div><p>Exigibilidade do ISS</p><Select value={service.exigibilidade_iss} onValueChange={(value) => setService({ ...service, exigibilidade_iss: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ISS_EXIG.map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
             <div><p>ISS retido</p><Select value={service.iss_retido} onValueChange={(value) => setService({ ...service, iss_retido: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="2">2 - Não</SelectItem><SelectItem value="1">1 - Sim</SelectItem></SelectContent></Select></div>
             {service.iss_retido === "1" ? <div><p>Responsável da retenção</p><Select value={service.responsavel_retencao} onValueChange={(value) => setService({ ...service, responsavel_retencao: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">1 - Tomador</SelectItem><SelectItem value="2">2 - Intermediário</SelectItem></SelectContent></Select></div> : null}
             {(["iss", "pis", "cofins", "inss", "ir", "csll"] as const).map((key) => <div key={key}><p>Alíquota {key.toUpperCase()}</p><Input value={service[key]} onChange={(event) => setService({ ...service, [key]: event.target.value })} /></div>)}
-            <div><p>Situação IBS/CBS</p><Input value={service.situacao_tributaria} onChange={(event) => setService({ ...service, situacao_tributaria: event.target.value })} /></div>
-            <div><p>Classificação IBS/CBS</p><Input value={service.classificacao_tributaria} onChange={(event) => setService({ ...service, classificacao_tributaria: event.target.value.replace(/\D/g, "").slice(0, 6) })} /></div>
+            <div><p>Situação IBS/CBS</p><Select value={service.situacao_tributaria || "none"} onValueChange={(value) => setService({ ...service, situacao_tributaria: value === "none" ? "" : value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Não informar</SelectItem>{IBS_CST.map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
+            <div><p>Classificação IBS/CBS</p><Input list="ibs-classificacao-servico" value={service.classificacao_tributaria} onChange={(event) => setService({ ...service, classificacao_tributaria: event.target.value.replace(/\D/g, "").slice(0, 6) })} /><datalist id="ibs-classificacao-servico">{IBS_CLASS.map((code) => <option key={code} value={code} />)}</datalist></div>
             <div className="md:col-span-2 flex justify-center"><Button disabled={saving} onClick={() => void save({ kind: "service", referencia, descricao: nome, ...service })}>{saving ? "Salvando..." : "Finalizar"}</Button></div>
           </div>
         </DialogContent>

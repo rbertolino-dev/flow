@@ -59,6 +59,12 @@ function buildTransporte(raw: unknown) {
     const cnpj = digits(source.cnpj);
     if (cnpj) transporte.cnpj = cnpj;
     if (text("razao_social")) transporte.razao_social = text("razao_social");
+    if (text("ie")) transporte.ie = text("ie");
+    if (text("endereco")) transporte.endereco = text("endereco");
+    if (text("uf")) transporte.uf = text("uf").toUpperCase().slice(0, 2);
+    if (text("cidade")) transporte.cidade = text("cidade");
+    const cep = digits(source.cep);
+    if (cep) transporte.cep = cep;
   }
   return Object.keys(transporte).length ? transporte : null;
 }
@@ -113,6 +119,7 @@ async function ensureSchema(client: Client) {
     )`);
   await client.queryArray(`ALTER TABLE fiscal_settings ADD COLUMN IF NOT EXISTS bubble_env TEXT NOT NULL DEFAULT 'live'`);
   await client.queryArray(`ALTER TABLE fiscal_invoices ADD COLUMN IF NOT EXISTS bubble_env TEXT`);
+  await client.queryArray(`ALTER TABLE fiscal_invoices ADD COLUMN IF NOT EXISTS cce_url TEXT`);
   await client.queryArray(`
     CREATE TABLE IF NOT EXISTS fiscal_invoices (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -227,14 +234,26 @@ const PAYMENT_CODE: Record<string, string> = {
   cartao_credito: "03",
   cartao_debito: "04",
   crediario: "05",
+  vale_alimentacao: "10",
+  vale_refeicao: "11",
+  vale_presente: "12",
+  vale_combustivel: "13",
+  duplicata: "14",
   boleto: "15",
   transferencia_bancaria: "16",
   transferencia: "16",
   pix: "17",
+  ted: "18",
+  pix_estatico: "20",
+  credito_loja: "21",
+  sem_pagamento: "90",
+  pagamento_posterior: "91",
 };
 
 function paymentCode(method: string) {
-  return PAYMENT_CODE[method] || "99";
+  const raw = String(method || "").trim();
+  if (/^\d{2}$/.test(raw)) return raw;
+  return PAYMENT_CODE[raw] || "99";
 }
 
 function extractReturn(body: Record<string, unknown>) {
@@ -273,8 +292,17 @@ async function patchBubbleNota(env: string, id: string, payload: Record<string, 
 }
 
 const CLASS_URL = "https://webmania.com.br/api/1/nfe/classe-imposto/";
-const CENARIOS = new Set(["padrao", "saida_dentro_estado", "saida_fora_estado", "entrada_dentro_estado", "entrada_fora_estado"]);
-const PESSOAS = new Set(["fisica", "juridica"]);
+const CENARIOS = new Set(["padrao", "saida_dentro_estado", "saida_fora_estado", "entrada_dentro_estado", "entrada_fora_estado", "saida_exterior", "entrada_exterior"]);
+const PESSOAS = new Set(["fisica", "juridica", "estrangeira"]);
+
+function assertScenarioPerson(tax: string, cenario: string, tipo_pessoa: string) {
+  if (tax === "icms" && (cenario === "padrao" || !CENARIOS.has(cenario))) throw new Error("Cenário de ICMS inválido");
+  if (!CENARIOS.has(cenario)) throw new Error("Cenário inválido");
+  if (!PESSOAS.has(tipo_pessoa)) throw new Error("Informe se a pessoa é física, jurídica ou estrangeira");
+  if (cenario === "saida_exterior" && tipo_pessoa !== "estrangeira") throw new Error("Saída para o exterior aceita somente pessoa estrangeira");
+  if (cenario === "entrada_exterior" && tipo_pessoa === "estrangeira") throw new Error("Entrada do exterior aceita pessoa física ou jurídica");
+  if (cenario !== "saida_exterior" && tipo_pessoa === "estrangeira") throw new Error("Pessoa estrangeira só vale na saída para o exterior");
+}
 const TAXES = ["icms", "ipi", "pis", "cofins", "ibs_cbs"] as const;
 
 function asList(value: unknown) {
@@ -294,9 +322,8 @@ function ufRows(value: unknown, amountKey: string) {
 
 function icmsPayload(raw: Record<string, unknown>) {
   const cenario = String(raw.cenario || "");
-  if (cenario === "padrao" || !CENARIOS.has(cenario)) throw new Error("Cenário de ICMS inválido");
   const tipo_pessoa = String(raw.tipo_pessoa || "");
-  if (!PESSOAS.has(tipo_pessoa)) throw new Error("Informe se a pessoa é física ou jurídica");
+  assertScenarioPerson("icms", cenario, tipo_pessoa);
   const tipo = String(raw.tipo_tributacao || "simples_nacional");
   if (!["simples_nacional", "simples_nacional_sublimite", "tributacao_normal"].includes(tipo)) {
     throw new Error("Tipo de tributação do ICMS inválido");
@@ -316,6 +343,10 @@ function icmsPayload(raw: Record<string, unknown>) {
     if (raw.aliquota_credito == null || String(raw.aliquota_credito) === "") throw new Error("Informe a alíquota de crédito do ICMS");
     item.aliquota_credito = money(raw.aliquota_credito);
   }
+  if (cenario === "entrada_exterior") {
+    if (raw.aliquota_importacao == null || String(raw.aliquota_importacao) === "") throw new Error("Informe a alíquota de importação do ICMS");
+    item.aliquota_importacao = money(raw.aliquota_importacao);
+  }
   if (String(raw.aliquota_reducao || "").trim()) item.aliquota_reducao = String(raw.aliquota_reducao).trim();
   const mva = ufRows(raw.aliquota_mva, "aliquota");
   const beneficio = ufRows(raw.beneficio_fiscal, "codigo");
@@ -328,9 +359,8 @@ function icmsPayload(raw: Record<string, unknown>) {
 
 function otherPayload(tax: string, raw: Record<string, unknown>) {
   const cenario = String(raw.cenario || "");
-  if (!CENARIOS.has(cenario)) throw new Error("Cenário inválido");
   const tipo_pessoa = String(raw.tipo_pessoa || "");
-  if (!PESSOAS.has(tipo_pessoa)) throw new Error("Informe se a pessoa é física ou jurídica");
+  assertScenarioPerson(tax, cenario, tipo_pessoa);
   const situacao = String(raw.situacao_tributaria || "");
   if (!situacao) throw new Error("Informe a situação tributária");
   if (tax === "ibs_cbs") {
@@ -385,7 +415,7 @@ function buildClassPayload(body: Record<string, unknown>) {
     return payload;
   }
   const icms = asList(body.icms).map(icmsPayload);
-  if (!icms.length || icms.length > 4) throw new Error("O ICMS aceita de 1 a 4 cenários");
+  if (!icms.length || icms.length > 6) throw new Error("O ICMS aceita de 1 a 6 cenários");
   let ipi: Record<string, unknown>[];
   let pis: Record<string, unknown>[];
   let cofins: Record<string, unknown>[];
@@ -404,7 +434,7 @@ function buildClassPayload(body: Record<string, unknown>) {
     const grouped = Object.fromEntries(TAXES.map((tax) => [tax, asList(body[tax] || (tax === "icms" ? body.icms : []))]) ) as Record<string, Record<string, unknown>[]>;
     grouped.icms = asList(body.icms);
     for (const tax of TAXES) {
-      if (grouped[tax].length < 1 || grouped[tax].length > 4) throw new Error("Crie de 1 a 4 cenários para cada imposto");
+      if (grouped[tax].length < 1 || grouped[tax].length > 6) throw new Error("Crie de 1 a 6 cenários para cada imposto");
     }
     ipi = grouped.ipi.map((row) => otherPayload("ipi", row));
     pis = grouped.pis.map((row) => otherPayload("pis", row));
@@ -428,6 +458,7 @@ function scenarioView(tax: string, row: Record<string, unknown>) {
     classificacao: String(row.classificacao_tributaria || ""),
     codigo_enquadramento: String(row.codigo_enquadramento || ""),
     aliquota_credito: String(row.aliquota_credito || ""),
+    aliquota_importacao: String(row.aliquota_importacao || ""),
     aliquota_reducao: String(row.aliquota_reducao || ""),
     aliquota_mva: asList(row.aliquota_mva),
     beneficio_fiscal: asList(row.beneficio_fiscal),
@@ -767,8 +798,91 @@ serve(async (req) => {
       return json({ ok: true, invoice: parsed });
     }
 
+    if (action === "return" && req.method === "POST") {
+      const chave = digits(body.chave);
+      const cfop = digits(body.codigo_cfop);
+      if (chave.length !== 44) return json({ error: "Informe a chave de 44 dígitos da nota de origem" }, 400);
+      if (cfop.length !== 4) return json({ error: "Informe o CFOP de devolução com 4 dígitos" }, 400);
+      const produtos = Array.isArray(body.produtos) ? body.produtos.map((item: unknown) => Number(item)).filter((item: number) => item > 0) : [];
+      const quantidade = Array.isArray(body.quantidade) ? body.quantidade.map((item: unknown) => Number(item)) : [];
+      if (quantidade.length && quantidade.length !== produtos.length) return json({ error: "A quantidade precisa acompanhar cada item devolvido" }, 400);
+      const payload: Record<string, unknown> = {
+        chave,
+        natureza_operacao: String(body.natureza || "Devolução de mercadoria").slice(0, 60),
+        codigo_cfop: cfop,
+        ambiente: Number(settings.ambiente) === 1 ? 1 : 2,
+        url_notificacao: webhookUrl(),
+      };
+      if (produtos.length) payload.produtos = produtos;
+      if (quantidade.length) payload.quantidade = quantidade;
+      const remote = await fetch("https://webmania.com.br/api/1/nfe/devolucao/", {
+        method: "POST",
+        headers: nfeHeaders(empresa),
+        body: JSON.stringify(payload),
+      });
+      const responsePayload = await remote.json().catch(() => ({}));
+      const parsed = extractReturn(responsePayload);
+      if (!remote.ok && !parsed.uuid) return json({ error: parsed.motivo || "A Webmania recusou a devolução", detail: responsePayload }, 400);
+      const inserted = await client.queryObject<{ id: string }>(
+        `INSERT INTO fiscal_invoices (
+           organization_id, source, source_id, kind, status, webmania_uuid, number, access_key, pdf_url, xml_url,
+           amount, customer_name, request_payload, response_payload, bubble_env
+         ) VALUES ($1,'devolucao',$2,'nfe',$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13) RETURNING id`,
+        [organizationId, chave, parsed.status || "processando", parsed.uuid || null, parsed.number || null, parsed.accessKey || null, parsed.pdf || null, parsed.xml || null, Number(body.amount || 0), String(body.customer_name || "Devolução"), JSON.stringify(payload), JSON.stringify(responsePayload), bubbleEnv],
+      );
+      return json({ ok: remote.ok, invoiceId: inserted.rows[0].id, ...parsed });
+    }
+
+    if (action === "cancel" && req.method === "POST") {
+      const motivo = String(body.motivo || "").trim();
+      if (motivo.length < 15 || motivo.length > 255) return json({ error: "O motivo do cancelamento precisa ter de 15 a 255 caracteres" }, 400);
+      const invoice = await client.queryObject<Record<string, unknown>>(`SELECT * FROM fiscal_invoices WHERE id = $1 AND organization_id = $2`, [body.id, organizationId]);
+      const row = invoice.rows[0];
+      if (!row) return json({ error: "Nota não encontrada" }, 404);
+      if (String(row.status) === "cancelado") return json({ error: "Esta nota já está cancelada" }, 400);
+      const uuid = String(row.webmania_uuid || "");
+      const chave = digits(row.access_key);
+      if (!uuid && chave.length !== 44) return json({ error: "A nota não tem chave nem identificador da Webmania" }, 400);
+      const isService = row.kind === "nfse";
+      const payload = isService ? { uuid, motivo } : { ...(chave.length === 44 ? { chave } : { uuid }), motivo };
+      const remote = await fetch(isService ? "https://api.webmania.com.br/2/nfse/cancelar" : "https://webmania.com.br/api/1/nfe/cancelar/", {
+        method: "PUT",
+        headers: isService ? nfseHeaders(empresa) : nfeHeaders(empresa),
+        body: JSON.stringify(payload),
+      });
+      const responsePayload = await remote.json().catch(() => ({}));
+      if (!remote.ok) return json({ error: responsePayload?.error || responsePayload?.motivo || "A Webmania recusou o cancelamento", detail: responsePayload }, 400);
+      await client.queryArray(
+        `UPDATE fiscal_invoices SET status = 'cancelado', response_payload = $2::jsonb, updated_at = now() WHERE id = $1`,
+        [row.id, JSON.stringify(responsePayload)],
+      );
+      return json({ ok: true });
+    }
+
+    if (action === "cce" && req.method === "POST") {
+      const chave = digits(body.chave);
+      const correcao = String(body.correcao || "").trim();
+      if (chave.length !== 44) return json({ error: "Informe a chave de 44 dígitos da NF-e" }, 400);
+      if (correcao.length < 15 || correcao.length > 1000) return json({ error: "A correção precisa ter de 15 a 1000 caracteres" }, 400);
+      const payload = { chave, correcao, ambiente: Number(settings.ambiente) === 1 ? 1 : 2, url_notificacao: webhookUrl() };
+      const remote = await fetch("https://webmania.com.br/api/1/nfe/cartacorrecao/", {
+        method: "POST",
+        headers: nfeHeaders(empresa),
+        body: JSON.stringify(payload),
+      });
+      const responsePayload = await remote.json().catch(() => ({}));
+      if (!remote.ok) return json({ error: responsePayload?.error || responsePayload?.motivo || "A Webmania recusou a carta de correção", detail: responsePayload }, 400);
+      const dacce = String(responsePayload.dacce || "");
+      if (dacce) {
+        await client.queryArray(
+          `UPDATE fiscal_invoices SET cce_url = $3, updated_at = now() WHERE organization_id = $1 AND access_key = $2`,
+          [organizationId, chave, dacce],
+        );
+      }
+      return json({ ok: true, dacce, status: responsePayload.status || "aprovado" });
+    }
+
     if (action === "emit") {
-      if (body.referenciar) return json({ error: "Referenciar outra NF-e (devolução) fica para a próxima etapa" }, 400);
       const corrections = Array.isArray(body.corrections) ? body.corrections : [];
       for (const correction of corrections) {
         if (!correction?.product_id) continue;
@@ -792,7 +906,11 @@ serve(async (req) => {
       const customer = body.customer || {};
       const document = digits(customer.document);
       const isCompany = Boolean(customer.isCompany) || document.length === 14;
-      if (kind !== "nfce" && document.length !== 11 && document.length !== 14) return json({ error: "Informe o CPF ou CNPJ do cliente" }, 400);
+      const foreignCustomer = Boolean(customer.foreign);
+      if (foreignCustomer) {
+        const foreignId = String(customer.document || "").trim();
+        if (foreignId.length < 5 || foreignId.length > 20) return json({ error: "Informe o documento do cliente estrangeiro (5 a 20 caracteres)" }, 400);
+      } else if (kind !== "nfce" && document.length !== 11 && document.length !== 14) return json({ error: "Informe o CPF ou CNPJ do cliente" }, 400);
       if (!String(customer.name || "").trim()) return json({ error: "Informe o nome do cliente" }, 400);
       if (kind === "nfe" && (!customer.street || !customer.city || !customer.uf || !digits(customer.cep))) {
         return json({ error: "NF-e precisa do endereço do cliente: logradouro, cidade, UF e CEP" }, 400);
@@ -873,7 +991,12 @@ serve(async (req) => {
         }
         const productLines = lines.filter((line) => line.item_type !== "service");
         const cliente: Record<string, unknown> = {};
-        if (document.length === 14 || isCompany) {
+        const foreign = Boolean(customer.foreign);
+        if (foreign) {
+          cliente.id_estrangeiro = String(customer.document || "").trim();
+          cliente.nome_completo = String(customer.name);
+          cliente.uf = "EX";
+        } else if (document.length === 14 || isCompany) {
           cliente.cnpj = document;
           cliente.razao_social = String(customer.name);
         } else if (document.length === 11) {
@@ -890,13 +1013,13 @@ serve(async (req) => {
           cliente.numero = String(customer.number || "S/N");
           cliente.bairro = String(customer.district || "");
           cliente.cidade = String(customer.city || "");
-          cliente.uf = String(customer.uf || "");
+          cliente.uf = foreign ? "EX" : String(customer.uf || "");
           cliente.cep = digits(customer.cep);
         }
         const payments = Array.isArray(body.payments) && body.payments.length ? body.payments : [{ method: "dinheiro", amount }];
         requestPayload = {
           url_notificacao: webhookUrl(),
-          operacao: 1,
+          operacao: Number(body.operacao) === 0 ? 0 : 1,
           natureza_operacao: String(body.natureza || settings.natureza || "Venda de Mercadoria"),
           modelo: kind === "nfce" ? "2" : "1",
           finalidade: 1,
@@ -904,6 +1027,7 @@ serve(async (req) => {
           ...(body.data_emissao ? { data_emissao: String(body.data_emissao) } : {}),
           ...(body.data_entrada_saida ? { data_entrada_saida: String(body.data_entrada_saida) } : {}),
           ...(body.complemento ? { informacoes_complementares: String(body.complemento) } : {}),
+          ...(digits(body.nfe_referenciada).length === 44 ? { nfe_referenciada: [digits(body.nfe_referenciada)] } : {}),
           cliente,
           produtos: productLines.map((line) => ({
             nome: String(line.name || "Produto"),
