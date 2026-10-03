@@ -153,6 +153,14 @@ test("prévia da landing usa só o catálogo da organização @human-behavior", 
   expect(all.items.map((item) => item.product.name)).toEqual(["Esgotado", "Ativo"]);
   expect(all.items.every((item) => item.custom_title == null)).toBe(true);
 
+  const hiddenStock = buildLandingPagePreview({
+    config: draftConfig({ showAllItems: true, itemOrder: "category", showOutOfStock: false }),
+    products,
+    items: [],
+    organization: { id: "org", name: "Empresa" },
+  });
+  expect(hiddenStock.items.map((item) => item.product.name)).toEqual(["Ativo"]);
+
   const checks = landingPageChecklist({
     config: draftConfig({ title: "", slug: "", whatsappEnabled: true, showAllItems: false }),
     selectedCount: 0,

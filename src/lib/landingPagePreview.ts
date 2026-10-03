@@ -104,6 +104,10 @@ export function buildLandingPagePreview(input: {
     }
   }
 
+  if (input.config.showOutOfStock === false) {
+    ordered = ordered.filter((row) => productInStock(row.product.stock_quantity));
+  }
+
   const now = new Date().toISOString();
   return {
     id: input.pageId || "draft",

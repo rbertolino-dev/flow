@@ -23,6 +23,7 @@ export interface LandingPage {
   show_all_items?: boolean | null;
   item_order?: 'recent' | 'category' | 'manual';
   show_price?: boolean | null;
+  show_out_of_stock?: boolean | null;
   
   // Configuração WhatsApp
   whatsapp_enabled?: boolean | null;
@@ -173,6 +174,7 @@ export interface LandingPageConfig {
   selectedProductIds?: string[];
   itemOrder: 'recent' | 'category' | 'manual';
   showPrice: boolean;
+  showOutOfStock?: boolean;
   
   // WhatsApp
   whatsappEnabled: boolean;

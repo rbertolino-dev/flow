@@ -42,6 +42,7 @@ export function LandingPageConfigurator() {
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [productCategoryFilter, setProductCategoryFilter] = useState('all');
   const coverInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
@@ -55,6 +56,7 @@ export function LandingPageConfigurator() {
     selectedProductIds: [],
     itemOrder: "recent",
     showPrice: true,
+    showOutOfStock: true,
     whatsappEnabled: true,
     whatsappFloatingButton: true,
     whatsappButtonText: "Pedir Orçamento",
@@ -97,6 +99,7 @@ export function LandingPageConfigurator() {
         selectedProductIds: items.map(i => i.product_id),
         itemOrder: landingPage.item_order || "recent",
         showPrice: landingPage.show_price ?? true,
+        showOutOfStock: landingPage.show_out_of_stock !== false,
         whatsappEnabled: landingPage.whatsapp_enabled ?? true,
         whatsappInstanceId: landingPage.whatsapp_instance_id || undefined,
         whatsappNumber: landingPage.whatsapp_number || undefined,
@@ -287,6 +290,22 @@ export function LandingPageConfigurator() {
       return true;
     }),
     [products, landingPage],
+  );
+  const productCategories = useMemo(() => {
+    const names = new Set<string>();
+    for (const product of catalogProducts) {
+      names.add((product.category || "").trim() || "Sem categoria");
+    }
+    return [...names].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [catalogProducts]);
+  const visibleCatalogProducts = useMemo(
+    () => catalogProducts.filter((product) => {
+      const category = (product.category || "").trim() || "Sem categoria";
+      if (productCategoryFilter !== "all" && category !== productCategoryFilter) return false;
+      if (!productSearchTerm) return true;
+      return product.name.toLowerCase().includes(productSearchTerm);
+    }),
+    [catalogProducts, productCategoryFilter, productSearchTerm],
   );
   const selectedCount = landingPage ? items.length : (config.selectedProductIds?.length || 0);
   const checklist = landingPageChecklist({
@@ -750,6 +769,39 @@ export function LandingPageConfigurator() {
                 />
               </div>
 
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label>Mostrar produtos em falta</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Ligado, produtos sem saldo aparecem na vitrine com a marca Esgotado. Desligado, eles ficam fora da página pública.
+                  </p>
+                </div>
+                <Switch
+                  checked={config.showOutOfStock !== false}
+                  onCheckedChange={(checked) => setConfig({ ...config, showOutOfStock: checked })}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  placeholder="Buscar por nome"
+                  className="sm:max-w-xs"
+                  value={productSearchTerm}
+                  onChange={(e) => setProductSearchTerm(e.target.value.toLowerCase())}
+                />
+                <Select value={productCategoryFilter} onValueChange={setProductCategoryFilter}>
+                  <SelectTrigger className="sm:max-w-xs">
+                    <SelectValue placeholder="Categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as categorias</SelectItem>
+                    {productCategories.map((category) => (
+                      <SelectItem key={category} value={category}>{category}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {config.showAllItems ? (
                 <div className="space-y-2">
                   <Label>O que entra na vitrine</Label>
@@ -760,9 +812,11 @@ export function LandingPageConfigurator() {
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : catalogProducts.length === 0 ? (
                     <p className="text-sm text-muted-foreground">Nenhum produto ativo nesta organização.</p>
+                  ) : visibleCatalogProducts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhum produto encontrado com esses filtros.</p>
                   ) : (
                     <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {catalogProducts.map((product) => (
+                      {visibleCatalogProducts.map((product) => (
                         <div key={product.id} className="flex items-center justify-between gap-2 rounded border p-2">
                           <div>
                             <p className="font-medium">{product.name}</p>
@@ -779,25 +833,16 @@ export function LandingPageConfigurator() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Produtos Selecionados</Label>
-                    <Input
-                      placeholder="Buscar produto..."
-                      className="max-w-xs"
-                      value={productSearchTerm}
-                      onChange={(e) => setProductSearchTerm(e.target.value.toLowerCase())}
-                    />
-                  </div>
+                  <Label>Produtos Selecionados</Label>
                   {productsLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : catalogProducts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhum produto ativo nesta organização.</p>
+                  ) : visibleCatalogProducts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhum produto encontrado com esses filtros.</p>
                   ) : (
                     <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {catalogProducts
-                        .filter((product) => {
-                          if (!productSearchTerm) return true;
-                          return product.name.toLowerCase().includes(productSearchTerm) ||
-                            (product.category || "").toLowerCase().includes(productSearchTerm);
-                        })
+                      {[...visibleCatalogProducts]
                         .sort((a, b) => {
                           if (config.itemOrder !== "manual") return 0;
                           const orderA = items.find((item) => item.product_id === a.id)?.display_order ?? 9999;

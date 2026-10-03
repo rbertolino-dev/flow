@@ -119,6 +119,7 @@ export function useLandingPage() {
           show_all_items: config.showAllItems,
           item_order: config.itemOrder,
           show_price: config.showPrice,
+          show_out_of_stock: config.showOutOfStock !== false,
           whatsapp_enabled: config.whatsappEnabled,
           whatsapp_instance_id: config.whatsappInstanceId || null,
           whatsapp_number: config.whatsappNumber || null,
@@ -227,6 +228,7 @@ export function useLandingPage() {
       if (config.showAllItems !== undefined) updateData.show_all_items = config.showAllItems;
       if (config.itemOrder !== undefined) updateData.item_order = config.itemOrder;
       if (config.showPrice !== undefined) updateData.show_price = config.showPrice;
+      if (config.showOutOfStock !== undefined) updateData.show_out_of_stock = config.showOutOfStock;
       if (config.whatsappEnabled !== undefined) updateData.whatsapp_enabled = config.whatsappEnabled;
       if (config.whatsappInstanceId !== undefined) updateData.whatsapp_instance_id = config.whatsappInstanceId || null;
       if (config.whatsappNumber !== undefined) updateData.whatsapp_number = config.whatsappNumber || null;

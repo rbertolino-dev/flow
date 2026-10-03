@@ -11,7 +11,7 @@ const corsHeaders = {
 const PUBLIC_PAGE_COLUMNS = [
   "id", "organization_id", "is_active", "slug", "template",
   "cover_image_url", "logo_url", "logo_position", "primary_color", "secondary_color",
-  "title", "subtitle", "about_text", "show_all_items", "item_order", "show_price",
+  "title", "subtitle", "about_text", "show_all_items", "item_order", "show_price", "show_out_of_stock",
   "whatsapp_enabled", "whatsapp_number", "whatsapp_message_template", "whatsapp_button_text", "whatsapp_floating_button",
   "form_enabled", "form_title", "form_position", "form_fields",
   "video_enabled", "video_url", "seo_title", "seo_description", "seo_og_image_url",
@@ -166,6 +166,10 @@ serve(async (req) => {
       } else if (itemOrder !== "manual") {
         ordered.sort((a, b) => String(b.product.created_at).localeCompare(String(a.product.created_at)));
       }
+    }
+
+    if (page.show_out_of_stock === false) {
+      ordered = ordered.filter(({ product }) => inStock(product.stock_quantity));
     }
 
     const items = ordered.map(({ product, item }, index) => ({
