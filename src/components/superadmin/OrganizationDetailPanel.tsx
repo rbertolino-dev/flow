@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { differenceInCalendarDays, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Loader2, UserPlus } from "lucide-react";
+import { Check, Loader2, UserPlus } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -99,6 +100,7 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
   const [permissionUser, setPermissionUser] = useState<Member | null>(null);
   const [confirm, setConfirm] = useState<null | "deactivate" | "sales" | "receber" | "pagar">(null);
   const [showLimits, setShowLimits] = useState(false);
+  const selectedPlanRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setNotes(organization.admin_notes ?? "");
@@ -139,11 +141,20 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
   }, [organization.id, organization.organization_members]);
 
   const currentPlan = plans.find((plan) => plan.id === currentPlanId) ?? null;
+
+  useEffect(() => {
+    selectedPlanRef.current?.scrollIntoView({ block: "nearest" });
+  }, [currentPlanId, plans.length, open]);
   const visiblePlans = useMemo(() => {
     const query = planQuery.trim().toLowerCase();
-    if (!query) return plans;
-    return plans.filter((plan) => plan.name.toLowerCase().includes(query));
-  }, [planQuery, plans]);
+    const filtered = query ? plans.filter((plan) => plan.name.toLowerCase().includes(query)) : plans;
+    if (!currentPlanId) return filtered;
+    return [...filtered].sort((a, b) => {
+      if (a.id === currentPlanId) return -1;
+      if (b.id === currentPlanId) return 1;
+      return a.name.localeCompare(b.name, "pt-BR");
+    });
+  }, [planQuery, plans, currentPlanId]);
 
   const renewal = daysLabel(vigencia || null);
   const modifiedDays = differenceInCalendarDays(new Date(), new Date(organization.updated_at));
@@ -354,21 +365,41 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <p className="text-sm mb-1">Plano</p>
+                    <p className="text-xs text-muted-foreground mb-1">
+                      Plano atual: {currentPlan?.name ?? "Sem plano"}
+                    </p>
                     <Input value={planQuery} onChange={(event) => setPlanQuery(event.target.value)} placeholder="Buscar plano" />
                     <div className="mt-1 max-h-40 overflow-auto rounded-md border bg-background">
-                      <button type="button" className="block w-full text-left px-3 py-2 text-sm hover:bg-muted" onClick={() => void handlePlanChange(null)}>
+                      <button
+                        ref={currentPlanId === null ? selectedPlanRef : undefined}
+                        type="button"
+                        className={cn(
+                          "flex w-full items-center justify-between px-3 py-2 text-left text-sm",
+                          currentPlanId === null ? "bg-primary font-medium text-primary-foreground" : "hover:bg-muted",
+                        )}
+                        onClick={() => void handlePlanChange(null)}
+                      >
                         Sem plano
+                        {currentPlanId === null && <Check className="h-4 w-4 shrink-0" />}
                       </button>
-                      {visiblePlans.map((plan) => (
-                        <button
-                          key={plan.id}
-                          type="button"
-                          className="block w-full text-left px-3 py-2 text-sm hover:bg-muted"
-                          onClick={() => void handlePlanChange(plan.id)}
-                        >
-                          {plan.name}
-                        </button>
-                      ))}
+                      {visiblePlans.map((plan) => {
+                        const selected = plan.id === currentPlanId;
+                        return (
+                          <button
+                            key={plan.id}
+                            ref={selected ? selectedPlanRef : undefined}
+                            type="button"
+                            className={cn(
+                              "flex w-full items-center justify-between px-3 py-2 text-left text-sm",
+                              selected ? "bg-primary font-medium text-primary-foreground" : "hover:bg-muted",
+                            )}
+                            onClick={() => void handlePlanChange(plan.id)}
+                          >
+                            <span>{plan.name}</span>
+                            {selected && <Check className="h-4 w-4 shrink-0" />}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                   <div>
