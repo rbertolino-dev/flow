@@ -456,49 +456,49 @@ export default function NotaFiscal() {
               const missing = line.item_type === "product"
                 ? (line.origem === "" ? "Origem do produto" : line.ncm.replace(/\D/g, "").length !== 8 ? "Código NCM" : !line.tax_class_ref ? "Classe de imposto" : "")
                 : (!line.tax_class_ref ? "Classe de imposto" : "");
-              const editing = editingKey === line.key || Boolean(missing);
+              const editing = editingKey === line.key;
               return (
-                <div key={line.key} className={`rounded border p-3 ${missing ? "border-red-200 bg-red-50" : "bg-white"}`}>
+                <div key={line.key} className={`rounded border px-2 py-1.5 ${missing ? "border-red-200 bg-red-50" : "bg-white"}`}>
                   {missing ? (
-                    <div className="mb-2 flex items-center justify-center gap-3 text-red-600">
+                    <div className="mb-1 flex items-center justify-center gap-2 text-xs leading-none text-red-600">
                       <span>Informações do produto faltando: {missing}</span>
-                      {line.product_id ? <Button size="sm" className="h-7 rounded-full bg-blue-600 px-3 text-white hover:bg-blue-700" onClick={() => void correctProduct(line)}>Clique para Corrigir</Button> : null}
+                      {line.product_id ? <Button size="sm" className="h-6 rounded-full bg-blue-600 px-2 text-xs text-white hover:bg-blue-700" onClick={() => void correctProduct(line)}>Clique para Corrigir</Button> : null}
                     </div>
                   ) : null}
-                  <div className="grid grid-cols-2 gap-2 md:grid-cols-7">
-                    <div className="md:col-span-2">
-                      <p className="text-[11px] text-slate-500">{line.item_type === "service" ? "Serviço" : "Produto"}</p>
-                      <p className="font-medium leading-tight">{line.name}</p>
-                      <Button type="button" variant="outline" size="sm" className="mt-1 h-7" onClick={() => setEditingKey(editing && !missing ? null : line.key)}>Editar</Button>
+                  <div className="flex items-end gap-1 overflow-x-auto">
+                    <div className="w-36 shrink-0">
+                      <p className="text-[11px] leading-none text-slate-500">{line.item_type === "service" ? "Serviço" : "Produto"}</p>
+                      <p className="truncate text-xs font-medium leading-4">{line.name}</p>
+                      <button type="button" className="text-[11px] leading-none underline" onClick={() => setEditingKey(editing ? null : line.key)}>Editar</button>
                     </div>
-                    <div><p className="text-[11px] text-slate-500">Valor Unit.</p><Input className="h-8" value={String(line.price)} onChange={(event) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, price: Number(event.target.value) } : item))} /></div>
-                    <div><p className="text-[11px] text-slate-500">Qntd.</p><Input className="h-8" value={String(line.quantity)} onChange={(event) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, quantity: Number(event.target.value) } : item))} /></div>
-                    <div><p className="text-[11px] text-slate-500">Subtotal</p><p className="pt-2">{money(line.price * line.quantity)}</p></div>
-                    <div><p className="text-[11px] text-slate-500">Código prod</p><Input className="h-8" value={line.code} onChange={(event) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, code: event.target.value } : item))} /></div>
-                    {line.item_type === "product" ? <div><p className="text-[11px] text-slate-500">NCM</p><Input className="h-8" value={line.ncm} onChange={(event) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, ncm: event.target.value.replace(/\D/g, "").slice(0, 8) } : item))} /></div> : null}
-                    <div>
-                      <p className="text-[11px] text-slate-500">Classe imposto</p>
+                    <div className="w-20 shrink-0"><p className="text-[11px] leading-none text-slate-500">Valor Unit.</p><Input className="h-7 px-2" value={String(line.price)} onChange={(event) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, price: Number(event.target.value) } : item))} /></div>
+                    <div className="w-14 shrink-0"><p className="text-[11px] leading-none text-slate-500">Qntd.</p><Input className="h-7 px-2" value={String(line.quantity)} onChange={(event) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, quantity: Number(event.target.value) } : item))} /></div>
+                    <div className="w-24 shrink-0"><p className="text-[11px] leading-none text-slate-500">Subtotal</p><p className="flex h-7 items-center text-xs">{money(line.price * line.quantity)}</p></div>
+                    <div className="w-24 shrink-0"><p className="text-[11px] leading-none text-slate-500">Código prod</p><Input className="h-7 px-2" value={line.code} onChange={(event) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, code: event.target.value } : item))} /></div>
+                    {line.item_type === "product" ? <div className="w-24 shrink-0"><p className="text-[11px] leading-none text-slate-500">NCM</p><Input className="h-7 px-2" value={line.ncm} onChange={(event) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, ncm: event.target.value.replace(/\D/g, "").slice(0, 8) } : item))} /></div> : null}
+                    <div className="w-32 shrink-0">
+                      <p className="text-[11px] leading-none text-slate-500">Classe imposto</p>
                       <Select value={line.tax_class_ref || "none"} onValueChange={(value) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, tax_class_ref: value === "none" ? "" : value } : item))}>
-                        <SelectTrigger className="h-8"><SelectValue placeholder="Classe imposto" /></SelectTrigger>
+                        <SelectTrigger className="h-7"><SelectValue placeholder="Classe" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">Classe imposto</SelectItem>
+                          <SelectItem value="none">Classe</SelectItem>
                           {classOptions.filter((item) => item.ref).map((item) => <SelectItem key={item.ref} value={item.ref}>{item.ref}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
+                    {line.item_type === "product" && (missing || editing) ? (
+                      <div className="w-28 shrink-0">
+                        <p className="text-[11px] leading-none text-slate-500">Origem</p>
+                        <Select value={line.origem === "" ? "none" : line.origem} onValueChange={(value) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, origem: value === "none" ? "" : value } : item))}>
+                          <SelectTrigger className="h-7"><SelectValue placeholder="Origem" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Selecione</SelectItem>
+                            {["0", "1", "2", "3", "4", "5", "6", "7", "8"].map((origin) => <SelectItem key={origin} value={origin}>{origin}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : null}
                   </div>
-                  {editing && line.item_type === "product" ? (
-                    <div className="mt-2 max-w-xs">
-                      <p className="text-[11px] text-slate-500">Origem</p>
-                      <Select value={line.origem === "" ? "none" : line.origem} onValueChange={(value) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, origem: value === "none" ? "" : value } : item))}>
-                        <SelectTrigger className="h-8"><SelectValue placeholder="Origem" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Selecione</SelectItem>
-                          {["0", "1", "2", "3", "4", "5", "6", "7", "8"].map((origin) => <SelectItem key={origin} value={origin}>{origin}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ) : null}
                 </div>
               );
             })}
