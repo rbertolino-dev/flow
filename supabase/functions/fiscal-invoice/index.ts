@@ -150,6 +150,7 @@ async function ensureSchema(client: Client) {
   await client.queryArray(`ALTER TABLE services ADD COLUMN IF NOT EXISTS tax_class_ref TEXT`);
   await client.queryArray(`ALTER TABLE pos_sales ADD COLUMN IF NOT EXISTS invoice_number TEXT`);
   await client.queryArray(`ALTER TABLE pos_sales ADD COLUMN IF NOT EXISTS invoice_issued_at TIMESTAMPTZ`);
+  await client.queryArray(`ALTER TABLE pos_sales ADD COLUMN IF NOT EXISTS fiscal_hidden_at TIMESTAMPTZ`);
 }
 
 function bubbleToken() {
@@ -703,18 +704,40 @@ serve(async (req) => {
       const q = (url.searchParams.get("q") || "").trim();
       const rows = await client.queryObject(
         `SELECT s.id, s.sale_number::int AS sale_number, s.customer_name, s.created_at, s.total,
+                s.invoice_number,
                 bool_or(i.item_type = 'product') AS has_product,
                 bool_or(i.item_type = 'service') AS has_service
          FROM pos_sales s
          LEFT JOIN pos_sale_items i ON i.sale_id = s.id
          WHERE s.organization_id = $1 AND s.status = 'completed'
+           AND s.fiscal_hidden_at IS NULL
            AND s.created_at::date BETWEEN $2::date AND $3::date
            AND ($4 = '' OR s.customer_name ILIKE '%' || $4 || '%')
          GROUP BY s.id
-         ORDER BY s.created_at DESC LIMIT 300`,
+         ORDER BY s.created_at DESC LIMIT 1000`,
         [organizationId, from, to, q],
       );
       return json({ sales: rows.rows });
+    }
+
+    if (action === "hide-issued-sales" && req.method === "POST") {
+      const ids = Array.isArray(body.ids) ? body.ids.map((id: unknown) => String(id || "").trim()).filter(Boolean) : [];
+      if (!ids.length) return json({ hidden: 0 });
+      const hidden = await client.queryObject<{ n: string }>(
+        `WITH updated AS (
+           UPDATE pos_sales
+           SET fiscal_hidden_at = now()
+           WHERE organization_id = $1
+             AND status = 'completed'
+             AND fiscal_hidden_at IS NULL
+             AND COALESCE(invoice_number, '') <> ''
+             AND id = ANY($2::uuid[])
+           RETURNING id
+         )
+         SELECT count(*)::text AS n FROM updated`,
+        [organizationId, ids],
+      );
+      return json({ hidden: Number(hidden.rows[0]?.n || 0) });
     }
 
     if (action === "sale") {

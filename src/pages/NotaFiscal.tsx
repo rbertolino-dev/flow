@@ -105,15 +105,22 @@ function money(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+const SALES_PAGE_SIZE = 25;
+
 type ReadySale = {
   id: string;
   sale_number: number;
   customer_name: string;
   created_at: string;
   total?: number;
+  invoice_number?: string | null;
   has_product: boolean | string;
   has_service: boolean | string;
 };
+
+function saleAlreadyIssued(sale: ReadySale) {
+  return Boolean(String(sale.invoice_number || "").trim());
+}
 
 function SalesReadyList({
   sales,
@@ -126,6 +133,10 @@ function SalesReadyList({
   onTo,
   onQuery,
   onKind,
+  order,
+  onOrder,
+  hidingIssued,
+  onHideIssued,
   saleFlag,
   onProduct,
   onService,
@@ -140,10 +151,15 @@ function SalesReadyList({
   onTo: (value: string) => void;
   onQuery: (value: string) => void;
   onKind: (value: "all" | "product" | "service") => void;
+  order: "recent" | "oldest";
+  onOrder: (value: "recent" | "oldest") => void;
+  hidingIssued: boolean;
+  onHideIssued: (ids: string[]) => void;
   saleFlag: (value: boolean | string | undefined) => boolean;
   onProduct: (id: string) => void;
   onService: (id: string) => void;
 }) {
+  const [page, setPage] = useState(1);
   const visible = sales.filter((sale) => {
     const name = (sale.customer_name || "").toLowerCase();
     const number = String(sale.sale_number || "");
@@ -154,6 +170,19 @@ function SalesReadyList({
       (kind === "service" && saleFlag(sale.has_service));
     return matchesQuery && matchesKind;
   });
+  const sorted = [...visible].sort((left, right) => {
+    const diff = new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
+    return order === "oldest" ? diff : -diff;
+  });
+  const pageCount = Math.max(1, Math.ceil(sorted.length / SALES_PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageStart = (currentPage - 1) * SALES_PAGE_SIZE;
+  const pageRows = sorted.slice(pageStart, pageStart + SALES_PAGE_SIZE);
+  const issuedCount = visible.filter(saleAlreadyIssued).length;
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, kind, order, from, to]);
 
   const kindButton = (value: "all" | "product" | "service", label: string) => (
     <button
@@ -181,6 +210,13 @@ function SalesReadyList({
           {kindButton("product", "Só produto")}
           {kindButton("service", "Só serviço")}
         </div>
+        <div className="flex rounded-lg border bg-white p-0.5">
+          <button type="button" onClick={() => onOrder("recent")} className={`rounded-md px-3 py-1.5 text-sm font-medium ${order === "recent" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Mais recentes</button>
+          <button type="button" onClick={() => onOrder("oldest")} className={`rounded-md px-3 py-1.5 text-sm font-medium ${order === "oldest" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Mais antigas</button>
+        </div>
+        <Button type="button" variant="outline" className="h-9" disabled={loading || hidingIssued || issuedCount === 0} onClick={() => onHideIssued(visible.filter(saleAlreadyIssued).map((sale) => sale.id))}>
+          {hidingIssued ? "Tirando..." : `Tirar emitidas da lista${issuedCount ? ` (${issuedCount})` : ""}`}
+        </Button>
         <span className="text-xs text-slate-500">
           {loading ? "Atualizando..." : `${visible.length} venda${visible.length === 1 ? "" : "s"}`}
         </span>
@@ -198,9 +234,10 @@ function SalesReadyList({
             </tr>
           </thead>
           <tbody>
-            {visible.map((sale) => {
+            {pageRows.map((sale) => {
               const product = saleFlag(sale.has_product);
               const service = saleFlag(sale.has_service);
+              const issued = saleAlreadyIssued(sale);
               return (
                 <tr key={sale.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
                   <td className="whitespace-nowrap px-3 py-1.5 font-medium text-slate-800">{sale.sale_number}</td>
@@ -211,6 +248,7 @@ function SalesReadyList({
                     <div className="flex gap-1">
                       {product ? <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">Produto</span> : null}
                       {service ? <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700">Serviço</span> : null}
+                      {issued ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">Nota emitida</span> : null}
                     </div>
                   </td>
                   <td className="px-3 py-1.5">
@@ -231,6 +269,18 @@ function SalesReadyList({
             ) : null}
           </tbody>
         </table>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
+        <span>
+          {sorted.length
+            ? `Mostrando ${pageStart + 1} a ${Math.min(pageStart + SALES_PAGE_SIZE, sorted.length)} de ${sorted.length}`
+            : "Nenhuma venda nesta página"}
+        </span>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>Anterior</Button>
+          <span>{currentPage} / {pageCount}</span>
+          <Button type="button" variant="outline" size="sm" disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>Próxima</Button>
+        </div>
       </div>
     </div>
   );
@@ -315,9 +365,11 @@ export default function NotaFiscal() {
   const [ambiente, setAmbiente] = useState("2");
   const [modeloPadrao, setModeloPadrao] = useState("nfe");
   const [salesLoading, setSalesLoading] = useState(false);
-  const [sales, setSales] = useState<{ id: string; sale_number: number; customer_name: string; created_at: string; total?: number; has_product: boolean | string; has_service: boolean | string }[]>([]);
+  const [sales, setSales] = useState<ReadySale[]>([]);
   const [salesQuery, setSalesQuery] = useState("");
   const [salesKind, setSalesKind] = useState<"all" | "product" | "service">("all");
+  const [salesOrder, setSalesOrder] = useState<"recent" | "oldest">("recent");
+  const [hidingIssued, setHidingIssued] = useState(false);
   const [avulsa, setAvulsa] = useState({ description: "", amount: "", tax: "", name: "", document: "", email: "" });
   const [saving, setSaving] = useState(false);
 
@@ -400,6 +452,24 @@ export default function NotaFiscal() {
   useEffect(() => {
     if (pageTab === "sales") openLastSales();
   }, [pageTab, openLastSales]);
+
+  async function hideIssuedSales(ids: string[]) {
+    if (!activeOrgId || !ids.length) return;
+    setHidingIssued(true);
+    try {
+      const data = await fiscalCall(activeOrgId, "hide-issued-sales", { method: "POST", body: JSON.stringify({ ids }) });
+      const hidden = Number(data.hidden || 0);
+      toast({
+        title: hidden ? "Vendas tiradas da lista" : "Nenhuma venda com nota emitida",
+        description: hidden ? `${hidden} venda${hidden === 1 ? "" : "s"} com nota emitida saíram da lista deste período.` : "Não há venda com nota emitida neste período.",
+      });
+      openLastSales();
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : "Não foi possível tirar as vendas da lista", variant: "destructive" });
+    } finally {
+      setHidingIssued(false);
+    }
+  }
 
   async function openSale(id: string, nextKind: "nfe" | "nfce" | "nfse") {
     if (!activeOrgId) return;
@@ -751,6 +821,10 @@ export default function NotaFiscal() {
                 onTo={setTo}
                 onQuery={setSalesQuery}
                 onKind={setSalesKind}
+                order={salesOrder}
+                onOrder={setSalesOrder}
+                hidingIssued={hidingIssued}
+                onHideIssued={(ids) => void hideIssuedSales(ids)}
                 saleFlag={saleFlag}
                 onProduct={(id) => void openSale(id, company?.modelo === "nfce" ? "nfce" : "nfe")}
                 onService={(id) => void openSale(id, "nfse")}
