@@ -10,7 +10,7 @@ import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { OrganizationModulesPanel } from "./OrganizationModulesPanel";
 import { OrganizationLimitsPanel } from "./OrganizationLimitsPanel";
 import { FeaturePermissionGrid } from "@/components/users/FeaturePermissionGrid";
-import { AVAILABLE_FEATURES } from "@/hooks/useOrganizationFeatures";
+import { AVAILABLE_FEATURES, readPlanModules } from "@/hooks/useOrganizationFeatures";
 import { deleteAllOrgSales, purgeFinancialEntries, suggestVigencia, updateOrgAdminMeta } from "@/lib/superadminOrg";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -165,17 +165,62 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
     }
   };
 
-  const handlePlanChange = async (planId: string | null) => {
-    setSaving(true);
-    try {
+  const applyPlanModules = async (planId: string | null) => {
+    if (!planId) {
+      const { error } = await supabase.from("organization_limits").upsert(
+        { organization_id: organization.id, plan_id: null },
+        { onConflict: "organization_id" },
+      );
+      if (error) throw error;
+      toast({ title: "Plano removido", description: "As funções já liberadas nesta empresa foram mantidas." });
+      return;
+    }
+
+    const { data: planRow, error: planError } = await supabase
+      .from("plans")
+      .select("name, features")
+      .eq("id", planId)
+      .maybeSingle();
+    if (planError) throw planError;
+
+    const modules = readPlanModules(planRow?.features);
+    if (modules.length === 0) {
       const { error } = await supabase.from("organization_limits").upsert(
         { organization_id: organization.id, plan_id: planId },
         { onConflict: "organization_id" },
       );
       if (error) throw error;
+      toast({
+        title: "Plano vinculado, sem módulos",
+        description: "Este plano ainda não tem funcionalidades marcadas. Edite o plano e marque os módulos. Nada foi liberado nem removido nesta empresa.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { error } = await supabase.from("organization_limits").upsert(
+      {
+        organization_id: organization.id,
+        plan_id: planId,
+        features_override_mode: "inherit",
+        enabled_features: modules,
+        disabled_features: [],
+      },
+      { onConflict: "organization_id" },
+    );
+    if (error) throw error;
+    toast({
+      title: "Plano aplicado",
+      description: `${planRow?.name ?? "Plano"}: ${modules.length} funcionalidades liberadas. O restante fica bloqueado.`,
+    });
+  };
+
+  const handlePlanChange = async (planId: string | null) => {
+    setSaving(true);
+    try {
+      await applyPlanModules(planId);
       setCurrentPlanId(planId);
       setPlanQuery("");
-      toast({ title: "Plano atualizado" });
       onUpdate();
     } catch (error: unknown) {
       toast({
@@ -193,24 +238,9 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
       toast({ title: "Selecione um plano antes de atualizar", variant: "destructive" });
       return;
     }
-    const { data: planRow } = await supabase.from("plans").select("features").eq("id", currentPlanId).maybeSingle();
-    const planFeatures = Array.isArray(planRow?.features)
-      ? planRow.features.filter((item): item is string => typeof item === "string")
-      : [];
     setSaving(true);
     try {
-      const { error } = await supabase.from("organization_limits").upsert(
-        {
-          organization_id: organization.id,
-          plan_id: currentPlanId,
-          features_override_mode: "inherit",
-          enabled_features: planFeatures,
-          disabled_features: [],
-        },
-        { onConflict: "organization_id" },
-      );
-      if (error) throw error;
-      toast({ title: "Plano reaplicado na empresa" });
+      await applyPlanModules(currentPlanId);
       onUpdate();
     } catch (error: unknown) {
       toast({
@@ -446,7 +476,7 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
               </TabsContent>
 
               <TabsContent value="funcoes" className="mt-4 space-y-4">
-                <OrganizationModulesPanel organizationId={organization.id} onUpdate={onUpdate} />
+                <OrganizationModulesPanel key={`${organization.id}-${currentPlanId ?? "none"}`} organizationId={organization.id} />
                 <Button type="button" variant="outline" onClick={() => setShowLimits((value) => !value)}>
                   {showLimits ? "Ocultar limites numéricos" : "Limites numéricos e providers"}
                 </Button>

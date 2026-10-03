@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import type { Json } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveOrganization } from "./useActiveOrganization";
 
@@ -38,6 +39,35 @@ export const AVAILABLE_FEATURES = [
 ] as const;
 
 export type FeatureKey = typeof AVAILABLE_FEATURES[number]['value'];
+
+const FEATURE_KEYS = new Set<string>(AVAILABLE_FEATURES.map((feature) => feature.value));
+
+/** Lê só os módulos do plano. Ignora cotas numéricas como `{ leads: 5000 }`. */
+export function readPlanModules(features: unknown): string[] {
+  const onlyKnown = (items: unknown[]): string[] =>
+    items.filter((item): item is string => typeof item === "string" && FEATURE_KEYS.has(item));
+
+  if (Array.isArray(features)) return onlyKnown(features);
+  if (features && typeof features === "object") {
+    const record = features as Record<string, unknown>;
+    if (Array.isArray(record.modules)) return onlyKnown(record.modules);
+  }
+  return [];
+}
+
+/** Grava os módulos do plano sem apagar cotas numéricas já salvas. */
+export function withPlanModules(existing: unknown, modules: string[]): { [key: string]: Json | undefined } {
+  const next: { [key: string]: Json | undefined } = { modules };
+  if (existing && typeof existing === "object" && !Array.isArray(existing)) {
+    for (const [key, value] of Object.entries(existing as Record<string, unknown>)) {
+      if (key === "modules") continue;
+      if (typeof value === "number" || typeof value === "string" || typeof value === "boolean" || value === null) {
+        next[key] = value;
+      }
+    }
+  }
+  return next;
+}
 
 /** Não entra no trial nem em empresa nova. Só liga se o super admin habilitar na empresa ou no plano. */
 export const EXPLICIT_ORG_FEATURES = new Set<FeatureKey>(['service_orders_optical', 'product_wholesale_price', 'nota_fiscal']);
@@ -143,17 +173,7 @@ export function useOrganizationFeatures(): UseOrganizationFeaturesResult {
         ? limitsData.disabled_features as string[]
         : [];
       
-      // Garantir que planFeatures seja sempre um array
-      // Pode vir como JSONB (objeto ou array) do banco
-      let planFeatures: string[] = [];
-      if (planData?.features) {
-        if (Array.isArray(planData.features)) {
-          planFeatures = planData.features as string[];
-        } else if (typeof planData.features === 'object') {
-          // Se for objeto JSONB, tentar converter para array
-          planFeatures = Object.values(planData.features) as string[];
-        }
-      }
+      const planFeatures = readPlanModules(planData?.features);
 
       setData({
         planId: limitsData.plan_id,

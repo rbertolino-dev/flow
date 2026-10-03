@@ -40,6 +40,7 @@ interface Plan {
   billing_period: string;
   is_active: boolean;
   features: string[] | null;
+  featuresRaw: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -59,7 +60,7 @@ interface PlanFormData {
   features: string[];
 }
 
-import { AVAILABLE_FEATURES } from "@/hooks/useOrganizationFeatures";
+import { AVAILABLE_FEATURES, readPlanModules, withPlanModules } from "@/hooks/useOrganizationFeatures";
 
 export function PlansManagementPanel() {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -85,6 +86,7 @@ export function PlansManagementPanel() {
 
   useEffect(() => {
     fetchPlans();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchPlans = async () => {
@@ -112,17 +114,18 @@ export function PlansManagementPanel() {
         price: item.price,
         billing_period: item.billing_period,
         is_active: item.is_active,
-        features: Array.isArray(item.features) ? item.features as string[] : [],
+        features: readPlanModules(item.features),
+        featuresRaw: item.features,
         created_at: item.created_at,
         updated_at: item.updated_at,
       }));
       
       setPlans(mappedPlans);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao carregar planos:', error);
       toast({
         title: "Erro ao carregar planos",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
@@ -183,7 +186,7 @@ export function PlansManagementPanel() {
         price: formData.price,
         billing_period: formData.billing_period,
         is_active: formData.is_active,
-        features: formData.features,
+        features: withPlanModules(editingPlan?.featuresRaw, formData.features),
       };
 
       if (editingPlan) {
@@ -211,11 +214,11 @@ export function PlansManagementPanel() {
 
       setIsDialogOpen(false);
       await fetchPlans();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao salvar plano:', error);
       toast({
         title: "Erro ao salvar",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
@@ -242,11 +245,11 @@ export function PlansManagementPanel() {
       });
 
       await fetchPlans();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao excluir plano:', error);
       toast({
         title: "Erro ao excluir",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     }

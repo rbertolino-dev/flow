@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import { AVAILABLE_FEATURES, type FeatureKey } from "@/hooks/useOrganizationFeatures";
+import { AVAILABLE_FEATURES, readPlanModules, type FeatureKey } from "@/hooks/useOrganizationFeatures";
 
 export type PermissionAction = "view" | "edit" | "delete";
 
@@ -216,7 +216,7 @@ export async function fetchReleasedFeatureKeys(organizationId: string): Promise<
   const trialEndsAt = limitsData.trial_ends_at ? new Date(limitsData.trial_ends_at) : null;
 
   return resolveReleasedFeatureKeys({
-    planFeatures: asStringArray(planData?.features),
+    planFeatures: readPlanModules(planData?.features),
     enabledFeatures: asStringArray(limitsData.enabled_features),
     disabledFeatures: asStringArray(limitsData.disabled_features),
     isInTrial: trialEndsAt !== null && trialEndsAt > new Date(),
