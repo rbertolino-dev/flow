@@ -144,6 +144,13 @@ export default function NotaFiscal() {
   const [pagamento, setPagamento] = useState("0");
   const [forma, setForma] = useState("01");
   const [referenciar, setReferenciar] = useState(false);
+  const [emitOpen, setEmitOpen] = useState(false);
+  const [issuedDate, setIssuedDate] = useState(todayIso());
+  const [issuedTime, setIssuedTime] = useState(() => new Date().toTimeString().slice(0, 5));
+  const [moveDate, setMoveDate] = useState(todayIso());
+  const [moveTime, setMoveTime] = useState(() => new Date().toTimeString().slice(0, 5));
+  const [complemento, setComplemento] = useState("");
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [companyOpen, setCompanyOpen] = useState(false);
   const [empresaId, setEmpresaId] = useState("");
   const [ambiente, setAmbiente] = useState("2");
@@ -197,7 +204,9 @@ export default function NotaFiscal() {
     setSourceId(nextSourceId);
     setCustomer((prev) => ({ ...prev, name }));
     setReferenciar(false);
-    setScreen("emit");
+    setScreen("list");
+    setEmitOpen(true);
+    void ensureClasses();
   }
 
   function saleFlag(value: boolean | string | undefined) {
@@ -236,7 +245,7 @@ export default function NotaFiscal() {
         name: String(item.name || ""),
         code: String(item.sku || ""),
         ncm: String(item.ncm || ""),
-        origem: String(item.fiscal_origin || "0"),
+        origem: item.fiscal_origin != null && String(item.fiscal_origin) !== "" ? String(item.fiscal_origin) : "",
         quantity: Number(item.quantity || 1),
         price: Number(item.unit_price || 0),
         tax_class_ref: String(item.product_class || item.service_class || ""),
@@ -273,6 +282,8 @@ export default function NotaFiscal() {
         description: String(item.name || ""),
       })), "service_order", os, data.order?.client_name || "");
     }).catch((error) => toast({ title: error.message, variant: "destructive" }));
+    // openEmit é estável o bastante para este efeito de deep-link da OS
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params, activeOrgId, company, toast]);
 
   async function saveCompany() {
@@ -312,9 +323,10 @@ export default function NotaFiscal() {
       toast({ title: "A devolução por referência fica para a próxima etapa", variant: "destructive" });
       return;
     }
-    const missing = lines.find((line) => line.item_type === "product" && (line.ncm.replace(/\D/g, "").length !== 8 || !line.tax_class_ref));
+    const missing = lines.find((line) => line.item_type === "product" && (line.origem === "" || line.ncm.replace(/\D/g, "").length !== 8 || !line.tax_class_ref));
     if (missing) {
-      toast({ title: `Informações do produto faltando: ${missing.ncm ? "Classe de imposto" : "Código NCM"}`, variant: "destructive" });
+      const field = missing.origem === "" ? "Origem do produto" : missing.ncm.replace(/\D/g, "").length !== 8 ? "Código NCM" : "Classe de imposto";
+      toast({ title: `Informações do produto faltando: ${field}`, variant: "destructive" });
       return;
     }
     if (kind === "nfse" && lines.some((line) => !line.tax_class_ref)) {
@@ -334,12 +346,16 @@ export default function NotaFiscal() {
         body: JSON.stringify({
           kind, source, source_id: sourceId, customer, natureza, presenca: Number(presenca), modalidade_frete: Number(freteModo),
           frete: Number(frete), desconto: Number(desconto), pagamento: Number(pagamento), modelo: kind === "nfce" ? "2" : "1", referenciar,
+          data_emissao: `${issuedDate} ${issuedTime}:00`,
+          data_entrada_saida: `${moveDate} ${moveTime}:00`,
+          complemento,
           payments: [{ method: formaInfo.method, code: formaInfo.code, amount: total }],
           corrections: lines.filter((line) => line.product_id).map((line) => ({ product_id: line.product_id, ncm: line.ncm, fiscal_origin: line.origem, tax_class_ref: line.tax_class_ref })),
           lines: lines.map((line) => ({ ...line, total: line.price * line.quantity })),
         }),
       });
       toast({ title: data.status ? `Nota ${data.status}` : "Nota enviada", description: data.motivo || data.number || "" });
+      setEmitOpen(false);
       setScreen("list");
       await loadInvoices();
       await loadSettings();
@@ -433,85 +449,128 @@ export default function NotaFiscal() {
             </div>
             <div className="flex justify-between text-sm"><span>Emitidas: {issued}</span><span>Total: {money(total)}</span></div>
           </>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-semibold">{kind === "nfse" ? "Emitir NFS-e" : "Emitir NF-e"}</h1>
-              <Button variant="ghost" onClick={() => setScreen("list")}>Voltar</Button>
-            </div>
-            <div className="grid gap-3 lg:grid-cols-[1fr_220px]">
-              <div className="space-y-3">
-                {lines.map((line, index) => {
-                  const missing = line.item_type === "product" && (line.ncm.replace(/\D/g, "").length !== 8 || !line.tax_class_ref);
-                  return (
-                    <div key={line.key} className={`rounded border p-3 ${missing ? "border-red-400 bg-red-50" : ""}`}>
-                      {missing ? <p className="mb-2 text-sm text-red-700">Informações do produto faltando: {line.ncm.replace(/\D/g, "").length === 8 ? "Classe de imposto" : "Código NCM"}</p> : null}
-                      <div className="grid gap-2 md:grid-cols-4">
-                        <div className="md:col-span-2"><Label>Nome</Label><Input value={line.name} onChange={(event) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, name: event.target.value, description: event.target.value } : item))} /></div>
-                        <div><Label>Valor unitário</Label><Input value={String(line.price)} onChange={(event) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, price: Number(event.target.value) } : item))} /></div>
-                        <div><Label>Quantidade</Label><Input value={String(line.quantity)} onChange={(event) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, quantity: Number(event.target.value) } : item))} /></div>
-                        {line.item_type === "product" ? <div><Label>NCM</Label><Input value={line.ncm} onChange={(event) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, ncm: event.target.value.replace(/\D/g, "").slice(0, 8) } : item))} /></div> : null}
-                        <div className="md:col-span-2">
-                          <Label>Classe imposto</Label>
-                          <Select value={line.tax_class_ref || "none"} onValueChange={(value) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, tax_class_ref: value === "none" ? "" : value } : item))}>
-                            <SelectTrigger><SelectValue placeholder="Classe" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Selecione</SelectItem>
-                              {classOptions.filter((item) => item.ref).map((item) => <SelectItem key={item.ref} value={item.ref}>{item.ref} · {item.description}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <p className="mt-2 text-sm">Subtotal {money(line.price * line.quantity)}</p>
-                      {missing && line.product_id ? <Button className="mt-2" size="sm" variant="outline" onClick={() => void correctProduct(line)}>Clique para Corrigir</Button> : null}
+        ) : null}
+      </div>
+
+      <Dialog open={emitOpen} onOpenChange={setEmitOpen}>
+        <DialogContent className="max-w-5xl overflow-y-auto bg-white p-5">
+          <DialogHeader>
+            <DialogTitle className="text-center text-2xl font-semibold">{kind === "nfse" ? "Emitir NFSe" : "Emitir NFe"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="font-medium">{kind === "nfse" ? "Informações dos serviços:" : "Informações dos produtos:"}</p>
+            {lines.map((line, index) => {
+              const missing = line.item_type === "product"
+                ? (line.origem === "" ? "Origem do produto" : line.ncm.replace(/\D/g, "").length !== 8 ? "Código NCM" : !line.tax_class_ref ? "Classe de imposto" : "")
+                : (!line.tax_class_ref ? "Classe de imposto" : "");
+              const editing = editingKey === line.key || Boolean(missing);
+              return (
+                <div key={line.key} className={`rounded border p-3 ${missing ? "border-red-200 bg-red-50" : "bg-white"}`}>
+                  {missing ? (
+                    <div className="mb-2 flex items-center justify-center gap-3 text-red-600">
+                      <span>Informações do produto faltando: {missing}</span>
+                      {line.product_id ? <Button size="sm" className="h-7 rounded-full bg-blue-600 px-3 text-white hover:bg-blue-700" onClick={() => void correctProduct(line)}>Clique para Corrigir</Button> : null}
                     </div>
-                  );
-                })}
+                  ) : null}
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-7">
+                    <div className="md:col-span-2">
+                      <p className="text-[11px] text-slate-500">{line.item_type === "service" ? "Serviço" : "Produto"}</p>
+                      <p className="font-medium leading-tight">{line.name}</p>
+                      <Button type="button" variant="outline" size="sm" className="mt-1 h-7" onClick={() => setEditingKey(editing && !missing ? null : line.key)}>Editar</Button>
+                    </div>
+                    <div><p className="text-[11px] text-slate-500">Valor Unit.</p><Input className="h-8" value={String(line.price)} onChange={(event) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, price: Number(event.target.value) } : item))} /></div>
+                    <div><p className="text-[11px] text-slate-500">Qntd.</p><Input className="h-8" value={String(line.quantity)} onChange={(event) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, quantity: Number(event.target.value) } : item))} /></div>
+                    <div><p className="text-[11px] text-slate-500">Subtotal</p><p className="pt-2">{money(line.price * line.quantity)}</p></div>
+                    <div><p className="text-[11px] text-slate-500">Código prod</p><Input className="h-8" value={line.code} onChange={(event) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, code: event.target.value } : item))} /></div>
+                    {line.item_type === "product" ? <div><p className="text-[11px] text-slate-500">NCM</p><Input className="h-8" value={line.ncm} onChange={(event) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, ncm: event.target.value.replace(/\D/g, "").slice(0, 8) } : item))} /></div> : null}
+                    <div>
+                      <p className="text-[11px] text-slate-500">Classe imposto</p>
+                      <Select value={line.tax_class_ref || "none"} onValueChange={(value) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, tax_class_ref: value === "none" ? "" : value } : item))}>
+                        <SelectTrigger className="h-8"><SelectValue placeholder="Classe imposto" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Classe imposto</SelectItem>
+                          {classOptions.filter((item) => item.ref).map((item) => <SelectItem key={item.ref} value={item.ref}>{item.ref}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {editing && line.item_type === "product" ? (
+                    <div className="mt-2 max-w-xs">
+                      <p className="text-[11px] text-slate-500">Origem</p>
+                      <Select value={line.origem === "" ? "none" : line.origem} onValueChange={(value) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, origem: value === "none" ? "" : value } : item))}>
+                        <SelectTrigger className="h-8"><SelectValue placeholder="Origem" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Selecione</SelectItem>
+                          {["0", "1", "2", "3", "4", "5", "6", "7", "8"].map((origin) => <SelectItem key={origin} value={origin}>{origin}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+            <div className="flex justify-end">
+              <div className="w-40">
+                <p className="text-[11px] text-slate-500">Valor total:</p>
+                <Input readOnly value={lines.reduce((sum, line) => sum + line.price * line.quantity, 0).toFixed(2)} />
               </div>
-              <div className="rounded border p-3 text-lg font-semibold">Total {money(lines.reduce((sum, line) => sum + line.price * line.quantity, 0))}</div>
             </div>
             {kind !== "nfse" ? (
-              <div className="grid gap-3 md:grid-cols-3">
-                <div><Label>Natureza da operação</Label><Input value={natureza} onChange={(event) => setNatureza(event.target.value)} /></div>
-                <div><Label>Modelo</Label>
-                  <Select value={kind} onValueChange={(value) => setKind(value as "nfe" | "nfce")}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="nfe">1 - NF-e</SelectItem>
-                      <SelectItem value="nfce">2 - NFC-e</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <>
+                <div className="grid gap-3 border-t pt-3 md:grid-cols-2">
+                  <p className="text-center text-xs text-slate-500 md:col-span-1">Informações gerais</p>
+                  <p className="hidden text-center text-xs text-slate-500 md:block">Transporte</p>
                 </div>
-                <div><Label>Finalidade</Label><Input value="1 - Normal" readOnly /></div>
-                <div><Label>Operação</Label><Input value="1 - Saída" readOnly /></div>
-                <div><Label>Presença</Label><Input value={presenca} onChange={(event) => setPresenca(event.target.value)} /></div>
-                <div><Label>Modalidade do frete</Label><Input value={freteModo} onChange={(event) => setFreteModo(event.target.value)} /></div>
-                <div><Label>Frete</Label><Input value={frete} onChange={(event) => setFrete(event.target.value)} /></div>
-                <div><Label>Desconto</Label><Input value={desconto} onChange={(event) => setDesconto(event.target.value)} /></div>
-                <div><Label>Forma de pagamento</Label>
-                  <Select value={forma} onValueChange={setForma}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{FORMAS.map((item) => <SelectItem key={item.code} value={item.code}>{item.label}</SelectItem>)}</SelectContent></Select>
+                <div className="grid gap-2 md:grid-cols-6">
+                  <div><p className="text-[11px]">Data de emissão:</p><Input className="h-8" type="date" value={issuedDate} onChange={(event) => setIssuedDate(event.target.value)} /></div>
+                  <div><p className="text-[11px]">&nbsp;</p><Input className="h-8" type="time" value={issuedTime} onChange={(event) => setIssuedTime(event.target.value)} /></div>
+                  <div><p className="text-[11px]">Entrada/saída:</p><Input className="h-8" type="date" value={moveDate} onChange={(event) => setMoveDate(event.target.value)} /></div>
+                  <div><p className="text-[11px]">&nbsp;</p><Input className="h-8" type="time" value={moveTime} onChange={(event) => setMoveTime(event.target.value)} /></div>
+                  <div className="md:col-span-2"><p className="text-[11px]">Natureza da Operação:</p><Input className="h-8" value={natureza} onChange={(event) => setNatureza(event.target.value)} /></div>
+                  <div><p className="text-[11px]">Modelo:</p>
+                    <Select value={kind} onValueChange={(value) => setKind(value as "nfe" | "nfce")}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="nfe">1 - NF-e</SelectItem><SelectItem value="nfce">2 - NFC-e</SelectItem></SelectContent></Select>
+                  </div>
+                  <div><p className="text-[11px]">Finalidade:</p><Input className="h-8" value="1 - Normal" readOnly /></div>
+                  <div><p className="text-[11px]">Operação:</p><Input className="h-8" value="1 - Saída" readOnly /></div>
+                  <div><p className="text-[11px]">Presença:</p>
+                    <Select value={presenca} onValueChange={setPresenca}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent><SelectItem value="1">1 - Operação presencial</SelectItem><SelectItem value="2">2 - Internet</SelectItem><SelectItem value="4">4 - Entrega</SelectItem><SelectItem value="9">9 - Outros</SelectItem></SelectContent></Select>
+                  </div>
+                  <div><p className="text-[11px]">Modalidade frete:</p>
+                    <Select value={freteModo} onValueChange={setFreteModo}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent><SelectItem value="9">9 - Sem frete</SelectItem><SelectItem value="0">0 - Emitente</SelectItem><SelectItem value="1">1 - Destinatário</SelectItem><SelectItem value="2">2 - Terceiros</SelectItem></SelectContent></Select>
+                  </div>
+                  <div><p className="text-[11px]">Frete:</p><Input className="h-8" value={frete} onChange={(event) => setFrete(event.target.value)} /></div>
+                  <div><p className="text-[11px]">Forma de pagamento:</p>
+                    <Select value={forma} onValueChange={setForma}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent>{FORMAS.map((item) => <SelectItem key={item.code} value={item.code}>{item.label}</SelectItem>)}</SelectContent></Select>
+                  </div>
+                  <div><p className="text-[11px]">Pagamento:</p>
+                    <Select value={pagamento} onValueChange={setPagamento}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent><SelectItem value="0">0 - À vista</SelectItem><SelectItem value="1">1 - A prazo</SelectItem></SelectContent></Select>
+                  </div>
+                  <div><p className="text-[11px]">Desconto:</p><Input className="h-8" value={desconto} onChange={(event) => setDesconto(event.target.value)} /></div>
                 </div>
-                <div className="flex items-center gap-2"><Switch checked={pagamento === "1"} onCheckedChange={(checked) => setPagamento(checked ? "1" : "0")} /><Label>A prazo</Label></div>
-                <div className="flex items-center gap-2"><Switch checked={referenciar} onCheckedChange={setReferenciar} /><Label>Referenciar outra NF-e</Label></div>
-              </div>
+                <div className="flex items-center gap-2"><Switch checked={referenciar} onCheckedChange={setReferenciar} /><span>Referenciar outra NF-e</span></div>
+              </>
             ) : null}
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="flex items-center gap-2 md:col-span-3"><Switch checked={customer.isCompany} onCheckedChange={(checked) => setCustomer({ ...customer, isCompany: checked })} /><Label>Nota fiscal para empresa</Label></div>
-              <div><Label>Nome</Label><Input value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} /></div>
-              <div><Label>{customer.isCompany ? "CNPJ" : "CPF/CNPJ"}</Label><Input value={customer.document} onChange={(event) => setCustomer({ ...customer, document: event.target.value })} /></div>
-              <div><Label>E-mail</Label><Input value={customer.email} onChange={(event) => setCustomer({ ...customer, email: event.target.value })} /></div>
-              <div><Label>Logradouro</Label><Input value={customer.street} onChange={(event) => setCustomer({ ...customer, street: event.target.value })} /></div>
-              <div><Label>Número</Label><Input value={customer.number} onChange={(event) => setCustomer({ ...customer, number: event.target.value })} /></div>
-              <div><Label>Bairro</Label><Input value={customer.district} onChange={(event) => setCustomer({ ...customer, district: event.target.value })} /></div>
-              <div><Label>CEP</Label><Input value={customer.cep} onChange={(event) => setCustomer({ ...customer, cep: event.target.value })} /></div>
-              <div><Label>Cidade</Label><Input value={customer.city} onChange={(event) => setCustomer({ ...customer, city: event.target.value })} /></div>
-              <div><Label>UF</Label><Input value={customer.uf} onChange={(event) => setCustomer({ ...customer, uf: event.target.value })} /></div>
-              {kind !== "nfse" ? <div><Label>Inscrição estadual</Label><Input value={customer.ie} onChange={(event) => setCustomer({ ...customer, ie: event.target.value })} /></div> : null}
+            <p className="border-t pt-2 font-medium">Informações do cliente:</p>
+            <div className="grid gap-2 md:grid-cols-3">
+              <div className="flex items-center gap-2"><Switch checked={customer.isCompany} onCheckedChange={(checked) => setCustomer({ ...customer, isCompany: checked })} /><span>Nota fiscal para empresa</span></div>
+              <div><p className="text-[11px]">Nome do contato</p><Input className="h-8" value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} /></div>
+              <div><p className="text-[11px]">CPF/CNPJ</p><Input className="h-8" value={customer.document} onChange={(event) => setCustomer({ ...customer, document: event.target.value })} /></div>
+              <div className="md:col-span-2"><p className="text-[11px]">Logradouro</p><Input className="h-8" value={customer.street} onChange={(event) => setCustomer({ ...customer, street: event.target.value })} /></div>
+              <div><p className="text-[11px]">CEP</p><Input className="h-8" value={customer.cep} onChange={(event) => setCustomer({ ...customer, cep: event.target.value })} /></div>
+              <div><p className="text-[11px]">Cidade</p><Input className="h-8" value={customer.city} onChange={(event) => setCustomer({ ...customer, city: event.target.value })} /></div>
+              <div><p className="text-[11px]">Bairro</p><Input className="h-8" value={customer.district} onChange={(event) => setCustomer({ ...customer, district: event.target.value })} /></div>
+              <div><p className="text-[11px]">Número</p><Input className="h-8" value={customer.number} onChange={(event) => setCustomer({ ...customer, number: event.target.value })} /></div>
+              <div><p className="text-[11px]">UF</p><Input className="h-8" value={customer.uf} onChange={(event) => setCustomer({ ...customer, uf: event.target.value })} /></div>
+              <div className="md:col-span-2"><p className="text-[11px]">Email</p><Input className="h-8" value={customer.email} onChange={(event) => setCustomer({ ...customer, email: event.target.value })} /><p className="text-[11px] text-slate-500">O PDF e o XML da nota emitida serão enviados para o email informado.</p></div>
+              {kind !== "nfse" ? <div><p className="text-[11px]">Inscrição Estadual</p><Input className="h-8" value={customer.ie} onChange={(event) => setCustomer({ ...customer, ie: event.target.value })} /><p className="text-[11px] text-slate-500">Obrigatório caso o cliente tiver Inscrição Estadual</p></div> : null}
+              <div className="md:col-span-3"><p className="text-[11px]">Informações Complementares (opcional)</p><Textarea value={complemento} onChange={(event) => setComplemento(event.target.value)} /></div>
             </div>
-            <Button onClick={() => void emit()} disabled={saving}>{saving ? "Emitindo..." : "EMITIR NOTA"}</Button>
+            <div className="flex justify-center pt-2">
+              <Button className="bg-blue-700 px-8 hover:bg-blue-800" onClick={() => void emit()} disabled={saving}>{saving ? "Emitindo..." : "EMITIR NOTA"}</Button>
+            </div>
           </div>
-        )}
-      </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={companyOpen} onOpenChange={setCompanyOpen}>
         <DialogContent>

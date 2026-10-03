@@ -537,7 +537,7 @@ serve(async (req) => {
             line.name = line.name || String(row.name || "");
             line.code = line.code || String(row.sku || "");
             line.ncm = String(row.ncm || line.ncm || "");
-            line.origem = String(row.fiscal_origin || line.origem || "0");
+            line.origem = row.fiscal_origin != null && String(row.fiscal_origin) !== "" ? String(row.fiscal_origin) : String(line.origem ?? "");
             line.cest = String(row.cest || line.cest || "");
             line.tax_class_ref = String(row.tax_class_ref || line.tax_class_ref || "");
             line.unit = line.unit || String(row.unit || "UN");
@@ -597,6 +597,7 @@ serve(async (req) => {
         for (const line of lines) {
           if (line.item_type === "service") continue;
           if (digits(line.ncm).length !== 8) return json({ error: `Informações do produto faltando: Código NCM (${line.name || "item"})` }, 400);
+          if (line.origem === "" || line.origem == null) return json({ error: `Informações do produto faltando: Origem do produto (${line.name || "item"})` }, 400);
           if (!line.tax_class_ref) return json({ error: `Informe a classe de imposto do produto ${line.name || ""}`.trim() }, 400);
           const origin = Number(line.origem ?? 0);
           if (!Number.isInteger(origin) || origin < 0 || origin > 8) return json({ error: "Origem do produto deve ser de 0 a 8" }, 400);
@@ -631,6 +632,9 @@ serve(async (req) => {
           modelo: kind === "nfce" ? "2" : "1",
           finalidade: 1,
           ambiente,
+          ...(body.data_emissao ? { data_emissao: String(body.data_emissao) } : {}),
+          ...(body.data_entrada_saida ? { data_entrada_saida: String(body.data_entrada_saida) } : {}),
+          ...(body.complemento ? { informacoes_complementares: String(body.complemento) } : {}),
           cliente,
           produtos: productLines.map((line) => ({
             nome: String(line.name || "Produto"),
