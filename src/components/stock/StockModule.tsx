@@ -435,7 +435,12 @@ export function StockModule() {
     const requestId = ++salesRequest.current;
     setSalesLoading(true);
     try {
-      const result = await listSalesDetailed({ limit: PAGE_SIZE, offset: page * PAGE_SIZE });
+      const result = await listSalesDetailed({
+        limit: SALES_PAGE_SIZE,
+        offset: page * SALES_PAGE_SIZE,
+        date_from: salesFrom ? salesDateBound(salesFrom, false) : undefined,
+        date_to: salesTo ? salesDateBound(salesTo, true) : undefined,
+      });
       if (requestId !== salesRequest.current) return;
       setSales(result.data);
       setSalesTotal(result.summary.sales_count);
@@ -444,7 +449,7 @@ export function StockModule() {
     } finally {
       if (requestId === salesRequest.current) setSalesLoading(false);
     }
-  }, [listSalesDetailed]);
+  }, [listSalesDetailed, salesFrom, salesTo]);
 
   const authHeaders = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -536,7 +541,7 @@ export function StockModule() {
     if (tab === "categorias") void loadCatalog("categories");
     if (tab === "marcas") void loadCatalog("brands");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, activeOrgId, movementPage, salesPage, movementFrom, movementTo, movementProductFilter, movementCategoryFilter, movementUserFilter]);
+  }, [tab, activeOrgId, movementPage, salesPage, movementFrom, movementTo, movementProductFilter, movementCategoryFilter, movementUserFilter, salesFrom, salesTo]);
 
   const openCreate = () => {
     setEditing(null);
@@ -1282,6 +1287,16 @@ export function StockModule() {
             <div className="space-y-2 border-t pt-4">
               <h3 className="text-base font-semibold">Vendas do PDV</h3>
               <p className="text-sm text-muted-foreground">Estornar devolve os produtos da venda para o estoque e cancela a venda.</p>
+              <div className="grid max-w-md gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="sales-from">De</Label>
+                  <Input id="sales-from" type="date" value={salesFrom} onChange={(event) => { setSalesFrom(event.target.value); setSalesPage(0); }} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="sales-to">Até</Label>
+                  <Input id="sales-to" type="date" value={salesTo} onChange={(event) => { setSalesTo(event.target.value); setSalesPage(0); }} />
+                </div>
+              </div>
               {salesLoading && !sales.length ? (
                 <p className="text-sm text-muted-foreground">Carregando vendas...</p>
               ) : (
@@ -1316,13 +1331,13 @@ export function StockModule() {
                   })}
                   {!sales.length && (
                     <TableRow>
-                      <TableCell colSpan={6} className="py-6 text-center text-muted-foreground">Nenhuma venda recente do PDV.</TableCell>
+                      <TableCell colSpan={6} className="py-6 text-center text-muted-foreground">Nenhuma venda do PDV neste período.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
               </Table>
               )}
-              <ListPager page={salesPage} total={salesTotal} loading={salesLoading} onPage={setSalesPage} />
+              <ListPager page={salesPage} total={salesTotal} loading={salesLoading} onPage={setSalesPage} pageSize={SALES_PAGE_SIZE} />
             </div>
           </section>
         )}
@@ -1922,6 +1937,12 @@ function MovementProductSearch({
       )}
     </div>
   );
+}
+
+function salesDateBound(date: string, end: boolean) {
+  const [year, month, day] = date.split("-").map(Number);
+  const value = new Date(year, (month || 1) - 1, day || 1, end ? 23 : 0, end ? 59 : 0, end ? 59 : 0, end ? 999 : 0);
+  return value.toISOString();
 }
 
 function currentMonthRange() {
