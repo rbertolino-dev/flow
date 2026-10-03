@@ -814,11 +814,45 @@ serve(async (req) => {
         const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100) : 30;
         const requestedOffset = Number(url.searchParams.get('offset') || 0);
         const offset = Number.isFinite(requestedOffset) ? Math.max(Math.trunc(requestedOffset), 0) : 0;
+        const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        const fromDate = url.searchParams.get('from') || '';
+        const toDate = url.searchParams.get('to') || '';
+        const productFilter = url.searchParams.get('product_id') || '';
+        const categoryFilter = (url.searchParams.get('category') || '').trim().slice(0, 120);
+        const userFilter = url.searchParams.get('created_by') || '';
+        const conditions = ['m.organization_id = $1'];
+        const filterParams: unknown[] = [organizationId];
+        if (datePattern.test(fromDate)) {
+          filterParams.push(fromDate);
+          conditions.push(`m.created_at >= ($${filterParams.length}::date::timestamp AT TIME ZONE 'America/Sao_Paulo')`);
+        }
+        if (datePattern.test(toDate)) {
+          filterParams.push(toDate);
+          conditions.push(`m.created_at < (($${filterParams.length}::date + interval '1 day')::timestamp AT TIME ZONE 'America/Sao_Paulo')`);
+        }
+        if (uuidPattern.test(productFilter)) {
+          filterParams.push(productFilter);
+          conditions.push(`m.product_id = $${filterParams.length}::uuid`);
+        }
+        if (categoryFilter && categoryFilter !== 'all') {
+          filterParams.push(categoryFilter);
+          conditions.push(`COALESCE(NULLIF(btrim(p.category), ''), 'Sem categoria') = $${filterParams.length}`);
+        }
+        if (uuidPattern.test(userFilter)) {
+          filterParams.push(userFilter);
+          conditions.push(`m.created_by = $${filterParams.length}::uuid`);
+        }
+        const whereSql = conditions.join(' AND ');
         const countResult = await client.queryObject<{ total: number }>(
-          `SELECT COUNT(*)::float8 AS total FROM pos_stock_movements WHERE organization_id = $1`,
-          [organizationId]
+          `SELECT COUNT(*)::float8 AS total
+           FROM pos_stock_movements m
+           LEFT JOIN products p ON p.id = m.product_id
+           WHERE ${whereSql}`,
+          filterParams
         );
         const total = Number(countResult.rows[0]?.total || 0);
+        const listParams = [...filterParams, limit, offset];
         const result = await client.queryObject(`
           SELECT m.id::text AS id,
                  m.product_id::text AS product_id,
@@ -835,14 +869,15 @@ serve(async (req) => {
                  m.created_by::text AS created_by,
                  m.created_at,
                  p.name AS product_name,
+                 p.category AS product_category,
                  s.sale_number::text AS sale_number
           FROM pos_stock_movements m
           LEFT JOIN products p ON p.id = m.product_id
           LEFT JOIN pos_sales s ON s.id = m.sale_id
-          WHERE m.organization_id = $1
+          WHERE ${whereSql}
           ORDER BY m.created_at DESC
-          LIMIT $2 OFFSET $3
-        `, [organizationId, limit, offset]);
+          LIMIT $${filterParams.length + 1} OFFSET $${filterParams.length + 2}
+        `, listParams);
         const rows = result.rows as Array<Record<string, unknown>>;
         const userIds = [...new Set(rows.map((row) => row.created_by).filter(Boolean).map((id) => String(id)))];
         const names = new Map<string, string>();

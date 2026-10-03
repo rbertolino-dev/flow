@@ -185,6 +185,13 @@ export function StockModule() {
   const [bulkConfirm, setBulkConfirm] = useState<"inactivate" | "activate" | null>(null);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [movementsLoading, setMovementsLoading] = useState(false);
+  const initialMovementRange = currentMonthRange();
+  const [movementFrom, setMovementFrom] = useState(initialMovementRange.from);
+  const [movementTo, setMovementTo] = useState(initialMovementRange.to);
+  const [movementProductFilter, setMovementProductFilter] = useState("all");
+  const [movementCategoryFilter, setMovementCategoryFilter] = useState("all");
+  const [movementUserFilter, setMovementUserFilter] = useState("all");
+  const [movementUsers, setMovementUsers] = useState<{ id: string; name: string }[]>([]);
   const [movementPage, setMovementPage] = useState(0);
   const [movementTotal, setMovementTotal] = useState(0);
   const [salesPage, setSalesPage] = useState(0);
@@ -388,6 +395,11 @@ export function StockModule() {
         limit: String(PAGE_SIZE),
         offset: String(page * PAGE_SIZE),
       });
+      if (movementFrom) params.set("from", movementFrom);
+      if (movementTo) params.set("to", movementTo);
+      if (movementProductFilter !== "all") params.set("product_id", movementProductFilter);
+      if (movementCategoryFilter !== "all") params.set("category", movementCategoryFilter);
+      if (movementUserFilter !== "all") params.set("created_by", movementUserFilter);
       const response = await fetch(`${supabaseUrl}/functions/v1/products/movements?${params}`, {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -409,7 +421,7 @@ export function StockModule() {
     } finally {
       if (requestId === movementRequest.current) setMovementsLoading(false);
     }
-  }, [activeOrgId]);
+  }, [activeOrgId, movementFrom, movementTo, movementProductFilter, movementCategoryFilter, movementUserFilter]);
 
   const loadSalesPage = useCallback(async (page: number) => {
     const requestId = ++salesRequest.current;
@@ -477,6 +489,34 @@ export function StockModule() {
     if (!activeOrgId) return;
     void loadCatalog("categories");
     void loadCatalog("brands");
+    let cancelled = false;
+    void (async () => {
+      const { data: members, error: membersError } = await supabase
+        .from("organization_members")
+        .select("user_id")
+        .eq("organization_id", activeOrgId);
+      if (membersError || cancelled) return;
+      const ids = (members || []).map((member) => member.user_id).filter(Boolean);
+      if (!ids.length) {
+        setMovementUsers([]);
+        return;
+      }
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", ids);
+      if (cancelled) return;
+      const rows = ((profiles || []) as { id: string; full_name?: string | null; email?: string | null }[])
+        .map((profile) => ({
+          id: profile.id,
+          name: (profile.full_name || profile.email || "Sem nome").trim(),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+      setMovementUsers(rows);
+    })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeOrgId]);
 
@@ -488,7 +528,7 @@ export function StockModule() {
     if (tab === "categorias") void loadCatalog("categories");
     if (tab === "marcas") void loadCatalog("brands");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, activeOrgId, movementPage, salesPage]);
+  }, [tab, activeOrgId, movementPage, salesPage, movementFrom, movementTo, movementProductFilter, movementCategoryFilter, movementUserFilter]);
 
   const openCreate = () => {
     setEditing(null);
@@ -1151,6 +1191,53 @@ export function StockModule() {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="space-y-1">
+                <Label htmlFor="movement-from">De</Label>
+                <Input id="movement-from" type="date" value={movementFrom} onChange={(event) => { setMovementFrom(event.target.value); setMovementPage(0); }} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="movement-to">Até</Label>
+                <Input id="movement-to" type="date" value={movementTo} onChange={(event) => { setMovementTo(event.target.value); setMovementPage(0); }} />
+              </div>
+              <div className="space-y-1">
+                <Label>Produto</Label>
+                <Select value={movementProductFilter} onValueChange={(value) => { setMovementProductFilter(value); setMovementPage(0); }}>
+                  <SelectTrigger><SelectValue placeholder="Todos os produtos" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os produtos</SelectItem>
+                    {[...products].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")).map((product) => (
+                      <SelectItem key={product.id} value={product.id}>{product.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Categoria</Label>
+                <Select value={movementCategoryFilter} onValueChange={(value) => { setMovementCategoryFilter(value); setMovementPage(0); }}>
+                  <SelectTrigger><SelectValue placeholder="Todas as categorias" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as categorias</SelectItem>
+                    <SelectItem value="Sem categoria">Sem categoria</SelectItem>
+                    {categoriesCatalog.filter((category) => category.name && category.name !== "Sem categoria").map((category) => (
+                      <SelectItem key={category.id} value={category.name}>{category.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Responsável</Label>
+                <Select value={movementUserFilter} onValueChange={(value) => { setMovementUserFilter(value); setMovementPage(0); }}>
+                  <SelectTrigger><SelectValue placeholder="Todos os responsáveis" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os responsáveis</SelectItem>
+                    {movementUsers.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             {movementsLoading && !movements.length ? (
               <p className="text-sm text-muted-foreground">Carregando lançamentos...</p>
             ) : (
@@ -1183,7 +1270,7 @@ export function StockModule() {
                   {!movements.length && (
                     <TableRow>
                       <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                        Nenhum lançamento ainda. Vendas do PDV e ajustes feitos aqui aparecem nesta lista.
+                        Nenhum lançamento neste período. Vendas do PDV, orçamentos, ordens de serviço e ajustes feitos aqui aparecem nesta lista.
                       </TableCell>
                     </TableRow>
                   )}
@@ -1759,6 +1846,18 @@ function StatusBadge({ status }: { status: StockStatus }) {
   if (status === "falta") return <Badge className="rounded-full bg-red-500 px-2.5 font-medium text-white shadow-none hover:bg-red-500">Em falta</Badge>;
   if (status === "baixa") return <Badge className="rounded-full bg-orange-500 px-2.5 font-medium text-white shadow-none hover:bg-orange-500">Em baixa</Badge>;
   return <Badge className="rounded-full bg-emerald-500 px-2.5 font-medium text-white shadow-none hover:bg-emerald-500">Ideal</Badge>;
+}
+
+function currentMonthRange() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const iso = (date: Date) => {
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${date.getFullYear()}-${month}-${day}`;
+  };
+  return { from: iso(start), to: iso(end) };
 }
 
 function uniqueNames(values: string[]) {
