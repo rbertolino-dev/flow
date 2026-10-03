@@ -513,12 +513,6 @@ export default function Budgets() {
         throw new Error(errorData.error || 'Erro ao enviar orçamento');
       }
 
-      await refetch();
-      if (selectedBudget) {
-        const updated = budgets.find((b) => b.id === selectedBudget.id);
-        if (updated) setSelectedBudget(updated);
-      }
-
       toast({
         title: 'Orçamento enviado',
         description: 'Orçamento enviado via WhatsApp com sucesso',
@@ -526,6 +520,7 @@ export default function Budgets() {
 
       setShowSendDialog(false);
       setSelectedInstanceId('');
+      void refetch();
     } catch (error: any) {
       console.error('Erro ao enviar orçamento:', error);
       toast({

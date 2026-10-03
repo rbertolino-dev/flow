@@ -7,48 +7,9 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 };
 
-/**
- * Calcula delay de digitação realista baseado no tamanho da mensagem
- * Valores DOBRADOS para máxima segurança:
- * - Mínimo: 4000ms (4 segundos) - tempo de pensar antes de começar
- * - Máximo: 30000ms (30 segundos) - mensagens muito longas
- * - Velocidade: 3.5 caracteres/segundo (média humana)
- */
-function calculateTypingDelay(message: string, messageType: 'text' | 'media' | 'document' = 'text'): number {
-  if (!message || message.length === 0) {
-    // Mensagens sem texto: tempo mínimo baseado no tipo (DOBRADO)
-    if (messageType === 'document') return 5000; // 5s para documentos sem caption
-    if (messageType === 'media') return 6000; // 6s para mídia sem caption
-    return 4000; // 4s para texto sem mensagem
-  }
-  
-  // Velocidade média de digitação humana: ~200-250 caracteres/minuto
-  // Isso dá aproximadamente 3.3-4.2 caracteres por segundo
-  const charsPerSecond = 3.5;
-  
-  // Tempo base (pensar + começar a digitar) - DOBRADO
-  let baseDelay: number;
-  if (messageType === 'document') {
-    baseDelay = 5000; // 5s para documentos (mais complexo)
-  } else if (messageType === 'media') {
-    baseDelay = 5000; // 5s para mídia
-  } else {
-    baseDelay = 4000; // 4s para texto
-  }
-  
-  // Tempo de digitação baseado no tamanho da mensagem
-  const typingTime = (message.length / charsPerSecond) * 1000; // converter para ms
-  
-  // Variação aleatória ±25% para parecer mais humano
-  const variation = 0.25;
-  const randomMultiplier = 1 + (Math.random() * variation * 2 - variation);
-  
-  const calculatedDelay = baseDelay + (typingTime * randomMultiplier);
-  
-  // Limites DOBRADOS: mínimo baseado no tipo, máximo 30s (texto/mídia) ou 40s (documentos)
-  const maxDelay = messageType === 'document' ? 40000 : 30000; // 40s para documentos, 30s para texto/mídia
-  
-  return Math.max(baseDelay, Math.min(maxDelay, Math.round(calculatedDelay)));
+/** Presença curta antes do PDF. A Evolution só responde depois desse tempo. */
+function getBudgetSendDelayMs(): number {
+  return 500 + Math.floor(Math.random() * 700);
 }
 
 serve(async (req) => {
@@ -104,17 +65,25 @@ serve(async (req) => {
       );
     }
 
-    // Buscar orçamento
-    const { data: budget, error: budgetError } = await supabase
-      .from('budgets')
-      .select(`
-        *,
-        lead:leads(id, name, phone),
-        organization:organizations(id)
-      `)
-      .eq('id', budget_id)
-      .single();
+    const [budgetResult, configResult] = await Promise.all([
+      supabase
+        .from('budgets')
+        .select(`
+          *,
+          lead:leads(id, name, phone),
+          organization:organizations(id)
+        `)
+        .eq('id', budget_id)
+        .single(),
+      supabase
+        .from('evolution_config')
+        .select('api_url, api_key, instance_name, is_connected, organization_id')
+        .eq('id', instance_id)
+        .maybeSingle(),
+    ]);
 
+    const budget = budgetResult.data;
+    const budgetError = budgetResult.error;
     if (budgetError || !budget) {
       console.error('❌ Erro ao buscar orçamento:', budgetError);
       return new Response(
@@ -133,13 +102,8 @@ serve(async (req) => {
       organization_id: budget.organization_id
     });
 
-    // Buscar configuração da instância Evolution
-    console.log('🔍 Buscando instância Evolution:', instance_id);
-    const { data: evolutionConfig, error: configError } = await supabase
-      .from('evolution_config')
-      .select('api_url, api_key, instance_name, is_connected, organization_id')
-      .eq('id', instance_id)
-      .maybeSingle();
+    const evolutionConfig = configResult.data;
+    const configError = configResult.error;
 
     if (configError || !evolutionConfig || !evolutionConfig.is_connected) {
       return new Response(
@@ -242,6 +206,7 @@ Olá ${leadName}, segue o orçamento para sua análise.
 
 Para mais informações, entre em contato conosco.`;
 
+    const sendDelayMs = getBudgetSendDelayMs();
     const evolutionPayload = {
       number: whatsappNumber,
       mediatype: 'document',
@@ -249,10 +214,10 @@ Para mais informações, entre em contato conosco.`;
       media: pdfUrl,
       fileName: `Orcamento_${budget.budget_number}.pdf`,
       caption: caption,
-      delay: calculateTypingDelay(caption, 'document'),
+      delay: sendDelayMs,
     };
 
-    console.log('📤 Enviando orçamento via Evolution API...');
+    console.log('📤 Enviando orçamento via Evolution API...', { delayMs: sendDelayMs });
 
     const evolutionResponse = await fetch(sendMediaUrl, {
       method: 'POST',
