@@ -1,9 +1,15 @@
 import { useMemo, useState } from "react";
 import { LandingPagePublicData } from "@/types/landing-page";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, ShoppingBag, CheckCircle, Star, ArrowRight, Phone, Clock } from "lucide-react";
+import { MessageSquare, ShoppingBag, CheckCircle, Star, Phone, Clock } from "lucide-react";
 import { LandingPageForm } from "@/components/landing-page/LandingPageForm";
 import { LandingPageMapEmbed } from "@/components/landing-page/LandingPageMapEmbed";
+import {
+  LandingPageCartBadge,
+  LandingPageCartControls,
+  LandingPageCartDock,
+} from "@/components/landing-page/LandingPageCart";
+import { useLandingPageCart } from "@/hooks/useLandingPageCart";
 
 function parseVideoEmbedUrl(url: string): string | null {
   if (!url?.trim()) return null;
@@ -38,6 +44,7 @@ interface LandingPageTemplateModernProps {
 export function LandingPageTemplateModern({ landingPage }: LandingPageTemplateModernProps) {
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const primaryColor = landingPage.primary_color || '#3b82f6';
+  const cart = useLandingPageCart(landingPage);
 
   const handleWhatsAppClick = async (productId?: string, productName?: string) => {
     const matched = landingPage.items.find(i => i.product_id === productId);
@@ -105,6 +112,7 @@ export function LandingPageTemplateModern({ landingPage }: LandingPageTemplateMo
               </span>
             )}
           </div>
+          <LandingPageCartBadge quantity={cart.quantityOf(product.id)} />
         </div>
         <div className="p-6 sm:p-7">
           <h3 className="text-lg sm:text-xl font-bold mb-2 text-gray-900 group-hover:text-inherit transition-colors">
@@ -121,15 +129,18 @@ export function LandingPageTemplateModern({ landingPage }: LandingPageTemplateMo
             </div>
           )}
           {landingPage.whatsapp_enabled && available && (
-            <Button
-              className="w-full landing-page-premium btn-cta-lift rounded-xl py-6 text-base font-semibold"
-              style={{ backgroundColor: primaryColor, color: 'white' }}
-              onClick={() => handleWhatsAppClick(product.id, displayName)}
-            >
-              <MessageSquare className="h-5 w-5 mr-2" />
-              {landingPage.whatsapp_button_text || 'Pedir Orçamento'}
-              <ArrowRight className="h-4 w-4 ml-2 opacity-80" />
-            </Button>
+            <LandingPageCartControls
+              quantity={cart.quantityOf(product.id)}
+              primaryColor={primaryColor}
+              label="Adicionar ao carrinho"
+              onAdd={() => cart.add({
+                productId: product.id,
+                name: displayName,
+                price: landingPage.show_price && typeof displayPrice === "number" ? displayPrice : null,
+                imageUrl: displayImage,
+              })}
+              onChange={(quantity) => cart.setQuantity(product.id, quantity)}
+            />
           )}
         </div>
       </div>
@@ -137,7 +148,7 @@ export function LandingPageTemplateModern({ landingPage }: LandingPageTemplateMo
   };
 
   return (
-    <div className="landing-page-premium min-h-screen bg-white overflow-x-hidden">
+    <div className={`landing-page-premium min-h-screen bg-white overflow-x-hidden ${cart.count ? "pb-24" : ""}`}>
       {/* Hero Section - Estilo WordPress Premium */}
       <section 
         className="relative min-h-[55vh] sm:min-h-[65vh] flex items-center justify-center bg-cover bg-center bg-no-repeat"
@@ -403,7 +414,7 @@ export function LandingPageTemplateModern({ landingPage }: LandingPageTemplateMo
 
       {/* Floating WhatsApp e Ligação */}
       {(landingPage.whatsapp_enabled && landingPage.whatsapp_floating_button) || landingPage.call_enabled ? (
-        <div className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-50 flex flex-col gap-3">
+        <div className={`fixed right-6 z-50 flex flex-col gap-3 sm:right-8 ${cart.count ? "bottom-24" : "bottom-6 sm:bottom-8"}`}>
           {landingPage.call_enabled && landingPage.call_number && (
             <Button
               size="lg"
@@ -425,6 +436,7 @@ export function LandingPageTemplateModern({ landingPage }: LandingPageTemplateMo
           )}
         </div>
       ) : null}
+      <LandingPageCartDock cart={cart} primaryColor={primaryColor} />
     </div>
   );
 }

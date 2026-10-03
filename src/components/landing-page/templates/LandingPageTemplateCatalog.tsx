@@ -2,9 +2,15 @@ import { useMemo, useState } from "react";
 import { LandingPagePublicData } from "@/types/landing-page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, ShoppingBag, CheckCircle, Search, ArrowRight, Phone, Clock } from "lucide-react";
+import { MessageSquare, ShoppingBag, CheckCircle, Search, Phone, Clock } from "lucide-react";
 import { LandingPageForm } from "@/components/landing-page/LandingPageForm";
 import { LandingPageMapEmbed } from "@/components/landing-page/LandingPageMapEmbed";
+import {
+  LandingPageCartBadge,
+  LandingPageCartControls,
+  LandingPageCartDock,
+} from "@/components/landing-page/LandingPageCart";
+import { useLandingPageCart } from "@/hooks/useLandingPageCart";
 
 function parseVideoEmbedUrl(url: string): string | null {
   if (!url?.trim()) return null;
@@ -41,6 +47,7 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const primaryColor = landingPage.primary_color || '#3b82f6';
+  const cart = useLandingPageCart(landingPage);
 
   const productsByCategory = landingPage.items.reduce((acc, item) => {
     if (!item.product) return acc;
@@ -124,6 +131,7 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
               </span>
             )}
           </div>
+          <LandingPageCartBadge quantity={cart.quantityOf(product.id)} />
         </div>
         <div className="p-4 flex-1 flex flex-col">
           <h3 className="text-base font-bold mb-1 line-clamp-2 text-gray-900">{displayName}</h3>
@@ -136,16 +144,18 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
             </p>
           )}
           {landingPage.whatsapp_enabled && available && (
-            <Button
-              className="w-full landing-page-premium btn-cta-lift rounded-lg py-5 text-sm font-semibold"
-              size="sm"
-              style={{ backgroundColor: primaryColor, color: 'white' }}
-              onClick={() => handleWhatsAppClick(product.id, displayName)}
-            >
-              <MessageSquare className="h-4 w-4 mr-2" />
-              {landingPage.whatsapp_button_text || 'Orçamento'}
-              <ArrowRight className="h-3 w-3 ml-1 opacity-80" />
-            </Button>
+            <LandingPageCartControls
+              quantity={cart.quantityOf(product.id)}
+              primaryColor={primaryColor}
+              label="Adicionar ao carrinho"
+              onAdd={() => cart.add({
+                productId: product.id,
+                name: displayName,
+                price: landingPage.show_price && typeof displayPrice === "number" ? displayPrice : null,
+                imageUrl: displayImage,
+              })}
+              onChange={(quantity) => cart.setQuantity(product.id, quantity)}
+            />
           )}
         </div>
       </div>
@@ -153,7 +163,7 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
   };
 
   return (
-    <div className="landing-page-premium min-h-screen bg-white overflow-x-hidden">
+    <div className={`landing-page-premium min-h-screen bg-white overflow-x-hidden ${cart.count ? "pb-24" : ""}`}>
       {/* Hero - Compacto estilo vitrine */}
       <section
         className="relative min-h-[40vh] sm:min-h-[45vh] flex items-center justify-center bg-cover bg-center bg-no-repeat"
@@ -379,7 +389,7 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
 
       {/* Floating WhatsApp e Ligação */}
       {(landingPage.whatsapp_enabled && landingPage.whatsapp_floating_button) || landingPage.call_enabled ? (
-        <div className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-50 flex flex-col gap-3">
+        <div className={`fixed right-6 z-50 flex flex-col gap-3 sm:right-8 ${cart.count ? "bottom-24" : "bottom-6 sm:bottom-8"}`}>
           {landingPage.call_enabled && landingPage.call_number && (
             <Button
               size="lg"
@@ -401,6 +411,7 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
           )}
         </div>
       ) : null}
+      <LandingPageCartDock cart={cart} primaryColor={primaryColor} />
     </div>
   );
 }

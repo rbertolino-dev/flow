@@ -7,7 +7,36 @@ import {
   slugifyLandingPage,
 } from "../../src/lib/landingPageAccess";
 import { buildLandingPagePreview, landingPageChecklist, productInStock } from "../../src/lib/landingPagePreview";
+import { buildLandingCartItemText, buildLandingCartMessage } from "../../src/lib/landingPageCart";
 import type { LandingPageConfig } from "../../src/types/landing-page";
+
+test("mensagem do carrinho lista todos os itens no lugar de {item}", () => {
+  const item = buildLandingCartItemText(
+    [
+      { productId: "a", name: "Detergente", price: 9, quantity: 2 },
+      { productId: "b", name: "Esponja", price: 3.5, quantity: 1 },
+    ],
+    true,
+  );
+  expect(item).toBe("• 2x Detergente — R$ 18,00\n• 1x Esponja — R$ 3,50");
+
+  const message = buildLandingCartMessage(
+    "Olá {empresa}. Quero:\n{item}\n{url_pagina} às {data_hora}",
+    { empresa: "Loja", item, url: "https://loja.test/p/loja", dataHora: "01/10/2026" },
+  );
+  expect(message).toContain("• 2x Detergente — R$ 18,00");
+  expect(message).toContain("• 1x Esponja — R$ 3,50");
+  expect(message).not.toContain("{item}");
+
+  const withoutPlaceholder = buildLandingCartMessage("Olá {empresa}", {
+    empresa: "Loja",
+    item,
+    url: "https://loja.test/p/loja",
+    dataHora: "01/10/2026",
+  });
+  expect(withoutPlaceholder).toContain("Olá Loja");
+  expect(withoutPlaceholder).toContain("• 2x Detergente");
+});
 
 function draftConfig(overrides: Partial<LandingPageConfig> = {}): LandingPageConfig {
   return {
