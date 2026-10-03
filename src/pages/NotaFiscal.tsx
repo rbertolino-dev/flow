@@ -137,6 +137,11 @@ export default function NotaFiscal() {
   const [moveDate, setMoveDate] = useState(todayIso());
   const [moveTime, setMoveTime] = useState(() => new Date().toTimeString().slice(0, 5));
   const [complemento, setComplemento] = useState("");
+  const [emitTab, setEmitTab] = useState<"geral" | "transporte">("geral");
+  const [carrierOn, setCarrierOn] = useState(false);
+  const [carrierName, setCarrierName] = useState("");
+  const [carrierCnpj, setCarrierCnpj] = useState("");
+  const [volumes, setVolumes] = useState({ quantidade: "", especie: "", marca: "", numeracao: "", pesoLiquido: "", pesoBruto: "", lacres: "" });
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [pageTab, setPageTab] = useState<"notas" | "product" | "service" | "avulsa" | "sales" | "cce" | "company" | "export">("notas");
   const [empresaId, setEmpresaId] = useState("");
@@ -187,6 +192,11 @@ export default function NotaFiscal() {
     setSourceId(nextSourceId);
     setCustomer((prev) => ({ ...prev, name }));
     setReferenciar(false);
+    setEmitTab("geral");
+    setCarrierOn(false);
+    setCarrierName("");
+    setCarrierCnpj("");
+    setVolumes({ quantidade: "", especie: "", marca: "", numeracao: "", pesoLiquido: "", pesoBruto: "", lacres: "" });
     setScreen("list");
     setEmitOpen(true);
     void ensureClasses().catch(() => undefined);
@@ -338,6 +348,18 @@ export default function NotaFiscal() {
           data_emissao: `${issuedDate} ${issuedTime}:00`,
           data_entrada_saida: `${moveDate} ${moveTime}:00`,
           complemento,
+          transporte: {
+            incluir_transportadora: carrierOn,
+            razao_social: carrierOn ? carrierName : "",
+            cnpj: carrierOn ? carrierCnpj : "",
+            volume: volumes.quantidade,
+            especie: volumes.especie,
+            marca: volumes.marca,
+            numeracao: volumes.numeracao,
+            peso_liquido: volumes.pesoLiquido,
+            peso_bruto: volumes.pesoBruto,
+            lacres: volumes.lacres,
+          },
           payments: [{ method: formaInfo.method, code: formaInfo.code, amount: total }],
           corrections: lines.filter((line) => line.product_id).map((line) => ({ product_id: line.product_id, ncm: line.ncm, fiscal_origin: line.origem, tax_class_ref: line.tax_class_ref })),
           lines: lines.map((line) => ({ ...line, total: line.price * line.quantity })),
@@ -588,39 +610,64 @@ export default function NotaFiscal() {
               </div>
             </div>
             {kind !== "nfse" ? (
-              <>
-                <div className="grid gap-3 border-t pt-3 md:grid-cols-2">
-                  <p className="text-center text-xs text-slate-500 md:col-span-1">Informações gerais</p>
-                  <p className="hidden text-center text-xs text-slate-500 md:block">Transporte</p>
+              <div className="overflow-hidden rounded-md border">
+                <div className="grid grid-cols-2 border-b bg-slate-100 text-sm">
+                  <button type="button" className={`py-2 ${emitTab === "geral" ? "bg-white font-medium" : "text-slate-600"}`} onClick={() => setEmitTab("geral")}>Informações gerais</button>
+                  <button type="button" className={`py-2 ${emitTab === "transporte" ? "bg-white font-medium" : "text-slate-600"}`} onClick={() => setEmitTab("transporte")}>Transporte</button>
                 </div>
-                <div className="grid gap-2 md:grid-cols-6">
-                  <div><p className="text-[11px]">Data de emissão:</p><Input className="h-8" type="date" value={issuedDate} onChange={(event) => setIssuedDate(event.target.value)} /></div>
-                  <div><p className="text-[11px]">&nbsp;</p><Input className="h-8" type="time" value={issuedTime} onChange={(event) => setIssuedTime(event.target.value)} /></div>
-                  <div><p className="text-[11px]">Entrada/saída:</p><Input className="h-8" type="date" value={moveDate} onChange={(event) => setMoveDate(event.target.value)} /></div>
-                  <div><p className="text-[11px]">&nbsp;</p><Input className="h-8" type="time" value={moveTime} onChange={(event) => setMoveTime(event.target.value)} /></div>
-                  <div className="md:col-span-2"><p className="text-[11px]">Natureza da Operação:</p><Input className="h-8" value={natureza} onChange={(event) => setNatureza(event.target.value)} /></div>
-                  <div><p className="text-[11px]">Modelo:</p>
-                    <Select value={kind} onValueChange={(value) => setKind(value as "nfe" | "nfce")}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="nfe">1 - NF-e</SelectItem><SelectItem value="nfce">2 - NFC-e</SelectItem></SelectContent></Select>
+                {emitTab === "geral" ? (
+                  <div className="space-y-2 p-3">
+                    <div className="grid gap-2 md:grid-cols-6">
+                      <div><p className="text-[11px]">Data de emissão:</p><Input className="h-8" type="date" value={issuedDate} onChange={(event) => setIssuedDate(event.target.value)} /></div>
+                      <div><p className="text-[11px]">&nbsp;</p><Input className="h-8" type="time" value={issuedTime} onChange={(event) => setIssuedTime(event.target.value)} /></div>
+                      <div><p className="text-[11px]">Entrada/saída:</p><Input className="h-8" type="date" value={moveDate} onChange={(event) => setMoveDate(event.target.value)} /></div>
+                      <div><p className="text-[11px]">&nbsp;</p><Input className="h-8" type="time" value={moveTime} onChange={(event) => setMoveTime(event.target.value)} /></div>
+                      <div className="md:col-span-2"><p className="text-[11px]">Natureza da Operação:</p><Input className="h-8" value={natureza} onChange={(event) => setNatureza(event.target.value)} /></div>
+                      <div><p className="text-[11px]">Modelo:</p>
+                        <Select value={kind} onValueChange={(value) => setKind(value as "nfe" | "nfce")}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="nfe">1 - NF-e</SelectItem><SelectItem value="nfce">2 - NFC-e</SelectItem></SelectContent></Select>
+                      </div>
+                      <div><p className="text-[11px]">Finalidade:</p><Input className="h-8" value="1 - Normal" readOnly /></div>
+                      <div><p className="text-[11px]">Operação:</p><Input className="h-8" value="1 - Saída" readOnly /></div>
+                      <div><p className="text-[11px]">Presença:</p>
+                        <Select value={presenca} onValueChange={setPresenca}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent><SelectItem value="1">1 - Operação presencial</SelectItem><SelectItem value="2">2 - Internet</SelectItem><SelectItem value="4">4 - Entrega</SelectItem><SelectItem value="9">9 - Outros</SelectItem></SelectContent></Select>
+                      </div>
+                      <div><p className="text-[11px]">Modalidade frete:</p>
+                        <Select value={freteModo} onValueChange={setFreteModo}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent><SelectItem value="9">9 - Sem frete</SelectItem><SelectItem value="0">0 - Emitente</SelectItem><SelectItem value="1">1 - Destinatário</SelectItem><SelectItem value="2">2 - Terceiros</SelectItem></SelectContent></Select>
+                      </div>
+                      <div><p className="text-[11px]">Frete:</p><Input className="h-8" value={frete} onChange={(event) => setFrete(event.target.value)} /></div>
+                      <div><p className="text-[11px]">Forma de pagamento:</p>
+                        <Select value={forma} onValueChange={setForma}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent>{FORMAS.map((item) => <SelectItem key={item.code} value={item.code}>{item.label}</SelectItem>)}</SelectContent></Select>
+                      </div>
+                      <div><p className="text-[11px]">Pagamento:</p>
+                        <Select value={pagamento} onValueChange={setPagamento}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent><SelectItem value="0">0 - À vista</SelectItem><SelectItem value="1">1 - A prazo</SelectItem></SelectContent></Select>
+                      </div>
+                      <div><p className="text-[11px]">Desconto:</p><Input className="h-8" value={desconto} onChange={(event) => setDesconto(event.target.value)} /></div>
+                    </div>
+                    <div className="flex items-center gap-2"><Switch checked={referenciar} onCheckedChange={setReferenciar} /><span>Referenciar outra NF-e</span></div>
                   </div>
-                  <div><p className="text-[11px]">Finalidade:</p><Input className="h-8" value="1 - Normal" readOnly /></div>
-                  <div><p className="text-[11px]">Operação:</p><Input className="h-8" value="1 - Saída" readOnly /></div>
-                  <div><p className="text-[11px]">Presença:</p>
-                    <Select value={presenca} onValueChange={setPresenca}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent><SelectItem value="1">1 - Operação presencial</SelectItem><SelectItem value="2">2 - Internet</SelectItem><SelectItem value="4">4 - Entrega</SelectItem><SelectItem value="9">9 - Outros</SelectItem></SelectContent></Select>
+                ) : (
+                  <div className="space-y-3 p-4">
+                    <div className="flex items-center gap-2">
+                      <Switch checked={carrierOn} onCheckedChange={setCarrierOn} />
+                      <span className="text-sm">Adicionar informações da transportadora</span>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                      <Input className="h-9 bg-slate-100" placeholder="Buscar transportadora" disabled={!carrierOn} value={carrierName} onChange={(event) => setCarrierName(event.target.value)} />
+                      <Input className="h-9 bg-slate-100" placeholder="CNPJ transportadora" disabled={!carrierOn} value={carrierCnpj} onChange={(event) => setCarrierCnpj(event.target.value)} />
+                    </div>
+                    <p className="text-sm">Volumes</p>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <Input className="h-9 bg-slate-100" placeholder="Quantidade" value={volumes.quantidade} onChange={(event) => setVolumes({ ...volumes, quantidade: event.target.value })} />
+                      <Input className="h-9 bg-slate-100" placeholder="Espécie" value={volumes.especie} onChange={(event) => setVolumes({ ...volumes, especie: event.target.value })} />
+                      <Input className="h-9 bg-slate-100" placeholder="Marca" value={volumes.marca} onChange={(event) => setVolumes({ ...volumes, marca: event.target.value })} />
+                      <Input className="h-9 bg-slate-100" placeholder="Numeração" value={volumes.numeracao} onChange={(event) => setVolumes({ ...volumes, numeracao: event.target.value })} />
+                      <Input className="h-9 bg-slate-100" placeholder="Peso líquido" value={volumes.pesoLiquido} onChange={(event) => setVolumes({ ...volumes, pesoLiquido: event.target.value })} />
+                      <Input className="h-9 bg-slate-100" placeholder="Peso bruto" value={volumes.pesoBruto} onChange={(event) => setVolumes({ ...volumes, pesoBruto: event.target.value })} />
+                      <Input className="h-9 bg-slate-100" placeholder="Lacres" value={volumes.lacres} onChange={(event) => setVolumes({ ...volumes, lacres: event.target.value })} />
+                    </div>
                   </div>
-                  <div><p className="text-[11px]">Modalidade frete:</p>
-                    <Select value={freteModo} onValueChange={setFreteModo}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent><SelectItem value="9">9 - Sem frete</SelectItem><SelectItem value="0">0 - Emitente</SelectItem><SelectItem value="1">1 - Destinatário</SelectItem><SelectItem value="2">2 - Terceiros</SelectItem></SelectContent></Select>
-                  </div>
-                  <div><p className="text-[11px]">Frete:</p><Input className="h-8" value={frete} onChange={(event) => setFrete(event.target.value)} /></div>
-                  <div><p className="text-[11px]">Forma de pagamento:</p>
-                    <Select value={forma} onValueChange={setForma}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent>{FORMAS.map((item) => <SelectItem key={item.code} value={item.code}>{item.label}</SelectItem>)}</SelectContent></Select>
-                  </div>
-                  <div><p className="text-[11px]">Pagamento:</p>
-                    <Select value={pagamento} onValueChange={setPagamento}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent><SelectItem value="0">0 - À vista</SelectItem><SelectItem value="1">1 - A prazo</SelectItem></SelectContent></Select>
-                  </div>
-                  <div><p className="text-[11px]">Desconto:</p><Input className="h-8" value={desconto} onChange={(event) => setDesconto(event.target.value)} /></div>
-                </div>
-                <div className="flex items-center gap-2"><Switch checked={referenciar} onCheckedChange={setReferenciar} /><span>Referenciar outra NF-e</span></div>
-              </>
+                )}
+              </div>
             ) : null}
             <p className="border-t pt-2 font-medium">Informações do cliente:</p>
             <div className="grid gap-2 md:grid-cols-3">

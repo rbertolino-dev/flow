@@ -42,6 +42,27 @@ function money(value: unknown) {
   return (Number.isFinite(n) ? n : 0).toFixed(2);
 }
 
+function buildTransporte(raw: unknown) {
+  if (!raw || typeof raw !== "object") return null;
+  const source = raw as Record<string, unknown>;
+  const text = (key: string) => String(source[key] || "").trim();
+  const weight = (key: string) => text(key).replace(",", ".");
+  const transporte: Record<string, string> = {};
+  if (text("volume")) transporte.volume = text("volume");
+  if (text("especie")) transporte.especie = text("especie");
+  if (text("marca")) transporte.marca = text("marca");
+  if (text("numeracao")) transporte.numeracao = text("numeracao");
+  if (weight("peso_liquido")) transporte.peso_liquido = weight("peso_liquido");
+  if (weight("peso_bruto")) transporte.peso_bruto = weight("peso_bruto");
+  if (text("lacres")) transporte.lacres = text("lacres");
+  if (source.incluir_transportadora) {
+    const cnpj = digits(source.cnpj);
+    if (cnpj) transporte.cnpj = cnpj;
+    if (text("razao_social")) transporte.razao_social = text("razao_social");
+  }
+  return Object.keys(transporte).length ? transporte : null;
+}
+
 function field(row: Record<string, unknown>, caption: string) {
   if (row[caption] != null && String(row[caption]).trim()) return String(row[caption]).trim();
   const lower = caption.toLowerCase();
@@ -907,6 +928,8 @@ serve(async (req) => {
             tipo_integracao: payments.map(() => 2),
           },
         };
+        const transporte = buildTransporte(body.transporte);
+        if (transporte) requestPayload.transporte = transporte;
         const remote = await fetch("https://webmania.com.br/api/1/nfe/emissao/", {
           method: "POST",
           headers: nfeHeaders(empresa),
