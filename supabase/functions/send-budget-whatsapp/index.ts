@@ -7,11 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 };
 
-/** Presença curta antes do PDF. A Evolution só responde depois desse tempo. */
-function getBudgetSendDelayMs(): number {
-  return 500 + Math.floor(Math.random() * 700);
-}
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -206,7 +201,6 @@ Olá ${leadName}, segue o orçamento para sua análise.
 
 Para mais informações, entre em contato conosco.`;
 
-    const sendDelayMs = getBudgetSendDelayMs();
     const evolutionPayload = {
       number: whatsappNumber,
       mediatype: 'document',
@@ -214,10 +208,9 @@ Para mais informações, entre em contato conosco.`;
       media: pdfUrl,
       fileName: `Orcamento_${budget.budget_number}.pdf`,
       caption: caption,
-      delay: sendDelayMs,
     };
 
-    console.log('📤 Enviando orçamento via Evolution API...', { delayMs: sendDelayMs });
+    console.log('📤 Enviando orçamento via Evolution API...');
 
     const evolutionResponse = await fetch(sendMediaUrl, {
       method: 'POST',

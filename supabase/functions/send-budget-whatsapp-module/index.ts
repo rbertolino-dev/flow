@@ -7,10 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
-function getBudgetSendDelayMs(): number {
-  return 500 + Math.floor(Math.random() * 700);
-}
-
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -145,7 +141,6 @@ serve(async (req) => {
       media: budget.pdf_url,
       fileName: `Orcamento_${budget.budget_number}.pdf`,
       caption: '', // Sem mensagem de texto, apenas PDF
-      delay: getBudgetSendDelayMs(),
     };
 
     console.log('📤 Enviando orçamento via Evolution API...');
