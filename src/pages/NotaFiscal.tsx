@@ -30,6 +30,7 @@ import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { FileText, Trash2 } from "lucide-react";
+import { TaxClassDialogs, type FiscalClass } from "@/components/fiscal/TaxClassDialogs";
 
 type Company = {
   name: string;
@@ -56,14 +57,6 @@ type Invoice = {
   access_key: string | null;
 };
 
-type TaxClass = {
-  id: string;
-  ref: string;
-  description: string;
-  noteType: string;
-  emissionType: string;
-  scenarios: { id: string; name: string; cfop: string; tax: string; cst: string; rate: string; person: string }[];
-};
 
 type EmitLine = {
   key: string;
@@ -127,7 +120,7 @@ export default function NotaFiscal() {
   const [query, setQuery] = useState("");
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [issued, setIssued] = useState(0);
-  const [classes, setClasses] = useState<TaxClass[]>([]);
+  const [classes, setClasses] = useState<FiscalClass[]>([]);
   const [screen, setScreen] = useState<"list" | "emit">("list");
   const [kind, setKind] = useState<"nfe" | "nfce" | "nfse">("nfe");
   const [lines, setLines] = useState<EmitLine[]>([]);
@@ -187,11 +180,11 @@ export default function NotaFiscal() {
   useEffect(() => { void loadSettings().catch((error) => toast({ title: error.message, variant: "destructive" })); }, [loadSettings, toast]);
   useEffect(() => { void loadInvoices().catch(() => undefined); }, [loadInvoices]);
 
-  const productClasses = useMemo(() => classes.filter((item) => /nf-?e|nfc/i.test(item.noteType) || !item.noteType), [classes]);
-  const serviceClasses = useMemo(() => classes.filter((item) => /nfs/i.test(item.noteType) || !item.noteType), [classes]);
+  const productClasses = useMemo(() => classes.filter((item) => item.noteType !== "nfse" && item.ref), [classes]);
+  const serviceClasses = useMemo(() => classes.filter((item) => item.noteType === "nfse" && item.ref), [classes]);
 
   async function ensureClasses() {
-    if (!activeOrgId || classes.length) return classes;
+    if (!activeOrgId) return classes;
     const data = await fiscalCall(activeOrgId, "classes");
     setClasses(data.classes || []);
     return data.classes || [];
@@ -206,7 +199,7 @@ export default function NotaFiscal() {
     setReferenciar(false);
     setScreen("list");
     setEmitOpen(true);
-    void ensureClasses();
+    void ensureClasses().catch(() => undefined);
   }
 
   function saleFlag(value: boolean | string | undefined) {
@@ -414,8 +407,8 @@ export default function NotaFiscal() {
               <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild><Button variant="outline">Opções</Button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => { void ensureClasses(); setTaxesOpen("service"); }}>Impostos de Serviços</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { void ensureClasses(); setTaxesOpen("product"); }}>Impostos de Produtos</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => window.setTimeout(() => { setTaxesOpen("service"); void ensureClasses().catch((error) => toast({ title: error instanceof Error ? error.message : "Não foi possível listar as classes", variant: "destructive" })); }, 0)}>Impostos de Serviços</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => window.setTimeout(() => { setTaxesOpen("product"); void ensureClasses().catch((error) => toast({ title: error instanceof Error ? error.message : "Não foi possível listar as classes", variant: "destructive" })); }, 0)}>Minhas classes de imposto para produto</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => { void ensureClasses(); setAvulsaOpen(true); }}>NFSe Avulsa</DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => window.setTimeout(openLastSales, 0)}>Últimas vendas</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setCceOpen(true)}>Carta de Correção</DropdownMenuItem>
@@ -591,20 +584,14 @@ export default function NotaFiscal() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={taxesOpen !== null} onOpenChange={(open) => !open && setTaxesOpen(null)}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader><DialogTitle>{taxesOpen === "service" ? "Impostos de Serviços" : "Impostos de Produtos"}</DialogTitle></DialogHeader>
-          <div className="max-h-[60vh] space-y-3 overflow-auto text-sm">
-            {(taxesOpen === "service" ? serviceClasses : productClasses).map((item) => (
-              <div key={item.ref || item.id} className="rounded border p-2">
-                <p className="font-medium">{item.description || item.ref} · {item.ref}</p>
-                <p>Emissão: {item.emissionType || "—"} · Tipo: {item.noteType || "—"}</p>
-                {item.scenarios.map((scenario) => <p key={scenario.id}>CFOP {scenario.cfop || "—"} · {scenario.cst || scenario.tax} · {scenario.rate}</p>)}
-              </div>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <TaxClassDialogs
+        orgId={activeOrgId || ""}
+        which={taxesOpen}
+        classes={classes}
+        onClose={() => setTaxesOpen(null)}
+        onSaved={async () => { await ensureClasses(); }}
+        toast={toast}
+      />
 
       <Dialog open={salesOpen} onOpenChange={setSalesOpen}>
         <DialogContent>

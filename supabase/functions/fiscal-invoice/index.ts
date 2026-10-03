@@ -251,6 +251,262 @@ async function patchBubbleNota(env: string, id: string, payload: Record<string, 
   });
 }
 
+const CLASS_URL = "https://webmania.com.br/api/1/nfe/classe-imposto/";
+const CENARIOS = new Set(["padrao", "saida_dentro_estado", "saida_fora_estado", "entrada_dentro_estado", "entrada_fora_estado"]);
+const PESSOAS = new Set(["fisica", "juridica"]);
+const TAXES = ["icms", "ipi", "pis", "cofins", "ibs_cbs"] as const;
+
+function asList(value: unknown) {
+  return Array.isArray(value) ? value as Record<string, unknown>[] : [];
+}
+
+function ufRows(value: unknown, amountKey: string) {
+  return asList(value).map((row) => {
+    const estado = String(row.estado || "").trim().toUpperCase();
+    const amount = String(row[amountKey] || row.aliquota || row.codigo || "").trim();
+    if (!/^[A-Z]{2}$/.test(estado) || !amount) return null;
+    if (amountKey === "codigo") return { estado, codigo: amount };
+    if (amountKey === "codigo_beneficio_fiscal") return { estado, codigo_beneficio_fiscal: amount, aliquota: money(row.aliquota) };
+    return { estado, aliquota: money(amount) };
+  }).filter(Boolean);
+}
+
+function icmsPayload(raw: Record<string, unknown>) {
+  const cenario = String(raw.cenario || "");
+  if (cenario === "padrao" || !CENARIOS.has(cenario)) throw new Error("Cenário de ICMS inválido");
+  const tipo_pessoa = String(raw.tipo_pessoa || "");
+  if (!PESSOAS.has(tipo_pessoa)) throw new Error("Informe se a pessoa é física ou jurídica");
+  const tipo = String(raw.tipo_tributacao || "simples_nacional");
+  if (!["simples_nacional", "simples_nacional_sublimite", "tributacao_normal"].includes(tipo)) {
+    throw new Error("Tipo de tributação do ICMS inválido");
+  }
+  const cfop = digits(raw.codigo_cfop);
+  if (cfop.length !== 4) throw new Error("CFOP deve ter 4 dígitos");
+  const situacao = String(raw.situacao_tributaria || "");
+  if (!situacao) throw new Error("Informe a situação tributária do ICMS");
+  const item: Record<string, unknown> = {
+    tipo_tributacao: tipo,
+    cenario,
+    tipo_pessoa,
+    codigo_cfop: cfop,
+    situacao_tributaria: situacao,
+  };
+  if (situacao === "101" || situacao === "201") {
+    if (raw.aliquota_credito == null || String(raw.aliquota_credito) === "") throw new Error("Informe a alíquota de crédito do ICMS");
+    item.aliquota_credito = money(raw.aliquota_credito);
+  }
+  if (String(raw.aliquota_reducao || "").trim()) item.aliquota_reducao = String(raw.aliquota_reducao).trim();
+  const mva = ufRows(raw.aliquota_mva, "aliquota");
+  const beneficio = ufRows(raw.beneficio_fiscal, "codigo");
+  const credito = ufRows(raw.credito_presumido, "codigo_beneficio_fiscal");
+  if (mva.length) item.aliquota_mva = mva;
+  if (beneficio.length) item.beneficio_fiscal = beneficio;
+  if (credito.length) item.credito_presumido = credito;
+  return item;
+}
+
+function otherPayload(tax: string, raw: Record<string, unknown>) {
+  const cenario = String(raw.cenario || "");
+  if (!CENARIOS.has(cenario)) throw new Error("Cenário inválido");
+  const tipo_pessoa = String(raw.tipo_pessoa || "");
+  if (!PESSOAS.has(tipo_pessoa)) throw new Error("Informe se a pessoa é física ou jurídica");
+  const situacao = String(raw.situacao_tributaria || "");
+  if (!situacao) throw new Error("Informe a situação tributária");
+  if (tax === "ibs_cbs") {
+    const classificacao = String(raw.classificacao_tributaria || "");
+    if (!/^\d{6}$/.test(classificacao)) throw new Error("A classificação tributária do IBS/CBS tem 6 dígitos");
+    return { cenario, tipo_pessoa, situacao_tributaria: situacao, classificacao_tributaria: classificacao };
+  }
+  const item: Record<string, unknown> = {
+    cenario,
+    tipo_pessoa,
+    situacao_tributaria: situacao,
+    aliquota: money(raw.aliquota),
+  };
+  if (tax === "ipi") item.codigo_enquadramento = String(raw.codigo_enquadramento || "999");
+  return item;
+}
+
+function buildClassPayload(body: Record<string, unknown>) {
+  const descricao = String(body.descricao || "").trim();
+  if (!descricao) throw new Error("Informe o nome da classe");
+  const referencia = String(body.referencia || "").trim();
+  if (body.kind === "service") {
+    const codigo = String(body.codigo_servico || "").trim();
+    if (!codigo) throw new Error("Informe o código do serviço");
+    const issRetido = String(body.iss_retido || "2");
+    const payload: Record<string, unknown> = {
+      descricao,
+      tipo: "nfse",
+      codigo_servico: codigo,
+      natureza_operacao: String(body.natureza_operacao || "1"),
+      exigibilidade_iss: String(body.exigibilidade_iss || "1"),
+      iss_retido: issRetido,
+      iss: Number(body.iss || 0),
+      pis: Number(body.pis || 0),
+      cofins: Number(body.cofins || 0),
+      inss: Number(body.inss || 0),
+      ir: Number(body.ir || 0),
+      csll: Number(body.csll || 0),
+    };
+    if (issRetido === "1") {
+      const responsavel = String(body.responsavel_retencao || "");
+      if (responsavel !== "1" && responsavel !== "2") throw new Error("Informe quem retém o ISS");
+      payload.responsavel_retencao = responsavel;
+    }
+    const situacao = String(body.situacao_tributaria || "").trim();
+    const classificacao = String(body.classificacao_tributaria || "").trim();
+    if (situacao || classificacao) {
+      if (!situacao || !/^\d{6}$/.test(classificacao)) throw new Error("Informe a situação e a classificação de 6 dígitos do IBS/CBS");
+      payload.ibs_cbs = { situacao_tributaria: situacao, classificacao_tributaria: classificacao };
+    }
+    if (referencia) payload.referencia = referencia;
+    return payload;
+  }
+  const icms = asList(body.icms).map(icmsPayload);
+  if (!icms.length || icms.length > 4) throw new Error("O ICMS aceita de 1 a 4 cenários");
+  let ipi: Record<string, unknown>[];
+  let pis: Record<string, unknown>[];
+  let cofins: Record<string, unknown>[];
+  let ibs: Record<string, unknown>[];
+  if (body.mode === "simples") {
+    const auto = (situacao: string, extra: Record<string, unknown> = {}) => ["fisica", "juridica"].map((tipo_pessoa) => ({
+      cenario: "padrao", tipo_pessoa, situacao_tributaria: situacao, aliquota: "0.00", ...extra,
+    }));
+    ipi = auto("99", { codigo_enquadramento: "999" });
+    pis = auto("99");
+    cofins = auto("99");
+    ibs = ["fisica", "juridica"].map((tipo_pessoa) => ({
+      cenario: "padrao", tipo_pessoa, situacao_tributaria: "000", classificacao_tributaria: "000001",
+    }));
+  } else {
+    const grouped = Object.fromEntries(TAXES.map((tax) => [tax, asList(body[tax] || (tax === "icms" ? body.icms : []))]) ) as Record<string, Record<string, unknown>[]>;
+    grouped.icms = asList(body.icms);
+    for (const tax of TAXES) {
+      if (grouped[tax].length < 1 || grouped[tax].length > 4) throw new Error("Crie de 1 a 4 cenários para cada imposto");
+    }
+    ipi = grouped.ipi.map((row) => otherPayload("ipi", row));
+    pis = grouped.pis.map((row) => otherPayload("pis", row));
+    cofins = grouped.cofins.map((row) => otherPayload("cofins", row));
+    ibs = grouped.ibs_cbs.map((row) => otherPayload("ibs_cbs", row));
+  }
+  const payload: Record<string, unknown> = { descricao, icms, ipi, pis, cofins, ibs_cbs: ibs };
+  if (referencia) payload.referencia = referencia;
+  return payload;
+}
+
+function scenarioView(tax: string, row: Record<string, unknown>) {
+  return {
+    tax,
+    name: String(row.cenario || ""),
+    person: String(row.tipo_pessoa || ""),
+    cfop: String(row.codigo_cfop || ""),
+    cst: String(row.situacao_tributaria || ""),
+    rate: String(row.aliquota || row.aliquota_credito || ""),
+    tipo: String(row.tipo_tributacao || ""),
+    classificacao: String(row.classificacao_tributaria || ""),
+    codigo_enquadramento: String(row.codigo_enquadramento || ""),
+    aliquota_credito: String(row.aliquota_credito || ""),
+    aliquota_reducao: String(row.aliquota_reducao || ""),
+    aliquota_mva: asList(row.aliquota_mva),
+    beneficio_fiscal: asList(row.beneficio_fiscal),
+    credito_presumido: asList(row.credito_presumido),
+  };
+}
+
+function normalizeClass(item: Record<string, unknown>) {
+  const tipo = String(item.tipo || "");
+  const isService = tipo === "nfse";
+  const grouped = Object.fromEntries(TAXES.map((tax) => {
+    const source = tax === "ibs_cbs" && item.ibs_cbs && !Array.isArray(item.ibs_cbs) ? [] : asList(item[tax]);
+    return [tax, source.map((row) => scenarioView(tax, row))];
+  }));
+  const serviceIbs = item.ibs_cbs && !Array.isArray(item.ibs_cbs) ? item.ibs_cbs as Record<string, unknown> : {};
+  return {
+    id: String(item.referencia || ""),
+    ref: String(item.referencia || ""),
+    description: String(item.descricao || ""),
+    noteType: isService ? "nfse" : "nfe",
+    emissionType: tipo,
+    icms: grouped.icms,
+    ipi: grouped.ipi,
+    pis: grouped.pis,
+    cofins: grouped.cofins,
+    ibs: grouped.ibs_cbs,
+    service: isService ? {
+      codigo_servico: String(item.codigo_servico || ""),
+      natureza_operacao: String(item.natureza_operacao || "1"),
+      exigibilidade_iss: String(item.exigibilidade_iss || "1"),
+      iss_retido: String(item.iss_retido || "2"),
+      responsavel_retencao: String(item.responsavel_retencao || ""),
+      iss: String(item.iss ?? ""),
+      pis: String(item.pis ?? ""),
+      cofins: String(item.cofins ?? ""),
+      inss: String(item.inss ?? ""),
+      ir: String(item.ir ?? ""),
+      csll: String(item.csll ?? ""),
+      situacao_tributaria: String(serviceIbs.situacao_tributaria || ""),
+      classificacao_tributaria: String(serviceIbs.classificacao_tributaria || ""),
+    } : null,
+    scenarios: grouped.icms,
+  };
+}
+
+async function webmaniaClass(empresa: Record<string, unknown>, method: string, payload?: unknown) {
+  const res = await fetch(CLASS_URL, {
+    method,
+    headers: nfeHeaders(empresa),
+    body: payload == null ? undefined : JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = data?.error || data?.mensagem || data?.motivo || data?.message || `Webmania respondeu ${res.status}`;
+    throw new Error(typeof message === "string" ? message : "A Webmania recusou a classe de imposto");
+  }
+  return data;
+}
+
+async function mirrorClass(env: string, empresaId: string, referencia: string, descricao: string, payload: Record<string, unknown>) {
+  const blocks: { tax: string; rows: Record<string, unknown>[] }[] = [
+    { tax: "ICMS", rows: asList(payload.icms) },
+    { tax: "IPI", rows: asList(payload.ipi) },
+    { tax: "PIS", rows: asList(payload.pis) },
+    { tax: "COFINS", rows: asList(payload.cofins) },
+    { tax: "IBS/CBS", rows: asList(payload.ibs_cbs) },
+  ];
+  const ids: string[] = [];
+  for (const block of blocks) {
+    for (const row of block.rows.slice(0, 8)) {
+      const created = await fetch(`${bubbleBase(env)}/cenarioimposto`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${bubbleToken()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cenario: row.cenario || "",
+          cfop: row.codigo_cfop || "",
+          imposto: block.tax,
+          "sit trib": row.situacao_tributaria || "",
+          aliquota: row.aliquota || row.aliquota_credito || "",
+          "tipo pessoa": row.tipo_pessoa || "",
+        }),
+      });
+      const data = await created.json().catch(() => ({}));
+      const id = data?.id || data?.response?.id || data?.response?._id;
+      if (id) ids.push(String(id));
+    }
+  }
+  await fetch(`${bubbleBase(env)}/webmaniaclasseimposto`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${bubbleToken()}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ref: referencia,
+      descrição: descricao,
+      "tipo nota": payload.tipo === "nfse" ? "NFS-e" : "NF-e",
+      empresa: empresaId,
+      cenários: ids,
+    }),
+  });
+}
+
 type Line = {
   product_id?: string;
   service_id?: string;
@@ -335,40 +591,32 @@ serve(async (req) => {
     const empresa = loadedEmpresa.row;
     const bubbleEnv = loadedEmpresa.env;
 
-    if (action === "classes") {
-      const constraints = encodeURIComponent(JSON.stringify([{ key: "empresa", constraint_type: "equals", value: String(settings.empresa_id) }]));
-      const data = await bubbleGet(bubbleEnv, `webmaniaclasseimposto?constraints=${constraints}&limit=100`);
-      const results = (data.response?.results || data.results || []) as Record<string, unknown>[];
-      const classes = [];
-      for (const item of results.slice(0, 80)) {
-        const rawScenarios = item["cenários"] || item["cenarios"] || item["Cenarios"] || [];
-        const ids = Array.isArray(rawScenarios) ? rawScenarios.slice(0, 8).map(String) : [];
-        const scenarios = [];
-        for (const id of ids) {
-          try {
-            const scenarioData = await bubbleGet(bubbleEnv, `cenarioimposto/${encodeURIComponent(id)}`);
-            const scenario = (scenarioData.response || scenarioData) as Record<string, unknown>;
-            scenarios.push({
-              id,
-              name: field(scenario, "cenario"),
-              cfop: field(scenario, "cfop"),
-              tax: field(scenario, "imposto"),
-              cst: field(scenario, "sit trib"),
-              rate: field(scenario, "aliquota"),
-              person: field(scenario, "tipo pessoa"),
-            });
-          } catch { /* cenário indisponível */ }
+    if (action === "classes" && req.method === "GET") {
+      const data = await webmaniaClass(empresa, "GET");
+      const results = (Array.isArray(data) ? data : data?.data || data?.classes || []) as Record<string, unknown>[];
+      return json({ classes: results.map(normalizeClass) });
+    }
+
+    if (action === "classes" && req.method === "POST") {
+      const payload = buildClassPayload(body);
+      const saved = await webmaniaClass(empresa, "POST", payload) as Record<string, unknown>;
+      const referencia = String(saved.referencia || body.referencia || "");
+      let bubbleWarning = "";
+      if (!body.referencia) {
+        try {
+          await mirrorClass(bubbleEnv, String(settings.empresa_id), referencia, String(payload.descricao || ""), payload);
+        } catch (error) {
+          bubbleWarning = error instanceof Error ? error.message : "A classe foi salva na Webmania, mas não apareceu no Agilize Total";
         }
-        classes.push({
-          id: String(item._id || item.id || ""),
-          ref: field(item, "ref"),
-          description: field(item, "descrição") || field(item, "descricao"),
-          noteType: field(item, "tipo nota"),
-          emissionType: field(item, "tipo emissão") || field(item, "tipo emissao"),
-          scenarios,
-        });
       }
-      return json({ classes });
+      return json({ ok: true, referencia, bubbleWarning });
+    }
+
+    if (action === "class-delete" && req.method === "POST") {
+      const referencia = String(body.referencia || "").trim();
+      if (!referencia) return json({ error: "Informe a classe" }, 400);
+      await webmaniaClass(empresa, "DELETE", { referencia: [referencia] });
+      return json({ ok: true });
     }
 
     if (action === "invoices" || action === "export") {
