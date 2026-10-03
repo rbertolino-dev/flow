@@ -711,7 +711,7 @@ serve(async (req) => {
            AND s.created_at::date BETWEEN $2::date AND $3::date
            AND ($4 = '' OR s.customer_name ILIKE '%' || $4 || '%')
          GROUP BY s.id
-         ORDER BY s.created_at DESC LIMIT 100`,
+         ORDER BY s.created_at DESC LIMIT 300`,
         [organizationId, from, to, q],
       );
       return json({ sales: rows.rows });

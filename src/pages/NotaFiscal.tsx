@@ -105,6 +105,137 @@ function money(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+type ReadySale = {
+  id: string;
+  sale_number: number;
+  customer_name: string;
+  created_at: string;
+  total?: number;
+  has_product: boolean | string;
+  has_service: boolean | string;
+};
+
+function SalesReadyList({
+  sales,
+  loading,
+  from,
+  to,
+  query,
+  kind,
+  onFrom,
+  onTo,
+  onQuery,
+  onKind,
+  saleFlag,
+  onProduct,
+  onService,
+}: {
+  sales: ReadySale[];
+  loading: boolean;
+  from: string;
+  to: string;
+  query: string;
+  kind: "all" | "product" | "service";
+  onFrom: (value: string) => void;
+  onTo: (value: string) => void;
+  onQuery: (value: string) => void;
+  onKind: (value: "all" | "product" | "service") => void;
+  saleFlag: (value: boolean | string | undefined) => boolean;
+  onProduct: (id: string) => void;
+  onService: (id: string) => void;
+}) {
+  const visible = sales.filter((sale) => {
+    const name = (sale.customer_name || "").toLowerCase();
+    const number = String(sale.sale_number || "");
+    const matchesQuery = !query.trim() || name.includes(query.trim().toLowerCase()) || number.includes(query.trim());
+    const matchesKind =
+      kind === "all" ||
+      (kind === "product" && saleFlag(sale.has_product)) ||
+      (kind === "service" && saleFlag(sale.has_service));
+    return matchesQuery && matchesKind;
+  });
+
+  const kindButton = (value: "all" | "product" | "service", label: string) => (
+    <button
+      type="button"
+      onClick={() => onKind(value)}
+      className={`rounded-md px-3 py-1.5 text-sm font-medium ${kind === value ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Input type="date" value={from} onChange={(event) => onFrom(event.target.value)} className="h-9 w-[150px] bg-white" aria-label="Data inicial" />
+        <Input type="date" value={to} onChange={(event) => onTo(event.target.value)} className="h-9 w-[150px] bg-white" aria-label="Data final" />
+        <Input
+          placeholder="Cliente ou nº da venda"
+          value={query}
+          onChange={(event) => onQuery(event.target.value)}
+          className="h-9 w-52 bg-white"
+        />
+        <div className="flex rounded-lg border bg-white p-0.5">
+          {kindButton("all", "Todas")}
+          {kindButton("product", "Só produto")}
+          {kindButton("service", "Só serviço")}
+        </div>
+        <span className="text-xs text-slate-500">
+          {loading ? "Atualizando..." : `${visible.length} venda${visible.length === 1 ? "" : "s"}`}
+        </span>
+      </div>
+      <div className="max-h-[calc(100vh-280px)] overflow-auto rounded-xl border bg-white">
+        <table className="w-full min-w-[760px] text-sm">
+          <thead className="sticky top-0 z-10 bg-[#16233a] text-left text-white">
+            <tr>
+              <th className="px-3 py-2 font-medium">Venda</th>
+              <th className="px-3 py-2 font-medium">Cliente</th>
+              <th className="px-3 py-2 font-medium">Data</th>
+              <th className="px-3 py-2 font-medium">Total</th>
+              <th className="px-3 py-2 font-medium">Tipo</th>
+              <th className="px-3 py-2 text-right font-medium">Emitir</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((sale) => {
+              const product = saleFlag(sale.has_product);
+              const service = saleFlag(sale.has_service);
+              return (
+                <tr key={sale.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                  <td className="whitespace-nowrap px-3 py-1.5 font-medium text-slate-800">{sale.sale_number}</td>
+                  <td className="max-w-[240px] truncate px-3 py-1.5 text-slate-700">{sale.customer_name || "Consumidor"}</td>
+                  <td className="whitespace-nowrap px-3 py-1.5 text-slate-600">{new Date(sale.created_at).toLocaleDateString("pt-BR")}</td>
+                  <td className="whitespace-nowrap px-3 py-1.5 font-medium text-slate-900">{money(Number(sale.total || 0))}</td>
+                  <td className="px-3 py-1.5">
+                    <div className="flex gap-1">
+                      {product ? <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">Produto</span> : null}
+                      {service ? <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700">Serviço</span> : null}
+                    </div>
+                  </td>
+                  <td className="px-3 py-1.5">
+                    <div className="flex justify-end gap-1.5">
+                      {product ? <Button size="sm" className="h-7 px-2.5" disabled={loading} onClick={() => onProduct(sale.id)}>NF-e / NFC-e</Button> : null}
+                      {service ? <Button size="sm" variant="outline" className="h-7 px-2.5" disabled={loading} onClick={() => onService(sale.id)}>NFS-e</Button> : null}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {!loading && !visible.length ? (
+              <tr>
+                <td className="px-3 py-8 text-center text-slate-500" colSpan={6}>
+                  Nenhuma venda neste filtro.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -185,6 +316,8 @@ export default function NotaFiscal() {
   const [modeloPadrao, setModeloPadrao] = useState("nfe");
   const [salesLoading, setSalesLoading] = useState(false);
   const [sales, setSales] = useState<{ id: string; sale_number: number; customer_name: string; created_at: string; total?: number; has_product: boolean | string; has_service: boolean | string }[]>([]);
+  const [salesQuery, setSalesQuery] = useState("");
+  const [salesKind, setSalesKind] = useState<"all" | "product" | "service">("all");
   const [avulsa, setAvulsa] = useState({ description: "", amount: "", tax: "", name: "", document: "", email: "" });
   const [saving, setSaving] = useState(false);
 
@@ -250,20 +383,23 @@ export default function NotaFiscal() {
     if (tab === "product" || tab === "service" || tab === "avulsa") {
       void ensureClasses().catch((error) => toast({ title: error instanceof Error ? error.message : "Não foi possível listar as classes", variant: "destructive" }));
     }
-    if (tab === "sales") openLastSales();
   }
 
-  function openLastSales() {
+  const openLastSales = useCallback(() => {
     if (!activeOrgId) return;
     setSalesLoading(true);
-    void fiscalCall(activeOrgId, `sales&from=${from}&to=${to}&q=${encodeURIComponent(query)}`)
+    void fiscalCall(activeOrgId, `sales&from=${from}&to=${to}`)
       .then((data) => setSales(data.sales || []))
       .catch((error) => {
         setSales([]);
         toast({ title: error instanceof Error ? error.message : "Não foi possível listar as vendas", variant: "destructive" });
       })
       .finally(() => setSalesLoading(false));
-  }
+  }, [activeOrgId, from, to, toast]);
+
+  useEffect(() => {
+    if (pageTab === "sales") openLastSales();
+  }, [pageTab, openLastSales]);
 
   async function openSale(id: string, nextKind: "nfe" | "nfce" | "nfse") {
     if (!activeOrgId) return;
@@ -604,19 +740,21 @@ export default function NotaFiscal() {
               />
             ) : null}
             {pageTab === "sales" ? (
-              <div className="space-y-3">
-                {salesLoading ? <p className="text-sm text-slate-500">Carregando vendas...</p> : null}
-                {!salesLoading && !sales.length ? <p className="text-sm text-slate-500">Nenhuma venda concluída entre {from} e {to}.</p> : null}
-                {sales.map((sale) => (
-                  <div key={sale.id} className="rounded border p-2">
-                    <p>Venda {sale.sale_number} - {sale.customer_name || "Consumidor"} em {new Date(sale.created_at).toLocaleDateString("pt-BR")} · {money(Number(sale.total || 0))}</p>
-                    <div className="mt-2 flex gap-2">
-                      {saleFlag(sale.has_product) ? <Button size="sm" disabled={salesLoading} onClick={() => void openSale(sale.id, company?.modelo === "nfce" ? "nfce" : "nfe")}>Emitir NF-e ou NFC-e</Button> : null}
-                      {saleFlag(sale.has_service) ? <Button size="sm" variant="outline" disabled={salesLoading} onClick={() => void openSale(sale.id, "nfse")}>Emitir NFS-e</Button> : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <SalesReadyList
+                sales={sales}
+                loading={salesLoading}
+                from={from}
+                to={to}
+                query={salesQuery}
+                kind={salesKind}
+                onFrom={setFrom}
+                onTo={setTo}
+                onQuery={setSalesQuery}
+                onKind={setSalesKind}
+                saleFlag={saleFlag}
+                onProduct={(id) => void openSale(id, company?.modelo === "nfce" ? "nfce" : "nfe")}
+                onService={(id) => void openSale(id, "nfse")}
+              />
             ) : null}
             {pageTab === "avulsa" ? (
               <div className="max-w-xl space-y-2">
