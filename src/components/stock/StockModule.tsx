@@ -118,6 +118,7 @@ const TABS: { id: StockTab; label: string; icon: typeof Package }[] = [
 ];
 
 const PAGE_SIZE = 30;
+const SALES_PAGE_SIZE = 15;
 
 function movementTypeLabel(type: string, saleNumber?: number | null) {
   const labels: Record<string, string> = {
@@ -138,17 +139,19 @@ function ListPager({
   total,
   loading,
   onPage,
+  pageSize = PAGE_SIZE,
 }: {
   page: number;
   total: number;
   loading: boolean;
   onPage: (page: number) => void;
+  pageSize?: number;
 }) {
   if (total <= 0) return null;
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pages = Math.max(1, Math.ceil(total / pageSize));
   const current = Math.min(page, pages - 1);
-  const from = current * PAGE_SIZE + 1;
-  const to = Math.min(total, (current + 1) * PAGE_SIZE);
+  const from = current * pageSize + 1;
+  const to = Math.min(total, (current + 1) * pageSize);
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-sm">
       <span className="text-muted-foreground">{from}–{to} de {total}</span>
@@ -195,6 +198,8 @@ export function StockModule() {
   const [movementPage, setMovementPage] = useState(0);
   const [movementTotal, setMovementTotal] = useState(0);
   const [salesPage, setSalesPage] = useState(0);
+  const [salesFrom, setSalesFrom] = useState(initialMovementRange.from);
+  const [salesTo, setSalesTo] = useState(initialMovementRange.to);
   const [salesTotal, setSalesTotal] = useState(0);
   const [salesLoading, setSalesLoading] = useState(false);
   const movementRequest = useRef(0);
