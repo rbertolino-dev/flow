@@ -4,12 +4,12 @@ import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useCalendarEvents } from "@/hooks/useCalendarEvents";
-import { CalendarEvent } from "@/hooks/useCalendarEvents";
+import { useCalendarEvents, type CalendarEvent } from "@/hooks/useCalendarEvents";
+import { useAutoSyncGoogleCalendars } from "@/hooks/useSyncGoogleCalendar";
 import { useGoogleCalendarConfigs } from "@/hooks/useGoogleCalendarConfigs";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Plus, Maximize2, Minimize2, List, Calendar as CalendarIcon, Grid3x3, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Maximize2, Minimize2, List, Calendar as CalendarIcon, Grid3x3, CalendarDays, Filter } from "lucide-react";
 import { EventCard } from "./EventCard";
 import { CreateEventDialog } from "./CreateEventDialog";
 import { EditEventDialog } from "./EditEventDialog";
@@ -33,12 +33,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Filter } from "lucide-react";
-
 export function CalendarView() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { configs } = useGoogleCalendarConfigs();
+  useAutoSyncGoogleCalendars(configs);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [currentWeek, setCurrentWeek] = useState<Date>(new Date());

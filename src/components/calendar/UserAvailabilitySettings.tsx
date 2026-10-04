@@ -106,6 +106,17 @@ export function UserAvailabilitySettings() {
         return;
       }
 
+      const invalid = slots.filter((slot) => slot.is_active && slot.start_time === slot.end_time);
+      if (invalid.length > 0) {
+        toast({
+          title: "Horário inválido",
+          description: "O horário de fim precisa ser diferente do início. Uma faixa 18:00–18:00 não gera nenhum horário para o cliente.",
+          variant: "destructive",
+        });
+        setSaving(false);
+        return;
+      }
+
       // Deletar slots existentes
       const { error: deleteError } = await supabase
         .from('user_availability_slots')

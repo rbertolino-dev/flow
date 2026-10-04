@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { addCalendarDays, todayInTimeZone, weekdayOfDate, zonedTimeToUtc } from "../_shared/timezone.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -56,15 +57,16 @@ serve(async (req) => {
       );
     }
 
-    // Calcular datas
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const start = startDate ? new Date(startDate) : today;
-    const end = endDate ? new Date(endDate) : new Date(today.getTime() + daysAhead * 24 * 60 * 60 * 1000);
-    
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
+    const timeZone = config.timezone || "America/Sao_Paulo";
+
+    // Atualiza a agenda do Google antes de calcular conflitos, se a última sync estiver velha.
+    // Falha de sync não esvazia os horários: segue com o que já está salvo.
+    await refreshGoogleCalendarsIfStale(supabase, config.organization_id, daysAhead);
+
+    const rangeStartDate = startDate || todayInTimeZone(timeZone);
+    const rangeEndDate = endDate || addCalendarDays(rangeStartDate, daysAhead);
+    const rangeStartUtc = zonedTimeToUtc(rangeStartDate, "00:00:00", timeZone);
+    const rangeEndUtc = zonedTimeToUtc(addCalendarDays(rangeEndDate, 1), "00:00:00", timeZone);
 
     // Buscar horários disponíveis de todos os usuários da organização
     const { data: availabilitySlots, error: slotsError } = await supabase
@@ -82,15 +84,21 @@ serve(async (req) => {
     }
 
     // Buscar eventos já agendados no Google Calendar (para excluir horários ocupados)
-    const { data: existingEvents, error: eventsError } = await supabase
-      .from('calendar_events')
-      .select('start_datetime, end_datetime, organizer_user_id')
-      .eq('organization_id', config.organization_id)
-      .gte('start_datetime', start.toISOString())
-      .lte('start_datetime', end.toISOString());
-
-    if (eventsError) {
-      console.error('Erro ao buscar eventos:', eventsError);
+    const existingEvents: Array<{ start_datetime: string; end_datetime: string; organizer_user_id: string | null }> = [];
+    for (let from = 0; from < 10000; from += 1000) {
+      const { data, error: eventsError } = await supabase
+        .from('calendar_events')
+        .select('start_datetime, end_datetime, organizer_user_id')
+        .eq('organization_id', config.organization_id)
+        .lt('start_datetime', rangeEndUtc.toISOString())
+        .gt('end_datetime', rangeStartUtc.toISOString())
+        .range(from, from + 999);
+      if (eventsError) {
+        console.error('Erro ao buscar eventos:', eventsError);
+        break;
+      }
+      existingEvents.push(...(data || []));
+      if (!data || data.length < 1000) break;
     }
 
     // Buscar solicitações já aprovadas (para excluir horários ocupados)
@@ -98,9 +106,9 @@ serve(async (req) => {
       .from('booking_requests')
       .select('requested_datetime, duration_minutes, user_id')
       .eq('organization_id', config.organization_id)
-      .eq('status', 'approved')
-      .gte('requested_datetime', start.toISOString())
-      .lte('requested_datetime', end.toISOString());
+      .in('status', ['approved', 'pending'])
+      .gte('requested_datetime', rangeStartUtc.toISOString())
+      .lt('requested_datetime', rangeEndUtc.toISOString());
 
     if (requestsError) {
       console.error('Erro ao buscar solicitações:', requestsError);
@@ -117,93 +125,69 @@ serve(async (req) => {
     console.log('Total de slots de disponibilidade encontrados:', availabilitySlots?.length || 0);
     console.log('Slots:', JSON.stringify(availabilitySlots?.slice(0, 5), null, 2));
 
-    // Iterar por cada dia no intervalo
-    const currentDate = new Date(start);
-    while (currentDate <= end) {
-      const dayOfWeek = currentDate.getDay(); // 0 = domingo, 6 = sábado
-      const dateStr = currentDate.toISOString().split('T')[0];
-
-      // Encontrar slots disponíveis para este dia da semana
-      const daySlots = availabilitySlots?.filter(slot => slot.day_of_week === dayOfWeek) || [];
-      
-      if (daySlots.length > 0) {
-        console.log(`Dia ${dayOfWeek} (${dateStr}): ${daySlots.length} slots encontrados`);
-      }
+    const now = new Date();
+    let dateStr = rangeStartDate;
+    while (dateStr <= rangeEndDate) {
+      const dayOfWeek = weekdayOfDate(dateStr);
+      const daySlots = availabilitySlots?.filter((slot) => slot.day_of_week === dayOfWeek) || [];
 
       for (const slot of daySlots) {
-        // Criar data/hora usando a data atual e os horários do slot
-        // slot.start_time e slot.end_time vêm no formato HH:mm:ss (ex: "09:00:00")
-        const [hours, minutes, seconds = '00'] = slot.start_time.split(':');
-        const startTime = new Date(currentDate);
-        startTime.setUTCHours(parseInt(hours), parseInt(minutes), parseInt(seconds), 0);
-        
-        const [endHours, endMinutes, endSeconds = '00'] = slot.end_time.split(':');
-        const endTime = new Date(currentDate);
-        endTime.setUTCHours(parseInt(endHours), parseInt(endMinutes), parseInt(endSeconds), 0);
-        
-        // Se end_time é menor que start_time, significa que vai até o dia seguinte (ex: 23:00 até 01:00)
-        if (endTime <= startTime) {
-          endTime.setUTCDate(endTime.getUTCDate() + 1);
+        const startClock = String(slot.start_time).slice(0, 8);
+        const endClock = String(slot.end_time).slice(0, 8);
+        const startTime = zonedTimeToUtc(dateStr, startClock, timeZone);
+        let endDateStr = dateStr;
+        // Janela que atravessa a meia-noite. Início igual ao fim não vira o dia inteiro.
+        if (endClock < startClock) {
+          endDateStr = addCalendarDays(dateStr, 1);
+        } else if (endClock === startClock) {
+          continue;
         }
+        const endTime = zonedTimeToUtc(endDateStr, slot.end_time, timeZone);
 
-        // Gerar slots de 30 em 30 minutos (intervalo padrão para exibição)
-        // A duração do agendamento é definida por default_duration_minutes
         const slotDuration = config.default_duration_minutes || 60;
-        const slotInterval = 30; // Intervalo entre slots (30 minutos)
+        const slotInterval = 30;
         let currentSlot = new Date(startTime);
 
         while (currentSlot < endTime) {
           const slotEnd = new Date(currentSlot.getTime() + slotDuration * 60 * 1000);
-          
-          // Se o slot não cabe no horário disponível, parar
           if (slotEnd > endTime) break;
+          if (currentSlot.getTime() <= now.getTime()) {
+            currentSlot = new Date(currentSlot.getTime() + slotInterval * 60 * 1000);
+            continue;
+          }
 
-          const slotDateTime = currentSlot.toISOString();
-          const slotEndDateTime = slotEnd.toISOString();
+          const overlaps = (eventStart: Date, eventEnd: Date) =>
+            currentSlot < eventEnd && slotEnd > eventStart;
 
-          // Verificar se não conflita com eventos existentes
-          const hasConflict = existingEvents?.some(event => {
+          const hasConflict = existingEvents?.some((event) => {
             const eventStart = new Date(event.start_datetime);
             const eventEnd = new Date(event.end_datetime);
-            return (
-              (currentSlot >= eventStart && currentSlot < eventEnd) ||
-              (slotEnd > eventStart && slotEnd <= eventEnd) ||
-              (currentSlot <= eventStart && slotEnd >= eventEnd)
-            ) && event.organizer_user_id === slot.user_id;
+            const samePerson = !event.organizer_user_id || event.organizer_user_id === slot.user_id;
+            return overlaps(eventStart, eventEnd) && samePerson;
           });
 
-          // Verificar se não conflita com solicitações aprovadas
-          const hasRequestConflict = approvedRequests?.some(request => {
+          const hasRequestConflict = approvedRequests?.some((request) => {
             const requestStart = new Date(request.requested_datetime);
             const requestEnd = new Date(requestStart.getTime() + (request.duration_minutes || 60) * 60 * 1000);
-            return (
-              (currentSlot >= requestStart && currentSlot < requestEnd) ||
-              (slotEnd > requestStart && slotEnd <= requestEnd) ||
-              (currentSlot <= requestStart && slotEnd >= requestEnd)
-            ) && request.user_id === slot.user_id;
+            const samePerson = !request.user_id || request.user_id === slot.user_id;
+            return overlaps(requestStart, requestEnd) && samePerson;
           });
 
           if (!hasConflict && !hasRequestConflict) {
-            // Formatar hora no formato HH:mm (usar UTC para manter consistência)
-            const hours = currentSlot.getUTCHours().toString().padStart(2, '0');
-            const mins = currentSlot.getUTCMinutes().toString().padStart(2, '0');
-            const timeStr = `${hours}:${mins}`;
-            
+            const [hours, mins] = wallClock(currentSlot, timeZone);
             availableSlots.push({
               date: dateStr,
-              time: timeStr,
-              datetime: slotDateTime,
+              time: `${hours}:${mins}`,
+              datetime: currentSlot.toISOString(),
               user_id: slot.user_id,
             });
           }
 
-          // Próximo slot (intervalo de 30 minutos)
           currentSlot = new Date(currentSlot.getTime() + slotInterval * 60 * 1000);
         }
       }
 
-      // Próximo dia
-      currentDate.setDate(currentDate.getDate() + 1);
+      dateStr = addCalendarDays(dateStr, 1);
     }
     
     console.log(`Total de slots disponíveis gerados: ${availableSlots.length}`);
@@ -230,4 +214,67 @@ serve(async (req) => {
     );
   }
 });
+
+function wallClock(instant: Date, timeZone: string): [string, string] {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(instant);
+  const hour = parts.find((part) => part.type === "hour")?.value ?? "00";
+  const minute = parts.find((part) => part.type === "minute")?.value ?? "00";
+  return [hour === "24" ? "00" : hour, minute];
+}
+
+async function refreshGoogleCalendarsIfStale(
+  supabase: ReturnType<typeof createClient>,
+  organizationId: string,
+  daysAhead: number,
+) {
+  try {
+    const { data: configs, error } = await supabase
+      .from("google_calendar_configs")
+      .select("id, last_sync_at")
+      .eq("organization_id", organizationId)
+      .eq("is_active", true);
+
+    if (error || !configs?.length) return;
+
+    const staleMs = 2 * 60 * 1000;
+    const stale = configs.filter((item) => {
+      if (!item.last_sync_at) return true;
+      return Date.now() - new Date(item.last_sync_at).getTime() > staleMs;
+    });
+    if (!stale.length) return;
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    await Promise.all(stale.map(async (item) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 20000);
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/sync-google-calendar-events`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${serviceKey}`,
+          },
+          body: JSON.stringify({
+            google_calendar_config_id: item.id,
+            daysBack: 1,
+            daysForward: Math.max(daysAhead, 30),
+          }),
+          signal: controller.signal,
+        });
+      } catch (syncError) {
+        console.error("Sync da agenda ignorada (mantendo dados locais):", syncError);
+      } finally {
+        clearTimeout(timer);
+      }
+    }));
+  } catch (error) {
+    console.error("Falha ao atualizar agendas antes da disponibilidade:", error);
+  }
+}
 

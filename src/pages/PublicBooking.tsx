@@ -47,12 +47,18 @@ export default function PublicBooking() {
     }
 
     loadAvailability();
+    const timer = window.setInterval(() => {
+      loadAvailability(true);
+    }, 45_000);
+    return () => window.clearInterval(timer);
   }, [organizationSlug]);
 
-  const loadAvailability = async () => {
+  const loadAvailability = async (silent = false) => {
     try {
-      setLoading(true);
-      setError(null);
+      if (!silent) {
+        setLoading(true);
+        setError(null);
+      }
 
       const supabaseUrl = getSupabasePublicBaseUrl();
 
@@ -75,16 +81,20 @@ export default function PublicBooking() {
         } catch {
           errorMessage = errorText || `Erro ${response.status}: ${response.statusText}`;
         }
-        setError(errorMessage);
-        setLoading(false);
+        if (!silent) {
+          setError(errorMessage);
+          setLoading(false);
+        }
         return;
       }
 
       const result = await response.json();
 
       if (!result.success) {
-        setError(result.error || "Erro ao carregar horários disponíveis");
-        setLoading(false);
+        if (!silent) {
+          setError(result.error || "Erro ao carregar horários disponíveis");
+          setLoading(false);
+        }
         return;
       }
 
@@ -95,9 +105,11 @@ export default function PublicBooking() {
       });
       setAvailableSlots(result.available_slots || []);
     } catch (err: any) {
-      setError(err.message || "Erro ao carregar horários disponíveis");
+      if (!silent) {
+        setError(err.message || "Erro ao carregar horários disponíveis");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -165,6 +177,18 @@ export default function PublicBooking() {
 
   // Ordenar datas
   const sortedDates = Object.keys(slotsByDate).sort();
+
+function formatCalendarDate(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  if (!year || !month || !day) return date;
+  const label = new Date(year, month - 1, day).toLocaleDateString("pt-BR", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
 
   if (loading) {
     return (
@@ -239,6 +263,14 @@ export default function PublicBooking() {
               </Alert>
             )}
 
+            {sortedDates.length === 0 && (
+              <Alert className="mb-4">
+                <AlertDescription>
+                  Não há horários livres nos próximos 30 dias. Se a equipe acabou de configurar a agenda, atualize a página em instantes.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Seleção de Data */}
               <div className="space-y-2">
@@ -249,13 +281,7 @@ export default function PublicBooking() {
                   </SelectTrigger>
                   <SelectContent>
                     {sortedDates.map((date) => {
-                      const dateObj = new Date(date);
-                      const dateStr = dateObj.toLocaleDateString('pt-BR', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                      });
+                      const dateStr = formatCalendarDate(date);
                       return (
                         <SelectItem key={date} value={date}>
                           {dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}

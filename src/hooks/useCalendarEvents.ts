@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useEffect, useState, useCallback } from "react";
@@ -47,38 +47,49 @@ export function useCalendarEvents(options: UseCalendarEventsOptions = {}) {
     queryFn: async () => {
       if (!activeOrgId) return [];
 
-      let query = supabase
-        .from("calendar_events")
-        .select("*")
-        .eq("organization_id", activeOrgId)
-        .order("start_datetime", { ascending: true });
+      const pageSize = 1000;
+      const all: CalendarEvent[] = [];
 
-      if (startDate) {
-        query = query.gte("start_datetime", startDate.toISOString());
+      for (let from = 0; from < 20000; from += pageSize) {
+        let query = supabase
+          .from("calendar_events")
+          .select("*")
+          .eq("organization_id", activeOrgId)
+          .order("start_datetime", { ascending: true })
+          .range(from, from + pageSize - 1);
+
+        // Sobreposição com o período visível: evento que começa antes ou termina depois continua aparecendo.
+        if (startDate) {
+          query = query.gt("end_datetime", startDate.toISOString());
+        }
+        if (endDate) {
+          query = query.lt("start_datetime", endDate.toISOString());
+        }
+        if (googleCalendarConfigId) {
+          query = query.eq("google_calendar_config_id", googleCalendarConfigId);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const rows = (data || []) as CalendarEvent[];
+        all.push(...rows);
+        if (rows.length < pageSize) break;
       }
 
-      if (endDate) {
-        query = query.lte("end_datetime", endDate.toISOString());
-      }
-
-      if (googleCalendarConfigId) {
-        query = query.eq("google_calendar_config_id", googleCalendarConfigId);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      return data as CalendarEvent[];
+      return all;
     },
     enabled: !!activeOrgId,
+    placeholderData: keepPreviousData,
+    retry: 2,
   });
 
   // Atualizar eventos quando dados iniciais mudarem
   useEffect(() => {
-    if (initialEvents) {
-      setEvents(initialEvents);
-    }
-  }, [initialEvents]);
+    if (!initialEvents) return;
+    if (activeOrgId && initialEvents.some((event) => event.organization_id !== activeOrgId)) return;
+    setEvents(initialEvents);
+  }, [initialEvents, activeOrgId]);
 
   // Função para verificar se evento está dentro do range de datas e filtros
   const shouldIncludeEvent = useCallback((event: CalendarEvent): boolean => {

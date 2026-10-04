@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { zonedTimeToUtc } from "../_shared/timezone.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -98,107 +99,86 @@ serve(async (req) => {
     const timeMin = new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000).toISOString();
     const timeMax = new Date(now.getTime() + daysForward * 24 * 60 * 60 * 1000).toISOString();
 
-    // Buscar eventos do Google Calendar
-    const eventsUrl = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(config.calendar_id)}/events`);
-    eventsUrl.searchParams.set('timeMin', timeMin);
-    eventsUrl.searchParams.set('timeMax', timeMax);
-    eventsUrl.searchParams.set('maxResults', '2500');
-    eventsUrl.searchParams.set('singleEvents', 'true');
-    eventsUrl.searchParams.set('orderBy', 'startTime');
+    const { events, complete } = await listGoogleEvents(
+      config.calendar_id,
+      accessToken,
+      timeMin,
+      timeMax,
+    );
 
-    const eventsResponse = await fetch(eventsUrl.toString(), {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-      },
-    });
-
-    if (!eventsResponse.ok) {
-      const errorText = await eventsResponse.text();
-      console.error('Erro ao buscar eventos:', errorText);
+    if (!complete) {
       return new Response(
-        JSON.stringify({ error: 'Erro ao buscar eventos do Google Calendar' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Não foi possível ler a agenda do Google por completo. Os eventos já salvos foram mantidos.' }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const eventsData = await eventsResponse.json();
-    const events = eventsData.items || [];
-
-    // Processar e salvar eventos na tabela
-    let inserted = 0;
-    let updated = 0;
-    let errors = 0;
+    const timeZone = 'America/Sao_Paulo';
+    const rows: Array<Record<string, unknown>> = [];
+    const seenIds = new Set<string>();
 
     for (const event of events) {
-      try {
-        // Ignorar eventos cancelados
-        if (event.status === 'cancelled') {
-          continue;
-        }
+      if (!event?.id || event.status === 'cancelled') continue;
+      const startDateTime = toTimestamp(event.start, timeZone, false);
+      const endDateTime = toTimestamp(event.end, timeZone, true);
+      if (!startDateTime || !endDateTime) continue;
+      seenIds.add(event.id);
+      rows.push({
+        google_calendar_config_id: config.id,
+        organization_id: config.organization_id,
+        google_event_id: event.id,
+        summary: event.summary || '',
+        description: event.description || '',
+        start_datetime: startDateTime,
+        end_datetime: endDateTime,
+        location: event.location || null,
+        html_link: event.htmlLink || null,
+        attendees: Array.isArray(event.attendees)
+          ? event.attendees.map((attendee: { email?: string; displayName?: string }) => ({
+            email: attendee.email || '',
+            displayName: attendee.displayName || undefined,
+          })).filter((attendee: { email: string }) => attendee.email)
+          : null,
+      });
+    }
 
-        const startDateTime = event.start?.dateTime || event.start?.date;
-        const endDateTime = event.end?.dateTime || event.end?.date;
-
-        if (!startDateTime || !endDateTime) {
-          continue;
-        }
-
-        const eventData = {
-          google_calendar_config_id: config.id,
-          organization_id: config.organization_id,
-          google_event_id: event.id,
-          summary: event.summary || '',
-          description: event.description || '',
-          start_datetime: startDateTime,
-          end_datetime: endDateTime,
-          location: event.location || null,
-          html_link: event.htmlLink || null,
-        };
-
-        // Tentar inserir ou atualizar (usando ON CONFLICT)
-        const { error: upsertError } = await supabase
-          .from('calendar_events')
-          .upsert(eventData, {
-            onConflict: 'google_calendar_config_id,google_event_id',
-            ignoreDuplicates: false,
-          });
-
-        if (upsertError) {
-          console.error('Erro ao salvar evento:', upsertError);
-          errors++;
-        } else {
-          // Verificar se foi inserção ou atualização
-          const { data: existing } = await supabase
-            .from('calendar_events')
-            .select('id')
-            .eq('google_calendar_config_id', config.id)
-            .eq('google_event_id', event.id)
-            .single();
-
-          if (existing) {
-            updated++;
-          } else {
-            inserted++;
-          }
-        }
-      } catch (error) {
-        console.error('Erro ao processar evento:', error);
-        errors++;
+    let upserted = 0;
+    let errors = 0;
+    for (let index = 0; index < rows.length; index += 100) {
+      const chunk = rows.slice(index, index + 100);
+      const { error: upsertError } = await supabase
+        .from('calendar_events')
+        .upsert(chunk, {
+          onConflict: 'google_calendar_config_id,google_event_id',
+          ignoreDuplicates: false,
+        });
+      if (upsertError) {
+        console.error('Erro ao salvar eventos:', upsertError);
+        errors += chunk.length;
+      } else {
+        upserted += chunk.length;
       }
     }
 
-    // Atualizar last_sync_at na configuração
-    await supabase
-      .from('google_calendar_configs')
-      .update({ last_sync_at: new Date().toISOString() })
-      .eq('id', config.id);
+    let removed = 0;
+    if (errors === 0) {
+      removed = await removeMissingEvents(supabase, config.id, timeMin, timeMax, seenIds);
+    }
+
+    if (errors === 0) {
+      await supabase
+        .from('google_calendar_configs')
+        .update({ last_sync_at: new Date().toISOString() })
+        .eq('id', config.id);
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true,
         events_found: events.length,
-        inserted,
-        updated,
+        inserted: upserted,
+        updated: upserted,
+        removed,
         errors,
         last_sync_at: new Date().toISOString()
       }),
@@ -214,4 +194,95 @@ serve(async (req) => {
     );
   }
 });
+
+function toTimestamp(
+  boundary: { dateTime?: string; date?: string; timeZone?: string } | undefined,
+  fallbackTimeZone: string,
+  isEnd: boolean,
+): string | null {
+  if (!boundary) return null;
+  if (boundary.dateTime) {
+    const parsed = new Date(boundary.dateTime);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+  if (!boundary.date) return null;
+  const zone = boundary.timeZone || fallbackTimeZone;
+  const instant = zonedTimeToUtc(boundary.date, "00:00:00", zone);
+  if (isEnd) {
+    return instant.toISOString();
+  }
+  return instant.toISOString();
+}
+
+async function listGoogleEvents(
+  calendarId: string,
+  accessToken: string,
+  timeMin: string,
+  timeMax: string,
+): Promise<{ events: any[]; complete: boolean }> {
+  const events: any[] = [];
+  let pageToken: string | undefined;
+  for (let page = 0; page < 20; page++) {
+    const eventsUrl = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`);
+    eventsUrl.searchParams.set("timeMin", timeMin);
+    eventsUrl.searchParams.set("timeMax", timeMax);
+    eventsUrl.searchParams.set("maxResults", "2500");
+    eventsUrl.searchParams.set("singleEvents", "true");
+    eventsUrl.searchParams.set("orderBy", "startTime");
+    eventsUrl.searchParams.set("showDeleted", "false");
+    if (pageToken) eventsUrl.searchParams.set("pageToken", pageToken);
+
+    const eventsResponse = await fetch(eventsUrl.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!eventsResponse.ok) {
+      const errorText = await eventsResponse.text();
+      console.error("Erro ao buscar eventos:", errorText);
+      return { events, complete: false };
+    }
+    const eventsData = await eventsResponse.json();
+    events.push(...(eventsData.items || []));
+    pageToken = eventsData.nextPageToken;
+    if (!pageToken) return { events, complete: true };
+  }
+  console.error("Agenda do Google excedeu o limite de páginas");
+  return { events, complete: false };
+}
+
+async function removeMissingEvents(
+  supabase: ReturnType<typeof createClient>,
+  configId: string,
+  timeMin: string,
+  timeMax: string,
+  seenIds: Set<string>,
+): Promise<number> {
+  const { data: localRows, error } = await supabase
+    .from("calendar_events")
+    .select("id, google_event_id")
+    .eq("google_calendar_config_id", configId)
+    .gte("start_datetime", timeMin)
+    .lte("start_datetime", timeMax);
+
+  if (error || !localRows?.length) return 0;
+
+  const staleIds = localRows
+    .filter((row) => row.google_event_id && !seenIds.has(row.google_event_id))
+    .map((row) => row.id);
+  if (!staleIds.length) return 0;
+
+  let removed = 0;
+  for (let index = 0; index < staleIds.length; index += 100) {
+    const chunk = staleIds.slice(index, index + 100);
+    const { error: deleteError } = await supabase
+      .from("calendar_events")
+      .delete()
+      .in("id", chunk);
+    if (deleteError) {
+      console.error("Erro ao remover eventos ausentes no Google:", deleteError);
+      continue;
+    }
+    removed += chunk.length;
+  }
+  return removed;
+}
 
