@@ -47,10 +47,17 @@ export default function PublicBooking() {
     }
 
     loadAvailability();
-    const timer = window.setInterval(() => {
-      loadAvailability(true);
-    }, 45_000);
-    return () => window.clearInterval(timer);
+    const tick = () => {
+      if (document.visibilityState === "visible") {
+        loadAvailability(true);
+      }
+    };
+    const timer = window.setInterval(tick, 5 * 60 * 1000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
   }, [organizationSlug]);
 
   const loadAvailability = async (silent = false) => {

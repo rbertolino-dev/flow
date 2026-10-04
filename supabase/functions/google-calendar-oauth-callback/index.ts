@@ -237,6 +237,24 @@ serve(async (req) => {
       savedConfig = newConfig;
     }
 
+    const syncPromise = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-google-calendar-events`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+      body: JSON.stringify({
+        google_calendar_config_id: savedConfig.id,
+        reason: "initial",
+      }),
+    }).catch((syncError) => {
+      console.error("Falha ao iniciar espelhamento da agenda:", syncError);
+    });
+    const runtime = (globalThis as { EdgeRuntime?: { waitUntil: (promise: Promise<unknown>) => void } }).EdgeRuntime;
+    if (runtime?.waitUntil) {
+      runtime.waitUntil(syncPromise);
+    }
+
     // Retornar página de sucesso
     return new Response(
       `

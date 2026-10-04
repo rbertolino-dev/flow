@@ -37,6 +37,7 @@ export function SyncCalendarDialog({
         google_calendar_config_id: configId,
         daysBack: parseInt(daysBack) || 30,
         daysForward: parseInt(daysForward) || 90,
+        reason: "manual",
       },
       {
         onSuccess: () => {

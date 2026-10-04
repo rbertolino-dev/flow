@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCalendarEvents, type CalendarEvent } from "@/hooks/useCalendarEvents";
-import { useAutoSyncGoogleCalendars } from "@/hooks/useSyncGoogleCalendar";
 import { useGoogleCalendarConfigs } from "@/hooks/useGoogleCalendarConfigs";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -37,7 +36,6 @@ export function CalendarView() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { configs } = useGoogleCalendarConfigs();
-  useAutoSyncGoogleCalendars(configs);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [currentWeek, setCurrentWeek] = useState<Date>(new Date());

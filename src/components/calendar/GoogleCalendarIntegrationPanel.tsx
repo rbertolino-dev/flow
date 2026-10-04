@@ -55,7 +55,7 @@ export function GoogleCalendarIntegrationPanel() {
           
           // Sincronizar eventos após um pequeno delay para garantir que a conta foi criada
           setTimeout(() => {
-            sync({ google_calendar_config_id: configId });
+            sync({ google_calendar_config_id: configId, reason: "initial" });
           }, 500);
         }
       }

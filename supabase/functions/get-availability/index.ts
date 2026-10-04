@@ -59,10 +59,6 @@ serve(async (req) => {
 
     const timeZone = config.timezone || "America/Sao_Paulo";
 
-    // Atualiza a agenda do Google antes de calcular conflitos, se a última sync estiver velha.
-    // Falha de sync não esvazia os horários: segue com o que já está salvo.
-    await refreshGoogleCalendarsIfStale(supabase, config.organization_id, daysAhead);
-
     const rangeStartDate = startDate || todayInTimeZone(timeZone);
     const rangeEndDate = endDate || addCalendarDays(rangeStartDate, daysAhead);
     const rangeStartUtc = zonedTimeToUtc(rangeStartDate, "00:00:00", timeZone);
@@ -225,56 +221,5 @@ function wallClock(instant: Date, timeZone: string): [string, string] {
   const hour = parts.find((part) => part.type === "hour")?.value ?? "00";
   const minute = parts.find((part) => part.type === "minute")?.value ?? "00";
   return [hour === "24" ? "00" : hour, minute];
-}
-
-async function refreshGoogleCalendarsIfStale(
-  supabase: ReturnType<typeof createClient>,
-  organizationId: string,
-  daysAhead: number,
-) {
-  try {
-    const { data: configs, error } = await supabase
-      .from("google_calendar_configs")
-      .select("id, last_sync_at")
-      .eq("organization_id", organizationId)
-      .eq("is_active", true);
-
-    if (error || !configs?.length) return;
-
-    const staleMs = 2 * 60 * 1000;
-    const stale = configs.filter((item) => {
-      if (!item.last_sync_at) return true;
-      return Date.now() - new Date(item.last_sync_at).getTime() > staleMs;
-    });
-    if (!stale.length) return;
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    await Promise.all(stale.map(async (item) => {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 20000);
-      try {
-        await fetch(`${supabaseUrl}/functions/v1/sync-google-calendar-events`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${serviceKey}`,
-          },
-          body: JSON.stringify({
-            google_calendar_config_id: item.id,
-            daysBack: 1,
-            daysForward: Math.max(daysAhead, 30),
-          }),
-          signal: controller.signal,
-        });
-      } catch (syncError) {
-        console.error("Sync da agenda ignorada (mantendo dados locais):", syncError);
-      } finally {
-        clearTimeout(timer);
-      }
-    }));
-  } catch (error) {
-    console.error("Falha ao atualizar agendas antes da disponibilidade:", error);
-  }
 }
 

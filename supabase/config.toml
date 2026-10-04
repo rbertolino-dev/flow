@@ -140,6 +140,12 @@ verify_jwt = false
 [functions.sync-google-calendar-events]
 verify_jwt = false
 
+[functions.google-calendar-webhook]
+verify_jwt = false
+
+[functions.renew-google-calendar-watches]
+verify_jwt = false
+
 [functions.list-google-calendars]
 verify_jwt = true
 

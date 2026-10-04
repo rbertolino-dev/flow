@@ -157,8 +157,11 @@ export function useGoogleCalendarConfigs() {
       if (error) throw error;
       return data as GoogleCalendarConfig;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["google-calendar-configs"] });
+      void supabase.functions.invoke("sync-google-calendar-events", {
+        body: { google_calendar_config_id: data.id, reason: "initial" },
+      });
       toast({
         title: "Conta adicionada",
         description: "A conta do Google Calendar foi adicionada com sucesso.",
