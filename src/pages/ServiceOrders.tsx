@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { CRMLayout } from '@/components/crm/CRMLayout';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,7 @@ import {
   ChevronDown,
   ChevronUp,
   Wrench,
+  Calendar,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useServiceOrders } from '@/hooks/useServiceOrders';
@@ -52,6 +53,7 @@ import { ServiceOrderStatusesDialog } from '@/components/service-orders/ServiceO
 import { ServiceOrderDetailDialog } from '@/components/service-orders/ServiceOrderDetailDialog';
 import { ServiceOrderCloseDialog } from '@/components/service-orders/ServiceOrderCloseDialog';
 import { EquipmentsTab } from '@/components/service-orders/EquipmentsTab';
+import { ServiceOrdersAgenda } from '@/components/service-orders/ServiceOrdersAgenda';
 import { ServiceOrderFormData, ServiceOrder, ServiceOrderCloseData } from '@/types/serviceOrder';
 import { maintenanceMarkLabel } from '@/lib/serviceOrderMaintenance';
 import { format } from 'date-fns';
@@ -128,9 +130,12 @@ export default function ServiceOrders() {
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const openEquipmentId = searchParams.get('equipment');
-  const [moduleTab, setModuleTab] = useState<'orders' | 'equipments'>(() =>
+  const [moduleTab, setModuleTab] = useState<'orders' | 'equipments' | 'agenda'>(() =>
     openEquipmentId ? 'equipments' : 'orders'
   );
+  const [agendaRevision, setAgendaRevision] = useState(0);
+  const agendaDialogsOpen = showDetail || showCreate || showClose || showDeleteConfirm;
+  const agendaDialogWasOpen = useRef(false);
 
   const { toast } = useToast();
   const { activeOrganization, activeOrgId } = useActiveOrganization();
@@ -140,6 +145,16 @@ export default function ServiceOrders() {
   useEffect(() => {
     if (openEquipmentId) setModuleTab('equipments');
   }, [openEquipmentId]);
+
+  useEffect(() => {
+    if (agendaDialogsOpen) {
+      agendaDialogWasOpen.current = true;
+      return;
+    }
+    if (!agendaDialogWasOpen.current) return;
+    agendaDialogWasOpen.current = false;
+    setAgendaRevision((current) => current + 1);
+  }, [agendaDialogsOpen]);
 
   useEffect(() => {
     const openOrderId = (location.state as { openOrderId?: string } | null)?.openOrderId;
@@ -533,13 +548,17 @@ export default function ServiceOrders() {
 
         <Tabs
           value={moduleTab}
-          onValueChange={(value) => setModuleTab(value as 'orders' | 'equipments')}
+          onValueChange={(value) => setModuleTab(value as 'orders' | 'equipments' | 'agenda')}
           className="space-y-4"
         >
           <TabsList className="h-auto w-full justify-start gap-1 rounded-lg bg-slate-100 p-1" data-testid="os-module-tabs">
             <TabsTrigger value="orders" className="gap-1.5" data-testid="os-tab-orders">
               <ClipboardList className="h-4 w-4" />
               Ordens
+            </TabsTrigger>
+            <TabsTrigger value="agenda" className="gap-1.5" data-testid="os-tab-agenda">
+              <Calendar className="h-4 w-4" />
+              Agenda
             </TabsTrigger>
             <TabsTrigger value="equipments" className="gap-1.5" data-testid="os-tab-equipments">
               <Wrench className="h-4 w-4" />
@@ -892,6 +911,24 @@ export default function ServiceOrders() {
             </>
           )}
         </div>
+          </TabsContent>
+
+          <TabsContent value="agenda" className="mt-0">
+            <ServiceOrdersAgenda
+              refreshKey={agendaRevision}
+              onOpenOrder={async (id) => {
+                const order = await getOrder(id);
+                if (!order) {
+                  toast({
+                    title: 'Ordem não encontrada',
+                    description: 'Não foi possível abrir esta ordem de serviço.',
+                    variant: 'destructive',
+                  });
+                  return;
+                }
+                openOrderDetail(order);
+              }}
+            />
           </TabsContent>
         </Tabs>
       </div>
