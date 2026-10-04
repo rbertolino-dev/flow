@@ -11,7 +11,7 @@ import { OrganizationModulesPanel } from "./OrganizationModulesPanel";
 import { OrganizationLimitsPanel } from "./OrganizationLimitsPanel";
 import { FeaturePermissionGrid } from "@/components/users/FeaturePermissionGrid";
 import { AVAILABLE_FEATURES, readPlanModules } from "@/hooks/useOrganizationFeatures";
-import { deleteAllOrgSales, purgeFinancialEntries, suggestVigencia, updateOrgAdminMeta } from "@/lib/superadminOrg";
+import { deleteAllOrgSales, fetchOrgModuleUsage, purgeFinancialEntries, suggestVigencia, updateOrgAdminMeta, type OrgModuleUsage } from "@/lib/superadminOrg";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { differenceInCalendarDays, format } from "date-fns";
@@ -66,6 +66,10 @@ interface OrganizationDetailPanelProps {
   onUpdate: () => void;
 }
 
+function featureLabel(key: string): string {
+  return AVAILABLE_FEATURES.find((feature) => feature.value === key)?.label ?? key;
+}
+
 function permissionLabels(permissions: string[]): string {
   const labels = AVAILABLE_FEATURES.filter((feature) =>
     permissions.some((permission) => permission.includes(feature.value)),
@@ -100,6 +104,7 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
   const [permissionUser, setPermissionUser] = useState<Member | null>(null);
   const [confirm, setConfirm] = useState<null | "deactivate" | "sales" | "receber" | "pagar">(null);
   const [showLimits, setShowLimits] = useState(false);
+  const [moduleUsage, setModuleUsage] = useState<OrgModuleUsage[]>([]);
   const selectedPlanRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -109,6 +114,16 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
     setCurrentPlanId(organization.plan_id ?? null);
     setEditingName(false);
   }, [organization]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchOrgModuleUsage(organization.id).then((rows) => {
+      if (!cancelled) setModuleUsage(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [organization.id]);
 
   useEffect(() => {
     const loadPlans = async () => {
@@ -322,7 +337,21 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
                     {currentPlan.name}
                   </span>
                 )}
-                <p className="text-xs text-muted-foreground">Última modificação: {modifiedLabel}</p>
+                <div className="text-xs text-muted-foreground space-y-1 max-w-xl">
+                  <p className="font-medium text-foreground">Últimos módulos usados</p>
+                  {moduleUsage.length === 0 ? (
+                    <p>Ainda não há uso registrado nesta empresa.</p>
+                  ) : (
+                    moduleUsage.map((usage) => (
+                      <p key={usage.feature}>
+                        {format(new Date(usage.last_used_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                        {" — "}
+                        {featureLabel(usage.feature)}
+                      </p>
+                    ))
+                  )}
+                  <p className="pt-1">Última modificação: {modifiedLabel}</p>
+                </div>
                 {editingName ? (
                   <div className="flex gap-2 mt-1">
                     <Input value={name} onChange={(event) => setName(event.target.value)} />

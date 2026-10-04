@@ -17,6 +17,20 @@ async function callRpc<T>(name: string, args?: Record<string, unknown>): Promise
   return client.rpc(name, args);
 }
 
+export type OrgModuleUsage = {
+  feature: string;
+  last_used_at: string;
+};
+
+export async function fetchOrgModuleUsage(orgId: string): Promise<OrgModuleUsage[]> {
+  const { data, error } = await callRpc<OrgModuleUsage[]>("superadmin_list_module_usage", { _org_id: orgId });
+  if (error) {
+    console.warn("Uso de módulos indisponível:", error.message);
+    return [];
+  }
+  return Array.isArray(data) ? data : [];
+}
+
 export async function fetchOrgAdminMeta(): Promise<OrgAdminMeta[]> {
   const { data, error } = await callRpc<OrgAdminMeta[]>("superadmin_list_org_meta");
   if (error) {

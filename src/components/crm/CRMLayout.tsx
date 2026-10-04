@@ -18,6 +18,7 @@ import { useOrgUserPermissions } from "@/hooks/useOrgUserPermissions";
 import { EditOrganizationDialog } from "./EditOrganizationDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { VersionBanner } from "@/components/VersionBanner";
+import { featureFromLocation, recordModuleUse } from "@/lib/recordModuleUse";
 import { REPORTS_NAV_ITEMS, isReportsPath } from "@/components/reports/reportsNavItems";
 export type CRMView = 
   | "kanban" 
@@ -121,6 +122,11 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     setReportsFlyoutOpen(false);
     setMobileReportsOpen(isReportsPath(location.pathname));
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!activeOrgId) return;
+    recordModuleUse(activeOrgId, featureFromLocation(location.pathname, location.state));
+  }, [activeOrgId, location.pathname, location.state]);
 
   useEffect(() => {
     if (!reportsFlyoutOpen) return;
