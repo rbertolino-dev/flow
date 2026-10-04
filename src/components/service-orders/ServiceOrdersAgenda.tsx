@@ -8,6 +8,7 @@ import {
   endOfWeek,
   format,
   isSameDay,
+  isSameMonth,
   isToday,
   setHours,
   startOfDay,
@@ -31,13 +32,8 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar } from '@/components/ui/calendar';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
@@ -232,12 +228,14 @@ function uniqueLabels(values: Array<string | null | undefined>) {
   );
 }
 
+const WEEK = { locale: ptBR, weekStartsOn: 1 as const };
+
 function viewRange(mode: ViewMode, month: Date, week: Date, day: Date) {
   if (mode === 'day') return { start: startOfDay(day), end: endOfDay(day) };
   if (mode === 'week') {
     return {
-      start: startOfWeek(week, { locale: ptBR }),
-      end: endOfWeek(week, { locale: ptBR }),
+      start: startOfWeek(week, WEEK),
+      end: endOfWeek(week, WEEK),
     };
   }
   if (mode === 'list') {
@@ -245,8 +243,8 @@ function viewRange(mode: ViewMode, month: Date, week: Date, day: Date) {
     return { start: startOfDay(addDays(now, -30)), end: endOfDay(addDays(now, 90)) };
   }
   return {
-    start: startOfWeek(startOfMonth(month), { locale: ptBR }),
-    end: endOfWeek(endOfMonth(month), { locale: ptBR }),
+    start: startOfWeek(startOfMonth(month), WEEK),
+    end: endOfWeek(endOfMonth(month), WEEK),
   };
 }
 
@@ -259,74 +257,56 @@ async function runSelect(build: (columns: string) => Promise<{ data: unknown; er
   return ((result.data || []) as Record<string, unknown>[]).map(normalize);
 }
 
-function OrderCard({
+function clockOf(order: AgendaOrder, day?: Date) {
+  if (!order.starts_at) return '—';
+  const start = new Date(order.starts_at);
+  if (day && !isSameDay(start, day)) return '···';
+  return format(start, 'HH:mm');
+}
+
+function AgendaLine({
   order,
   day,
   conflict,
-  compact,
-  showDate,
+  rich,
   onOpen,
 }: {
   order: AgendaOrder;
   day?: Date;
   conflict?: boolean;
-  compact?: boolean;
-  showDate?: boolean;
+  rich?: boolean;
   onOpen: (id: string) => void;
 }) {
+  const color = order.status?.color || '#0284c7';
   return (
     <button
       type="button"
-      onClick={() => onOpen(order.id)}
-      className="w-full rounded-lg border border-slate-200 bg-white p-2.5 text-left shadow-sm transition hover:border-sky-300"
-      style={{ borderLeftWidth: 4, borderLeftColor: order.status?.color || '#94a3b8' }}
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpen(order.id);
+      }}
+      className="flex w-full items-center gap-1.5 rounded-md px-1 py-0.5 text-left transition hover:bg-white/90"
+      title={`${clockOf(order, day)} ${order.code} ${order.client_name || ''} ${order.service_name || ''}`}
       data-testid={`os-agenda-card-${order.id}`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <span className="font-mono text-sm font-bold text-sky-800">{order.code}</span>
-        <span className="shrink-0 text-xs font-medium text-slate-600">{showDate && order.starts_at ? format(new Date(order.starts_at), 'dd/MM HH:mm') : timeLabel(order, day)}</span>
-      </div>
-      <p className="mt-1 truncate text-sm font-medium text-slate-900">{order.client_name || 'Sem cliente'}</p>
-      <p className="truncate text-xs text-slate-600">{order.service_name || 'Serviço não informado'}</p>
-      {compact ? (
-        <p className="truncate text-xs text-slate-500">{technicianName(order) || 'Sem técnico'}</p>
-      ) : (
-        <div className="mt-2 space-y-1 text-xs text-slate-500">
-          <p className="flex items-center gap-1">
-            <UserRound className="h-3 w-3 shrink-0" />
-            <span className="truncate">Técnico: {technicianName(order) || 'Sem técnico'}</span>
-          </p>
-          <p className="truncate">Responsável: {order.responsible_name?.trim() || '—'}</p>
-          {order.address ? (
-            <p className="flex items-center gap-1">
-              <MapPin className="h-3 w-3 shrink-0" />
-              <span className="truncate">{order.address}</span>
-            </p>
-          ) : null}
-        </div>
-      )}
-      <div className="mt-2 flex flex-wrap items-center gap-1">
-        <span
-          className="inline-flex max-w-full truncate rounded-full px-2 py-0.5 text-[11px] font-medium text-white"
-          style={{ backgroundColor: order.status?.color || '#64748b' }}
-        >
-          {order.status?.name || 'Sem etapa'}
-        </span>
-        {order.maintenance_plan_id ? (
-          <Badge variant="outline" className="border-teal-200 bg-teal-50 text-[11px] text-teal-800">
-            Manutenção
-          </Badge>
-        ) : null}
-        {conflict ? (
-          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700">
-            <AlertTriangle className="h-3 w-3" />
-            Conflito
-          </span>
-        ) : null}
-      </div>
+      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+      <span className="w-10 shrink-0 text-[11px] font-semibold tabular-nums text-slate-700">{clockOf(order, day)}</span>
+      <span className={`min-w-0 truncate text-[11px] ${rich ? 'font-medium text-slate-900' : 'text-slate-800'}`}>
+        {order.client_name || order.code}
+      </span>
+      {rich ? <span className="hidden truncate text-[11px] text-slate-500 sm:inline">{order.service_name || ''}</span> : null}
+      {conflict ? <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" /> : null}
     </button>
   );
 }
+
+const TECH_WASH = [
+  'from-sky-50 to-white',
+  'from-amber-50 to-white',
+  'from-emerald-50 to-white',
+  'from-violet-50 to-white',
+  'from-rose-50 to-white',
+];
 
 export function ServiceOrdersAgenda({
   refreshKey,
@@ -342,7 +322,6 @@ export function ServiceOrdersAgenda({
   const undatedRef = useRef<HTMLDivElement>(null);
 
   const [viewMode, setViewMode] = useState<ViewMode>('month');
-  const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [currentWeek, setCurrentWeek] = useState(() => new Date());
   const [currentDay, setCurrentDay] = useState(() => new Date());
@@ -354,6 +333,7 @@ export function ServiceOrdersAgenda({
     search: '',
   });
   const [onlyOverdue, setOnlyOverdue] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [periodOrders, setPeriodOrders] = useState<AgendaOrder[]>([]);
   const [undatedOrders, setUndatedOrders] = useState<AgendaOrder[]>([]);
   const [todayOrders, setTodayOrders] = useState<AgendaOrder[]>([]);
@@ -519,12 +499,6 @@ export function ServiceOrdersAgenda({
     return map;
   }, [viewPeriod]);
 
-  const selectedKey = format(selectedDate, 'yyyy-MM-dd');
-  const selectedDayOrders = ordersByDate.get(selectedKey) || [];
-  const selectedConflicts = useMemo(
-    () => conflictIds(viewPeriod, selectedDate),
-    [viewPeriod, selectedDate]
-  );
   const listConflicts = useMemo(() => {
     const ids = new Set<string>();
     ordersByDate.forEach((_, key) => {
@@ -534,9 +508,26 @@ export function ServiceOrdersAgenda({
   }, [ordersByDate, viewPeriod]);
 
   const weekDays = useMemo(() => {
-    const start = startOfWeek(currentWeek, { locale: ptBR });
-    return eachDayOfInterval({ start, end: endOfWeek(currentWeek, { locale: ptBR }) });
+    const start = startOfWeek(currentWeek, WEEK);
+    return eachDayOfInterval({ start, end: endOfWeek(currentWeek, WEEK) });
   }, [currentWeek]);
+
+  const monthCells = useMemo(() => {
+    const start = startOfWeek(startOfMonth(currentMonth), WEEK);
+    const end = endOfWeek(endOfMonth(currentMonth), WEEK);
+    return eachDayOfInterval({ start, end });
+  }, [currentMonth]);
+
+  const listGroups = useMemo(() => {
+    const groups = new Map<string, AgendaOrder[]>();
+    viewPeriod.forEach((order) => {
+      const key = order.starts_at ? format(new Date(order.starts_at), 'yyyy-MM-dd') : 'sem-data';
+      const list = groups.get(key) || [];
+      list.push(order);
+      groups.set(key, list);
+    });
+    return Array.from(groups.entries());
+  }, [viewPeriod]);
 
   const dayOrders = useMemo(
     () => (ordersByDate.get(format(currentDay, 'yyyy-MM-dd')) || []),
@@ -566,7 +557,6 @@ export function ServiceOrdersAgenda({
   const allDayOrders = dayOrders.filter((order) => !order.starts_at || !isSameDay(new Date(order.starts_at), currentDay));
 
   const focusDay = (day: Date) => {
-    setSelectedDate(day);
     setCurrentDay(day);
     setCurrentWeek(day);
     setCurrentMonth(day);
@@ -586,6 +576,14 @@ export function ServiceOrdersAgenda({
     if (viewMode === 'day') focusDay(addDays(currentDay, direction));
   };
 
+  const activeFilters =
+    (filters.technician !== ALL ? 1 : 0) +
+    (filters.responsible !== ALL ? 1 : 0) +
+    (filters.service !== ALL ? 1 : 0) +
+    (filters.status !== ALL ? 1 : 0) +
+    (filters.search.trim() ? 1 : 0) +
+    (onlyOverdue ? 1 : 0);
+
   const title = (() => {
     if (viewMode === 'month') return format(currentMonth, 'MMMM yyyy', { locale: ptBR });
     if (viewMode === 'week') {
@@ -597,226 +595,242 @@ export function ServiceOrdersAgenda({
 
   return (
     <div className="space-y-4" data-testid="os-agenda">
-      <div>
-        <h2 className="text-lg font-semibold">Agenda das ordens</h2>
-        <p className="text-sm text-muted-foreground">Datas e horários das ordens de serviço criadas.</p>
-      </div>
+      <section className="relative overflow-hidden rounded-[28px] border border-white/80 bg-gradient-to-br from-amber-50 via-sky-100 to-emerald-50 p-4 shadow-sm sm:p-6">
+        <div className="pointer-events-none absolute -left-8 -top-16 h-40 w-40 rounded-full bg-amber-200/60 blur-3xl" />
+        <div className="pointer-events-none absolute right-0 top-0 h-44 w-44 rounded-full bg-sky-300/40 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 left-1/3 h-28 w-56 rounded-full bg-emerald-200/50 blur-3xl" />
+        <div className="relative space-y-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-900/60">Ordem de serviço</p>
+              <h2 className="text-3xl font-semibold tracking-tight text-slate-950">Agenda</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                {viewPeriod.length} {viewPeriod.length === 1 ? 'ordem neste período' : 'ordens neste período'}
+                {loading ? ' · carregando' : ''}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <SummaryChip
+                label="No dia"
+                value={filteredToday.length}
+                active={viewMode === 'day' && isToday(currentDay)}
+                testId="os-agenda-summary-today"
+                onClick={() => {
+                  setOnlyOverdue(false);
+                  focusDay(new Date());
+                  setViewMode('day');
+                }}
+              />
+              <SummaryChip
+                label="Atraso"
+                value={filteredOverdue.length}
+                active={onlyOverdue}
+                tone="rose"
+                testId="os-agenda-summary-overdue"
+                onClick={() => {
+                  setOnlyOverdue((current) => !current);
+                  setViewMode('list');
+                }}
+              />
+              <SummaryChip
+                label="Sem técnico"
+                value={noTechCount}
+                active={filters.technician === NO_TECH}
+                testId="os-agenda-summary-technician"
+                onClick={() =>
+                  setFilters((current) => ({
+                    ...current,
+                    technician: current.technician === NO_TECH ? ALL : NO_TECH,
+                  }))
+                }
+              />
+              <SummaryChip
+                label="Sem data"
+                value={filteredUndated.length}
+                testId="os-agenda-summary-undated"
+                onClick={() => undatedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              />
+            </div>
+          </div>
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <SummaryChip
-          label="Hoje"
-          value={filteredToday.length}
-          active={viewMode === 'day' && isToday(currentDay)}
-          testId="os-agenda-summary-today"
-          onClick={() => {
-            setOnlyOverdue(false);
-            focusDay(new Date());
-            setViewMode('day');
-          }}
-        />
-        <SummaryChip
-          label="Atrasadas"
-          value={filteredOverdue.length}
-          active={onlyOverdue}
-          tone="amber"
-          testId="os-agenda-summary-overdue"
-          onClick={() => {
-            setOnlyOverdue((current) => !current);
-            setViewMode('list');
-          }}
-        />
-        <SummaryChip
-          label="Sem técnico"
-          value={noTechCount}
-          active={filters.technician === NO_TECH}
-          testId="os-agenda-summary-technician"
-          onClick={() =>
-            setFilters((current) => ({
-              ...current,
-              technician: current.technician === NO_TECH ? ALL : NO_TECH,
-            }))
-          }
-        />
-        <SummaryChip
-          label="Sem data"
-          value={filteredUndated.length}
-          testId="os-agenda-summary-undated"
-          onClick={() => undatedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-        />
-      </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              {viewMode !== 'list' ? (
+                <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-800 shadow-sm" onClick={() => shift(-1)} aria-label="Período anterior">
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+              ) : null}
+              <h3 className="min-w-[12rem] text-xl font-semibold capitalize text-slate-900">{title}</h3>
+              {viewMode !== 'list' ? (
+                <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-800 shadow-sm" onClick={() => shift(1)} aria-label="Próximo período">
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              ) : null}
+              <button type="button" className="rounded-full bg-white/80 px-3 py-1.5 text-sm font-medium text-slate-800 shadow-sm" onClick={() => focusDay(new Date())}>
+                Hoje
+              </button>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin text-sky-800" /> : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 rounded-full bg-white/60 p-1">
+                <ViewButton active={viewMode === 'day'} label="Dia" onClick={() => setViewMode('day')}>
+                  <CalendarDays className="h-3.5 w-3.5" />
+                </ViewButton>
+                <ViewButton active={viewMode === 'week'} label="Semana" onClick={() => setViewMode('week')}>
+                  <Grid3x3 className="h-3.5 w-3.5" />
+                </ViewButton>
+                <ViewButton active={viewMode === 'month'} label="Mês" onClick={() => setViewMode('month')}>
+                  <CalendarIcon className="h-3.5 w-3.5" />
+                </ViewButton>
+                <ViewButton active={viewMode === 'list'} label="Lista" onClick={() => setViewMode('list')}>
+                  <List className="h-3.5 w-3.5" />
+                </ViewButton>
+              </div>
+              <button
+                type="button"
+                className={`rounded-full px-3 py-1.5 text-sm font-medium shadow-sm ${filtersOpen || activeFilters ? 'bg-sky-900 text-white' : 'bg-white/80 text-slate-800'}`}
+                onClick={() => setFiltersOpen((open) => !open)}
+                aria-expanded={filtersOpen}
+              >
+                Filtros{activeFilters ? ` ${activeFilters}` : ''}
+              </button>
+            </div>
+          </div>
 
-      <div className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-2 xl:grid-cols-5">
-        <FilterSelect
-          label="Técnico"
-          value={filters.technician}
-          testId="os-agenda-filter-technician"
-          onChange={(technician) => setFilters((current) => ({ ...current, technician }))}
-          options={[{ value: ALL, label: 'Todos' }, { value: NO_TECH, label: 'Sem técnico' }, ...technicianOptions.map((item) => ({ value: item, label: item }))]}
-        />
-        <FilterSelect
-          label="Responsável"
-          value={filters.responsible}
-          testId="os-agenda-filter-responsible"
-          onChange={(responsible) => setFilters((current) => ({ ...current, responsible }))}
-          options={[{ value: ALL, label: 'Todos' }, ...responsibleOptions.map((item) => ({ value: item, label: item }))]}
-        />
-        <FilterSelect
-          label="Serviço"
-          value={filters.service}
-          testId="os-agenda-filter-service"
-          onChange={(service) => setFilters((current) => ({ ...current, service }))}
-          options={[{ value: ALL, label: 'Todos' }, ...serviceOptions.map((item) => ({ value: item, label: item }))]}
-        />
-        <FilterSelect
-          label="Etapa"
-          value={filters.status}
-          testId="os-agenda-filter-status"
-          onChange={(status) => setFilters((current) => ({ ...current, status }))}
-          options={[{ value: ALL, label: 'Todas' }, ...statusOptions.map(([id, name]) => ({ value: id, label: name }))]}
-        />
-        <div className="space-y-1">
-          <Label>Código ou cliente</Label>
-          <Input
-            value={filters.search}
-            onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
-            placeholder="Buscar"
-            data-testid="os-agenda-search"
-          />
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          {viewMode !== 'list' ? (
-            <Button variant="outline" size="icon" onClick={() => shift(-1)} aria-label="Período anterior">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
+          {filtersOpen ? (
+            <div className="grid gap-3 rounded-2xl bg-white/70 p-4 md:grid-cols-2 xl:grid-cols-5">
+              <FilterSelect
+                label="Técnico"
+                value={filters.technician}
+                testId="os-agenda-filter-technician"
+                onChange={(technician) => setFilters((current) => ({ ...current, technician }))}
+                options={[{ value: ALL, label: 'Todos' }, { value: NO_TECH, label: 'Sem técnico' }, ...technicianOptions.map((item) => ({ value: item, label: item }))]}
+              />
+              <FilterSelect
+                label="Responsável"
+                value={filters.responsible}
+                testId="os-agenda-filter-responsible"
+                onChange={(responsible) => setFilters((current) => ({ ...current, responsible }))}
+                options={[{ value: ALL, label: 'Todos' }, ...responsibleOptions.map((item) => ({ value: item, label: item }))]}
+              />
+              <FilterSelect
+                label="Serviço"
+                value={filters.service}
+                testId="os-agenda-filter-service"
+                onChange={(service) => setFilters((current) => ({ ...current, service }))}
+                options={[{ value: ALL, label: 'Todos' }, ...serviceOptions.map((item) => ({ value: item, label: item }))]}
+              />
+              <FilterSelect
+                label="Etapa"
+                value={filters.status}
+                testId="os-agenda-filter-status"
+                onChange={(status) => setFilters((current) => ({ ...current, status }))}
+                options={[{ value: ALL, label: 'Todas' }, ...statusOptions.map(([id, name]) => ({ value: id, label: name }))]}
+              />
+              <div className="space-y-1">
+                <Label>Código ou cliente</Label>
+                <Input
+                  value={filters.search}
+                  onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
+                  placeholder="Buscar"
+                  data-testid="os-agenda-search"
+                />
+              </div>
+            </div>
           ) : null}
-          <h3 className="text-xl font-semibold capitalize">{title}</h3>
-          {viewMode !== 'list' ? (
-            <Button variant="outline" size="icon" onClick={() => shift(1)} aria-label="Próximo período">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          ) : null}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              focusDay(new Date());
-            }}
-          >
-            Hoje
-          </Button>
         </div>
-        <div className="flex items-center gap-1 rounded-md border p-1">
-          <ViewButton active={viewMode === 'month'} label="Mês" onClick={() => setViewMode('month')}>
-            <CalendarIcon className="h-4 w-4" />
-          </ViewButton>
-          <ViewButton active={viewMode === 'week'} label="Semana" onClick={() => setViewMode('week')}>
-            <Grid3x3 className="h-4 w-4" />
-          </ViewButton>
-          <ViewButton active={viewMode === 'day'} label="Dia" onClick={() => setViewMode('day')}>
-            <CalendarDays className="h-4 w-4" />
-          </ViewButton>
-          <ViewButton active={viewMode === 'list'} label="Lista" onClick={() => setViewMode('list')}>
-            <List className="h-4 w-4" />
-          </ViewButton>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary">
-          {viewPeriod.length} {viewPeriod.length === 1 ? 'ordem no período' : 'ordens no período'}
-        </Badge>
-        {onlyOverdue ? <Badge variant="outline">Somente atrasadas</Badge> : null}
-        {loading ? (
-          <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Carregando
-          </span>
-        ) : null}
-      </div>
+      </section>
 
       {viewMode === 'month' ? (
-        <div className="grid gap-4 lg:grid-cols-3">
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle>Calendário mensal</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(day) => {
-                  if (day) focusDay(day);
-                }}
-                month={currentMonth}
-                onMonthChange={(day) => {
-                  if (day) setCurrentMonth(day);
-                }}
-                locale={ptBR}
-                className="w-full rounded-md border"
-                modifiers={{
-                  hasOrders: (date) => ordersByDate.has(format(date, 'yyyy-MM-dd')),
-                }}
-                modifiersClassNames={{
-                  hasOrders: 'bg-primary/20 font-semibold',
-                }}
-              />
-              <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                <span className="h-3 w-3 rounded border border-primary/50 bg-primary/20" />
-                Dia com ordem
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="capitalize">
-                {format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <OrderList
-                orders={selectedDayOrders}
-                day={selectedDate}
-                conflicts={selectedConflicts}
-                onOpen={onOpenOrder}
-                empty="Nenhuma ordem neste dia"
-              />
-            </CardContent>
-          </Card>
+        <div className="overflow-x-auto rounded-[28px] border border-sky-100 bg-white/80 shadow-sm">
+          <div className="min-w-[920px]">
+            <div className="grid grid-cols-7 bg-sky-50/80">
+              {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((label) => (
+                <div key={label} className="px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-900/55">
+                  {label}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7">
+              {monthCells.map((day) => {
+                const key = format(day, 'yyyy-MM-dd');
+                const items = ordersByDate.get(key) || [];
+                const conflicts = conflictIds(viewPeriod, day);
+                const outside = !isSameMonth(day, currentMonth);
+                const weekend = day.getDay() === 0 || day.getDay() === 6;
+                const visible = items.slice(0, 4);
+                const extra = items.length - visible.length;
+                return (
+                  <div
+                    key={key}
+                    className={`min-h-[138px] border-t border-r border-sky-100/80 p-1.5 ${
+                      outside ? 'bg-slate-50/80 text-slate-400' : isToday(day) ? 'bg-sky-50' : weekend ? 'bg-amber-50/50' : 'bg-white'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        focusDay(day);
+                        setViewMode('day');
+                      }}
+                      className={`mb-1 inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${
+                        isToday(day) ? 'bg-sky-700 text-white' : 'text-slate-800 hover:bg-white'
+                      }`}
+                    >
+                      {format(day, 'd')}
+                    </button>
+                    <div className="space-y-0.5">
+                      {visible.map((order) => (
+                        <AgendaLine key={order.id} order={order} day={day} conflict={conflicts.has(order.id)} onOpen={onOpenOrder} />
+                      ))}
+                      {extra > 0 ? (
+                        <button
+                          type="button"
+                          className="px-1 text-[11px] font-semibold text-sky-800"
+                          onClick={() => {
+                            focusDay(day);
+                            setViewMode('day');
+                          }}
+                        >
+                          +{extra}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       ) : null}
 
       {viewMode === 'week' ? (
-        <div className="overflow-x-auto">
-          <div className="grid min-w-[980px] grid-cols-7 gap-2">
+        <div className="overflow-x-auto rounded-[28px] border border-sky-100 bg-white/80 shadow-sm">
+          <div className="grid min-w-[980px] grid-cols-7">
             {weekDays.map((day) => {
               const key = format(day, 'yyyy-MM-dd');
               const items = ordersByDate.get(key) || [];
               const conflicts = conflictIds(viewPeriod, day);
+              const visible = items.slice(0, 10);
+              const extra = items.length - visible.length;
               return (
-                <div
-                  key={key}
-                  className={`min-h-[280px] rounded-lg border p-2 ${isToday(day) ? 'border-primary bg-primary/5' : 'bg-muted/30'}`}
-                >
-                  <button type="button" className="mb-2 w-full rounded p-1 text-center hover:bg-accent" onClick={() => { focusDay(day); setViewMode('day'); }}>
-                    <p className="text-xs capitalize text-muted-foreground">{format(day, 'EEE', { locale: ptBR })}</p>
-                    <p className={`text-lg font-bold ${isToday(day) ? 'text-primary' : ''}`}>{format(day, 'd')}</p>
-                    {items.length > 0 ? <Badge variant="secondary" className="mt-1">{items.length}</Badge> : null}
+                <div key={key} className={`min-h-[460px] border-r border-sky-100 p-2 ${isToday(day) ? 'bg-sky-50' : 'bg-white'}`}>
+                  <button
+                    type="button"
+                    className="mb-2 w-full rounded-2xl px-1 py-2 text-center hover:bg-white"
+                    onClick={() => {
+                      focusDay(day);
+                      setViewMode('day');
+                    }}
+                  >
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-900/50">{format(day, 'EEE', { locale: ptBR })}</p>
+                    <p className={`text-2xl font-semibold ${isToday(day) ? 'text-sky-800' : 'text-slate-900'}`}>{format(day, 'd')}</p>
                   </button>
-                  <div className="space-y-2">
-                    {items.slice(0, 5).map((order) => (
-                      <OrderCard
-                        key={order.id}
-                        order={order}
-                        day={day}
-                        compact
-                        conflict={conflicts.has(order.id)}
-                        onOpen={onOpenOrder}
-                      />
+                  <div className="space-y-1">
+                    {visible.map((order) => (
+                      <AgendaLine key={order.id} order={order} day={day} conflict={conflicts.has(order.id)} onOpen={onOpenOrder} />
                     ))}
-                    {items.length > 5 ? <p className="text-center text-xs text-muted-foreground">+{items.length - 5} mais</p> : null}
+                    {extra > 0 ? <p className="px-1 text-[11px] font-semibold text-sky-800">+{extra}</p> : null}
                   </div>
                 </div>
               );
@@ -826,103 +840,158 @@ export function ServiceOrdersAgenda({
       ) : null}
 
       {viewMode === 'day' ? (
-        <div className="grid gap-4 xl:grid-cols-[320px_1fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Clock className="h-4 w-4" />
-                Horários
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[640px] pr-3">
-                {allDayOrders.length > 0 ? (
-                  <div className="mb-3 space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Dia inteiro</p>
-                    {allDayOrders.map((order) => (
-                      <OrderCard key={order.id} order={order} day={currentDay} conflict={dayConflicts.has(order.id)} onOpen={onOpenOrder} />
+        <div className="space-y-4">
+          <div className="overflow-hidden rounded-[28px] border border-sky-100 bg-white/85 shadow-sm">
+            {allDayOrders.length > 0 ? (
+              <div className="grid grid-cols-[76px_1fr] border-b border-sky-100 bg-amber-50/70">
+                <div className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-amber-800">Dia</div>
+                <div className="space-y-1 py-2 pr-3">
+                  {allDayOrders.map((order) => (
+                    <DayBand key={order.id} order={order} day={currentDay} conflict={dayConflicts.has(order.id)} onOpen={onOpenOrder} />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {dayHours.map((hour) => {
+              const items = dayOrders.filter(
+                (order) => order.starts_at && isSameDay(new Date(order.starts_at), currentDay) && new Date(order.starts_at).getHours() === hour.getHours()
+              );
+              return (
+                <div key={hour.toISOString()} className={`grid grid-cols-[76px_1fr] border-t border-sky-50 ${items.length ? 'bg-white' : 'bg-sky-50/20'}`}>
+                  <div className="px-3 py-3 text-sm font-semibold tabular-nums text-sky-900/60">{format(hour, 'HH:mm')}</div>
+                  <div className="min-h-11 space-y-1 py-2 pr-3">
+                    {items.map((order) => (
+                      <DayBand key={order.id} order={order} day={currentDay} conflict={dayConflicts.has(order.id)} onOpen={onOpenOrder} />
                     ))}
                   </div>
-                ) : null}
-                <div className="space-y-3">
-                  {dayHours.map((hour) => {
-                    const items = dayOrders.filter((order) => order.starts_at && isSameDay(new Date(order.starts_at), currentDay) && new Date(order.starts_at).getHours() === hour.getHours());
-                    return (
-                      <div key={hour.toISOString()} className="grid grid-cols-[52px_1fr] gap-2">
-                        <p className="pt-2 text-xs font-medium text-muted-foreground">{format(hour, 'HH:mm')}</p>
-                        <div className="min-h-8 space-y-2 border-t pt-2">
-                          {items.map((order) => (
-                            <OrderCard key={order.id} order={order} day={currentDay} conflict={dayConflicts.has(order.id)} onOpen={onOpenOrder} />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
                 </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Por técnico</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {technicianColumns.length === 0 ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma ordem neste dia</p>
-              ) : (
-                <div className="grid gap-3 md:grid-cols-2">
-                  {technicianColumns.map((name) => {
-                    const items = dayOrders.filter((order) => (technicianName(order) || 'Sem técnico') === name);
-                    return (
-                      <div key={name} className="rounded-lg border bg-muted/20 p-3">
-                        <p className="mb-2 text-sm font-semibold">{name}</p>
-                        <div className="space-y-2">
-                          {items.map((order) => (
-                            <OrderCard key={order.id} order={order} day={currentDay} conflict={dayConflicts.has(order.id)} onOpen={onOpenOrder} />
-                          ))}
-                        </div>
+              );
+            })}
+            {dayOrders.length === 0 ? <p className="px-4 py-8 text-center text-sm text-slate-500">Nenhuma ordem neste dia</p> : null}
+          </div>
+          {technicianColumns.length > 0 ? (
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-slate-800">Por técnico</h3>
+              <div className="flex gap-3 overflow-x-auto pb-1">
+                {technicianColumns.map((name, index) => {
+                  const items = dayOrders.filter((order) => (technicianName(order) || 'Sem técnico') === name);
+                  return (
+                    <div key={name} className={`min-w-[240px] flex-1 rounded-3xl bg-gradient-to-b ${TECH_WASH[index % TECH_WASH.length]} p-3 ring-1 ring-white`}>
+                      <p className="mb-2 flex items-center gap-1 text-sm font-semibold text-slate-800">
+                        <UserRound className="h-3.5 w-3.5" />
+                        {name}
+                      </p>
+                      <div className="space-y-1">
+                        {items.map((order) => (
+                          <AgendaLine key={order.id} order={order} day={currentDay} rich conflict={dayConflicts.has(order.id)} onOpen={onOpenOrder} />
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
       {viewMode === 'list' ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              {format(range.start, 'dd/MM/yyyy', { locale: ptBR })} – {format(range.end, 'dd/MM/yyyy', { locale: ptBR })}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <OrderList orders={viewPeriod} conflicts={listConflicts} onOpen={onOpenOrder} showDate empty="Nenhuma ordem neste período" />
-          </CardContent>
-        </Card>
+        <div className="space-y-5">
+          {listGroups.length === 0 ? <p className="py-10 text-center text-sm text-slate-500">Nenhuma ordem neste período</p> : null}
+          {listGroups.map(([key, items]) => (
+            <section key={key}>
+              <h3 className="mb-2 text-sm font-semibold capitalize text-sky-950">
+                {format(new Date(`${key}T12:00:00`), "EEEE, d 'de' MMMM", { locale: ptBR })}
+              </h3>
+              <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white/85">
+                {items.map((order) => (
+                  <button
+                    key={order.id}
+                    type="button"
+                    onClick={() => onOpenOrder(order.id)}
+                    className="grid w-full grid-cols-[4.5rem_1fr] items-center gap-3 border-t border-sky-50 px-3 py-2.5 text-left first:border-t-0 hover:bg-sky-50/70 sm:grid-cols-[4.5rem_1fr_auto]"
+                    data-testid={`os-agenda-card-${order.id}`}
+                  >
+                    <span className="text-sm font-semibold tabular-nums text-slate-800">{clockOf(order)}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium text-slate-900">{order.client_name || order.code}</span>
+                      <span className="block truncate text-xs text-slate-500">
+                        {order.service_name || 'Serviço não informado'} · {technicianName(order) || 'Sem técnico'}
+                      </span>
+                    </span>
+                    <span className="hidden items-center gap-2 sm:flex">
+                      {listConflicts.has(order.id) ? <AlertTriangle className="h-3.5 w-3.5 text-amber-600" /> : null}
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: order.status?.color || '#0284c7' }} />
+                      <span className="max-w-[8rem] truncate text-xs text-slate-500">{order.status?.name || 'Sem etapa'}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
       ) : null}
 
       <div ref={undatedRef} data-testid="os-agenda-undated">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Sem data</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {filteredUndated.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma ordem sem data</p>
-            ) : (
-              <div className="grid gap-2 md:grid-cols-2">
-                {filteredUndated.map((order) => (
-                  <OrderCard key={order.id} order={order} onOpen={onOpenOrder} />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {filteredUndated.length > 0 ? (
+          <div className="rounded-[28px] border border-dashed border-slate-200 bg-white/60 p-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Sem data</p>
+            <div className="flex flex-wrap gap-2">
+              {filteredUndated.map((order) => (
+                <button
+                  key={order.id}
+                  type="button"
+                  onClick={() => onOpenOrder(order.id)}
+                  className="inline-flex max-w-full items-center gap-2 rounded-full bg-white px-3 py-1.5 text-left text-sm shadow-sm ring-1 ring-slate-200 hover:ring-sky-300"
+                  data-testid={`os-agenda-card-${order.id}`}
+                >
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: order.status?.color || '#64748b' }} />
+                  <span className="truncate font-medium">{order.code}</span>
+                  <span className="truncate text-slate-500">{order.client_name || 'Sem cliente'}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
+  );
+}
+
+function DayBand({
+  order,
+  day,
+  conflict,
+  onOpen,
+}: {
+  order: AgendaOrder;
+  day: Date;
+  conflict: boolean;
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(order.id)}
+      className="flex w-full items-center gap-3 rounded-2xl bg-gradient-to-r from-white to-sky-50/80 px-3 py-2 text-left ring-1 ring-sky-100 transition hover:ring-sky-300"
+    >
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: order.status?.color || '#0284c7' }} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-medium text-slate-900">{order.client_name || order.code}</span>
+        <span className="flex items-center gap-1 truncate text-xs text-slate-500">
+          <Clock className="h-3 w-3 shrink-0" />
+          {timeLabel(order, day)} · {order.service_name || 'Serviço não informado'} · {technicianName(order) || 'Sem técnico'}
+          {order.address ? (
+            <>
+              <MapPin className="h-3 w-3 shrink-0" />
+              <span className="truncate">{order.address}</span>
+            </>
+          ) : null}
+        </span>
+      </span>
+      {conflict ? <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" /> : null}
+      {order.maintenance_plan_id ? <span className="hidden text-[11px] font-medium text-teal-700 sm:inline">Manutenção</span> : null}
+    </button>
   );
 }
 
@@ -937,7 +1006,7 @@ function SummaryChip({
   label: string;
   value: number;
   active?: boolean;
-  tone?: 'amber';
+  tone?: 'rose';
   testId: string;
   onClick: () => void;
 }) {
@@ -946,13 +1015,13 @@ function SummaryChip({
       type="button"
       onClick={onClick}
       aria-pressed={!!active}
-      className={`rounded-lg border p-3 text-left shadow-sm transition ${
-        active ? 'border-primary ring-2 ring-primary/30' : 'bg-card hover:border-primary/40'
-      } ${tone === 'amber' ? 'bg-amber-50' : ''}`}
+      className={`min-w-[104px] rounded-2xl px-4 py-3 text-left shadow-sm backdrop-blur transition ${
+        tone === 'rose' ? 'bg-rose-100/90' : 'bg-white/80'
+      } ${active ? 'ring-2 ring-sky-700' : 'hover:-translate-y-0.5'}`}
       data-testid={testId}
     >
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-bold">{value}</p>
+      <p className="text-3xl font-semibold leading-none tracking-tight text-slate-950">{value}</p>
+      <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-slate-500">{label}</p>
     </button>
   );
 }
@@ -1001,44 +1070,16 @@ function ViewButton({
   children: ReactNode;
 }) {
   return (
-    <Button variant={active ? 'default' : 'ghost'} size="sm" className="h-8" onClick={onClick} aria-label={label}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ${
+        active ? 'bg-sky-900 text-white shadow' : 'text-sky-950/70 hover:bg-white/80'
+      }`}
+    >
       {children}
-    </Button>
-  );
-}
-
-function OrderList({
-  orders,
-  day,
-  conflicts,
-  onOpen,
-  empty,
-  showDate,
-}: {
-  orders: AgendaOrder[];
-  day?: Date;
-  conflicts: Set<string>;
-  onOpen: (id: string) => void;
-  empty: string;
-  showDate?: boolean;
-}) {
-  if (orders.length === 0) {
-    return <p className="py-8 text-center text-sm text-muted-foreground">{empty}</p>;
-  }
-  return (
-    <ScrollArea className="h-[520px] pr-3">
-      <div className="space-y-2">
-        {orders.map((order) => (
-          <OrderCard
-            key={`${order.id}-${day?.toISOString() || 'list'}`}
-            order={order}
-            day={day}
-            showDate={showDate}
-            conflict={conflicts.has(order.id)}
-            onOpen={onOpen}
-          />
-        ))}
-      </div>
-    </ScrollArea>
+      {label}
+    </button>
   );
 }
