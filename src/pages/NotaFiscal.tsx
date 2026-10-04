@@ -105,6 +105,20 @@ function money(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+function kindMeta(kind: string) {
+  if (kind === "nfce") return { label: "NFC-e", className: "bg-sky-50 text-sky-700" };
+  if (kind === "nfse") return { label: "NFS-e", className: "bg-indigo-50 text-indigo-700" };
+  return { label: "NF-e", className: "bg-blue-50 text-blue-700" };
+}
+
+function statusMeta(status: string) {
+  const value = status.toLowerCase();
+  if (value.includes("aprov") || value === "processado") return "bg-emerald-50 text-emerald-700 ring-emerald-100";
+  if (value.includes("cancel") || value.includes("rejei") || value.includes("erro")) return "bg-rose-50 text-rose-700 ring-rose-100";
+  if (value.includes("process")) return "bg-amber-50 text-amber-800 ring-amber-100";
+  return "bg-slate-100 text-slate-600 ring-slate-200";
+}
+
 const SALES_PAGE_SIZE = 25;
 
 type ReadySale = {
@@ -738,7 +752,7 @@ export default function NotaFiscal() {
                   <h1 className="text-2xl font-semibold tracking-tight">Nota Fiscal</h1>
                   <p className="text-sm text-slate-600">{company?.name || "Empresa não configurada"} {company?.cnpj ? `· ${company.cnpj}` : ""}</p>
                   <p className="text-xs text-slate-500">Última emissão: {company?.lastEmission || "—"}</p>
-                  <p className="text-sm text-red-600">Até {company?.limit || 50} notas no mês sem custo extra; a partir da {(company?.limit || 50)}ª, R$ 0,45 por nota. Neste mês: {monthCount}.</p>
+                  <p className="mt-2 inline-flex rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700">Até {company?.limit || 50} notas no mês sem custo extra · depois, R$ 0,45 · neste mês: {monthCount}</p>
                 </div>
               </div>
               <Button variant="outline" onClick={() => openFiscalTab("company")}>Editar empresa</Button>
@@ -766,38 +780,72 @@ export default function NotaFiscal() {
             </nav>
             <div key={pageTab} className="animate-in fade-in slide-in-from-bottom-2 space-y-4 duration-300">
             <p className="text-sm text-slate-500">{PAGE_TABS.find((tab) => tab.id === pageTab)?.caption}</p>
-            {pageTab === "notas" ? <div className="flex flex-wrap items-end gap-2">
-              <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className="w-40" />
-              <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} className="w-40" />
-              <Input placeholder="Contato" value={query} onChange={(event) => setQuery(event.target.value)} className="w-56" />
-            </div> : null}
-            {pageTab === "notas" ? <><div className="overflow-auto rounded border">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-left"><tr><th className="p-2">Tipo</th><th>Nº</th><th>Cliente</th><th>Data de envio</th><th>Valor</th><th>Status</th><th>Arquivos</th></tr></thead>
-                <tbody>
-                  {invoices.map((invoice) => (
-                    <tr key={invoice.id} className={/process/i.test(invoice.status) ? "bg-amber-50" : ""}>
-                      <td className="p-2">{invoice.kind}</td>
-                      <td>{invoice.number || "s/n"}</td>
-                      <td>{invoice.customer_name}</td>
-                      <td>{new Date(invoice.created_at).toLocaleString("pt-BR")}</td>
-                      <td>{money(Number(invoice.amount || 0))}</td>
-                      <td><button className="underline" onClick={() => void refresh(invoice.id)}>{invoice.status}</button></td>
-                      <td className="flex gap-2 p-2">
-                        {invoice.pdf_url ? <a className="text-blue-700" href={invoice.pdf_url} target="_blank" rel="noreferrer">PDF</a> : null}
-                        {invoice.xml_url ? <a className="text-blue-700" href={invoice.xml_url} target="_blank" rel="noreferrer">XML</a> : null}
-                        {invoice.cce_url ? <a className="text-blue-700" href={invoice.cce_url} target="_blank" rel="noreferrer">CC-e</a> : null}
-                        {invoice.status === "aprovado" ? <button className="text-blue-700" onClick={() => { setCancelTarget(invoice); setCancelMotivo(""); }}>Cancelar</button> : null}
-                        {invoice.kind === "nfe" && invoice.status === "aprovado" && invoice.access_key ? <button className="text-blue-700" onClick={() => { setReturnTarget(invoice); setReturnCfop("1202"); setReturnNatureza("Devolução de mercadoria"); setReturnItens(""); setReturnQtds(""); }}>Devolver</button> : null}
-                        {!["aprovado", "cancelado", "processado"].includes(invoice.status) ? <button onClick={() => void remove(invoice.id)} aria-label="Excluir"><Trash2 className="h-4 w-4" /></button> : null}
-                      </td>
-                    </tr>
-                  ))}
-                  {!invoices.length ? <tr><td className="p-4 text-slate-500" colSpan={7}>Nenhuma nota no período.</td></tr> : null}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex justify-between text-sm"><span>Emitidas: {issued}</span><span>Total: {money(total)}</span></div></> : null}
+            {pageTab === "notas" ? (
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-blue-600">No período</p>
+                    <p className="mt-1 text-2xl font-semibold text-slate-900">{invoices.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">Autorizadas</p>
+                    <p className="mt-1 text-2xl font-semibold text-slate-900">{issued}</p>
+                  </div>
+                  <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-indigo-700">Total</p>
+                    <p className="mt-1 text-2xl font-semibold text-slate-900">{money(total)}</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div><p className="mb-1 text-[11px] font-medium text-slate-500">De</p><Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className="h-9 w-40" /></div>
+                  <div><p className="mb-1 text-[11px] font-medium text-slate-500">Até</p><Input type="date" value={to} onChange={(event) => setTo(event.target.value)} className="h-9 w-40" /></div>
+                  <div className="min-w-56 flex-1"><p className="mb-1 text-[11px] font-medium text-slate-500">Contato</p><Input placeholder="Nome ou número" value={query} onChange={(event) => setQuery(event.target.value)} className="h-9" /></div>
+                </div>
+                <div className="overflow-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3 font-medium">Tipo</th>
+                        <th className="px-3 py-3 font-medium">Nº</th>
+                        <th className="px-3 py-3 font-medium">Cliente</th>
+                        <th className="px-3 py-3 font-medium">Data de envio</th>
+                        <th className="px-3 py-3 font-medium">Valor</th>
+                        <th className="px-3 py-3 font-medium">Status</th>
+                        <th className="px-3 py-3 font-medium">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoices.map((invoice) => {
+                        const kind = kindMeta(invoice.kind);
+                        return (
+                          <tr key={invoice.id} className="border-t border-slate-100 transition-colors hover:bg-slate-50/80">
+                            <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${kind.className}`}>{kind.label}</span></td>
+                            <td className="px-3 py-3 font-medium text-slate-900">{invoice.number || "s/n"}</td>
+                            <td className="max-w-xs truncate px-3 py-3 text-slate-700">{invoice.customer_name}</td>
+                            <td className="whitespace-nowrap px-3 py-3 text-slate-500">{new Date(invoice.created_at).toLocaleString("pt-BR")}</td>
+                            <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-900">{money(Number(invoice.amount || 0))}</td>
+                            <td className="px-3 py-3">
+                              <button type="button" title="Atualizar status" className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ring-1 ring-inset ${statusMeta(invoice.status)}`} onClick={() => void refresh(invoice.id)}>{invoice.status}</button>
+                            </td>
+                            <td className="px-3 py-3">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {invoice.pdf_url ? <a className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100" href={invoice.pdf_url} target="_blank" rel="noreferrer">PDF</a> : null}
+                                {invoice.xml_url ? <a className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100" href={invoice.xml_url} target="_blank" rel="noreferrer">XML</a> : null}
+                                {invoice.cce_url ? <a className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100" href={invoice.cce_url} target="_blank" rel="noreferrer">CC-e</a> : null}
+                                {invoice.status === "aprovado" ? <button type="button" className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100" onClick={() => { setCancelTarget(invoice); setCancelMotivo(""); }}>Cancelar</button> : null}
+                                {invoice.kind === "nfe" && invoice.status === "aprovado" && invoice.access_key ? <button type="button" className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200" onClick={() => { setReturnTarget(invoice); setReturnCfop("1202"); setReturnNatureza("Devolução de mercadoria"); setReturnItens(""); setReturnQtds(""); }}>Devolver</button> : null}
+                                {!["aprovado", "cancelado", "processado"].includes(invoice.status) ? <button type="button" className="rounded-full p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600" onClick={() => void remove(invoice.id)} aria-label="Excluir"><Trash2 className="h-4 w-4" /></button> : null}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {!invoices.length ? <tr><td className="px-4 py-10 text-center text-slate-500" colSpan={7}>Nenhuma nota no período.</td></tr> : null}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
             {pageTab === "product" || pageTab === "service" ? (
               <TaxClassDialogs
                 orgId={activeOrgId || ""}
