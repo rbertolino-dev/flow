@@ -26,6 +26,7 @@ export interface Organization {
   id: string;
   name: string;
   role: string;
+  isActive: boolean;
 }
 
 export interface ActiveOrganizationContextValue {
@@ -96,7 +97,8 @@ export function ActiveOrganizationProvider({ children }: { children: ReactNode }
               role,
               organizations (
                 id,
-                name
+                name,
+                is_active
               )
             `
             )
@@ -104,6 +106,23 @@ export function ActiveOrganizationProvider({ children }: { children: ReactNode }
 
           data = res.data;
           error = res.error;
+          if (error && /is_active|schema cache/i.test(error.message) && attempt === 0) {
+            const fallback = await supabase
+              .from("organization_members")
+              .select(
+                `
+                organization_id,
+                role,
+                organizations (
+                  id,
+                  name
+                )
+              `
+              )
+              .eq("user_id", userId);
+            data = fallback.data;
+            error = fallback.error;
+          }
           if (!error) break;
           if (isInvalidAuthError(error)) break;
           if (attempt < maxAttempts - 1) {
@@ -124,11 +143,12 @@ export function ActiveOrganizationProvider({ children }: { children: ReactNode }
           (item: {
             organization_id: string;
             role: string;
-            organizations: { id: string; name: string } | null;
+            organizations: { id: string; name: string; is_active?: boolean | null } | null;
           }) => ({
             id: item.organization_id,
             name: item.organizations?.name ?? "Organização",
             role: item.role,
+            isActive: item.organizations?.is_active !== false,
           })
         );
 
@@ -184,7 +204,15 @@ export function ActiveOrganizationProvider({ children }: { children: ReactNode }
       }
     });
 
-    return () => subscription.unsubscribe();
+    const onFocus = () => {
+      void fetchUserOrganizations({ silent: true });
+    };
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener("focus", onFocus);
+    };
   }, [fetchUserOrganizations]);
 
   const setActiveOrganization = useCallback(

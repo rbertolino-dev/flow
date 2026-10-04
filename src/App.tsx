@@ -10,6 +10,7 @@ import { initializeRealtime } from "@/utils/realtimeInit";
 import { supabase } from "@/integrations/supabase/client";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ActiveOrganizationProvider } from "@/contexts/ActiveOrganizationProvider";
+import { InactiveOrganizationGate } from "@/components/crm/InactiveOrganizationGate";
 
 // Páginas críticas (Index=funil + Login) carregam eager para não ter spinner nas rotas mais usadas.
 import Index from "./pages/Index";
@@ -162,6 +163,7 @@ const App = () => {
             }}
           >
             <ActiveOrganizationProvider>
+              <InactiveOrganizationGate>
               <Suspense fallback={<PageSpinner />}>
               <Routes>
                 <Route path="/" element={<Index />} />
@@ -240,6 +242,7 @@ const App = () => {
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>
+              </InactiveOrganizationGate>
             </ActiveOrganizationProvider>
           </BrowserRouter>
         </TooltipProvider>

@@ -38,9 +38,11 @@ export function OrganizationSwitcher() {
             className="flex items-center justify-between cursor-pointer"
           >
             <div className="flex flex-col gap-1">
-              <span className="font-medium">{org.name}</span>
+              <span className="font-medium">{org.name}{org.isActive ? "" : " — desativada"}</span>
               <Badge variant="secondary" className="w-fit text-xs">
-                {org.role === 'owner' ? 'Proprietário' : org.role === 'admin' ? 'Admin' : 'Membro'}
+                {org.isActive
+                  ? (org.role === 'owner' ? 'Proprietário' : org.role === 'admin' ? 'Admin' : 'Membro')
+                  : 'Desativada'}
               </Badge>
             </div>
             {activeOrganization?.id === org.id && (
