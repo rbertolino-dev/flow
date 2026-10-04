@@ -417,6 +417,7 @@ export default function NotaFiscal() {
     if (!activeOrgId) return classes;
     const data = await fiscalCall(activeOrgId, "classes");
     setClasses(data.classes || []);
+    if (data.mirrorWarning) toast({ title: data.mirrorWarning, variant: "destructive" });
     return data.classes || [];
   }
 

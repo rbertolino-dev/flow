@@ -519,6 +519,126 @@ async function webmaniaClass(empresa: Record<string, unknown>, method: string, p
   return data;
 }
 
+async function bubbleResults(env: string, type: string, constraints: { key: string; constraint_type: string; value: string }[]) {
+  const params = new URLSearchParams({ limit: "100", constraints: JSON.stringify(constraints) });
+  const data = await bubbleGet(env, `${type}?${params.toString()}`);
+  const results = data?.response?.results || data?.results || [];
+  return Array.isArray(results) ? results as Record<string, unknown>[] : [];
+}
+
+function scenarioFromMirror(row: Record<string, unknown>) {
+  const taxName = field(row, "imposto").toUpperCase();
+  const tax = taxName.includes("IBS") || taxName.includes("CBS") ? "ibs_cbs" : taxName === "IPI" ? "ipi" : taxName === "PIS" ? "pis" : taxName === "COFINS" ? "cofins" : "icms";
+  return {
+    tax,
+    name: field(row, "cenario"),
+    person: field(row, "tipo pessoa"),
+    cfop: field(row, "cfop"),
+    cst: field(row, "sit trib"),
+    rate: field(row, "aliquota"),
+    tipo: "",
+    classificacao: field(row, "classificação tributária") || field(row, "classificacao"),
+    codigo_enquadramento: "",
+    aliquota_credito: "",
+    aliquota_importacao: "",
+    aliquota_reducao: "",
+    aliquota_mva: [],
+    beneficio_fiscal: [],
+    credito_presumido: [],
+  };
+}
+
+function linkedId(value: unknown) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object") {
+    const row = value as Record<string, unknown>;
+    return String(row._id || row.id || "");
+  }
+  return "";
+}
+
+function rowCompanyId(row: Record<string, unknown>) {
+  for (const [key, value] of Object.entries(row)) {
+    if (!/empresa/i.test(key)) continue;
+    const id = linkedId(value) || (typeof value === "string" ? value : "");
+    if (id) return id;
+  }
+  return "";
+}
+
+async function loadMirrorClasses(env: string, empresaId: string) {
+  const types = ["webmaniaclasseimposto", "webmania_classe_imposto", "classeimposto"];
+  let rows: Record<string, unknown>[] = [];
+  let found = false;
+  for (const type of types) {
+    try {
+      rows = await bubbleResults(env, type, [{ key: "empresa", constraint_type: "equals", value: empresaId }]);
+      found = true;
+      break;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (!/not found|não encontrad|does not exist/i.test(message)) throw error;
+    }
+  }
+  if (!found) return [];
+  const own = rows.filter((row) => rowCompanyId(row) === empresaId);
+  const classes = [];
+  for (const row of own) {
+    const linked = row["cenários"] || row.cenarios || row["cenarios"];
+    const scenarios: Record<string, unknown>[] = [];
+    if (Array.isArray(linked)) {
+      const embedded = linked.filter((item) => item && typeof item === "object") as Record<string, unknown>[];
+      const ids = linked.filter((item) => item && typeof item !== "object").slice(0, 8).map((item) => String(item));
+      const fetched = await Promise.all(ids.map(async (id) => {
+        try {
+          const data = await bubbleGet(env, `cenarioimposto/${encodeURIComponent(id)}`);
+          const scene = (data.response || data) as Record<string, unknown>;
+          return scene && !scene.error ? scene : null;
+        } catch {
+          return null;
+        }
+      }));
+      scenarios.push(...embedded, ...fetched.filter((item): item is Record<string, unknown> => Boolean(item)));
+    }
+    const views = scenarios.map(scenarioFromMirror);
+    const tipoNota = field(row, "tipo nota").toLowerCase();
+    const isService = tipoNota.includes("nfs") || tipoNota.includes("serv");
+    const pick = (tax: string) => views.filter((item) => item.tax === tax);
+    const ref = field(row, "ref") || field(row, "referência") || String(row._id || "");
+    if (!ref) continue;
+    classes.push({
+      id: ref,
+      ref,
+      description: field(row, "descrição") || field(row, "descricao") || ref,
+      noteType: isService ? "nfse" : "nfe",
+      emissionType: isService ? "nfse" : "nfe",
+      icms: pick("icms"),
+      ipi: pick("ipi"),
+      pis: pick("pis"),
+      cofins: pick("cofins"),
+      ibs: pick("ibs_cbs"),
+      service: isService ? {
+        codigo_servico: field(row, "código do serviço") || field(row, "codigo servico") || field(row, "codigo_servico"),
+        natureza_operacao: field(row, "natureza da operação") || field(row, "natureza operacao") || "1",
+        exigibilidade_iss: field(row, "exigibilidade do iss") || field(row, "exigibilidade") || "1",
+        iss_retido: field(row, "iss retido") || "2",
+        responsavel_retencao: field(row, "responsável da retenção") || "1",
+        iss: field(row, "iss") || "0",
+        pis: field(row, "pis") || "0",
+        cofins: field(row, "cofins") || "0",
+        inss: field(row, "inss") || "0",
+        ir: field(row, "ir") || "0",
+        csll: field(row, "csll") || "0",
+        situacao_tributaria: "",
+        classificacao_tributaria: "",
+      } : null,
+      scenarios: pick("icms"),
+    });
+  }
+  return classes;
+}
+
 async function mirrorClass(env: string, empresaId: string, referencia: string, descricao: string, payload: Record<string, unknown>) {
   const blocks: { tax: string; rows: Record<string, unknown>[] }[] = [
     { tax: "ICMS", rows: asList(payload.icms) },
@@ -647,7 +767,17 @@ serve(async (req) => {
     if (action === "classes" && req.method === "GET") {
       const data = await webmaniaClass(empresa, "GET");
       const results = (Array.isArray(data) ? data : data?.data || data?.classes || []) as Record<string, unknown>[];
-      return json({ classes: results.map(normalizeClass) });
+      const fromWebmania = results.map(normalizeClass);
+      let mirrorWarning = "";
+      let fromMirror: Awaited<ReturnType<typeof loadMirrorClasses>> = [];
+      try {
+        fromMirror = await loadMirrorClasses(bubbleEnv, String(settings.empresa_id));
+      } catch (error) {
+        mirrorWarning = error instanceof Error ? error.message : "Não foi possível ler o espelho de classes do Agilize Total";
+      }
+      const seen = new Set(fromWebmania.map((item) => item.ref));
+      const classes = [...fromWebmania, ...fromMirror.filter((item) => item.ref && !seen.has(item.ref))];
+      return json({ classes, mirrorWarning });
     }
 
     if (action === "classes" && req.method === "POST") {
