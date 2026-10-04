@@ -653,7 +653,16 @@ serve(async (req) => {
     if (action === "classes" && req.method === "POST") {
       const payload = buildClassPayload(body);
       const saved = await webmaniaClass(empresa, "POST", payload) as Record<string, unknown>;
-      const referencia = String(saved.referencia || body.referencia || "");
+      const nested = saved && typeof saved === "object" && !Array.isArray(saved) && saved.data && typeof saved.data === "object"
+        ? saved.data as Record<string, unknown>
+        : null;
+      const first = Array.isArray(saved) ? saved[0] as Record<string, unknown> : null;
+      const referencia = String(saved?.referencia || nested?.referencia || first?.referencia || body.referencia || "");
+      if (!referencia) {
+        const source = saved && typeof saved === "object" ? saved : {};
+        const hint = String(source.error || source.mensagem || source.motivo || source.message || "");
+        return json({ error: hint || "A Webmania não devolveu a referência da classe de imposto", campos: Object.keys(source).slice(0, 12) }, 400);
+      }
       let bubbleWarning = "";
       if (!body.referencia) {
         try {
