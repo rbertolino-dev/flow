@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { FiscalErrorNotice } from "@/components/fiscal/FiscalErrorNotice";
 import { supabase } from "@/integrations/supabase/client";
 
 async function fiscalCall(orgId: string, action: string, init?: RequestInit) {
@@ -261,6 +262,7 @@ export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast
 }) {
   const [step, setStep] = useState<"choice" | "simples" | "manual" | "service" | null>(null);
   const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<{ message: string; variant: "error" | "warning" }>({ message: "", variant: "error" });
   const [referencia, setReferencia] = useState("");
   const [nome, setNome] = useState("");
   const [cards, setCards] = useState<IcmsCard[]>(defaultSimples());
@@ -332,15 +334,18 @@ export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast
 
   async function save(body: Record<string, unknown>) {
     if (!orgId) return;
+    setNotice({ message: "", variant: "error" });
     setSaving(true);
     try {
       const data = await fiscalCall(orgId, "classes", { method: "POST", body: JSON.stringify(body) });
+      if (data.bubbleWarning) setNotice({ message: String(data.bubbleWarning), variant: "warning" });
+      else setNotice({ message: "", variant: "error" });
       toast({ title: data.bubbleWarning || "Classe salva na empresa" });
       setStep(null);
       resetCreate();
       await onSaved();
     } catch (error) {
-      toast({ title: error instanceof Error ? error.message : "Não foi possível salvar a classe", variant: "destructive" });
+      setNotice({ message: error instanceof Error ? error.message : "Não foi possível salvar a classe", variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -349,29 +354,30 @@ export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast
   function addManual() {
     const count = rows.filter((row) => row.tax === draft.tax).length;
     if (count >= 6) {
-      toast({ title: "Cada imposto aceita até 6 cenários", variant: "destructive" });
+      setNotice({ message: "Cada imposto aceita até 6 cenários", variant: "error" });
       return;
     }
     if (draft.tax === "icms" && draft.cenario === "padrao") {
-      toast({ title: "ICMS não usa o cenário padrão", variant: "destructive" });
+      setNotice({ message: "ICMS não usa o cenário padrão", variant: "error" });
       return;
     }
     if (draft.cenario === "saida_exterior" && draft.tipo_pessoa !== "estrangeira") {
-      toast({ title: "Saída para o exterior aceita somente pessoa estrangeira", variant: "destructive" });
+      setNotice({ message: "Saída para o exterior aceita somente pessoa estrangeira", variant: "error" });
       return;
     }
     if (draft.cenario !== "saida_exterior" && draft.tipo_pessoa === "estrangeira") {
-      toast({ title: "Pessoa estrangeira só vale na saída para o exterior", variant: "destructive" });
+      setNotice({ message: "Pessoa estrangeira só vale na saída para o exterior", variant: "error" });
       return;
     }
     if (draft.tax === "icms" && draft.cenario === "entrada_exterior" && !draft.aliquota_importacao) {
-      toast({ title: "Informe a alíquota de importação do ICMS", variant: "destructive" });
+      setNotice({ message: "Informe a alíquota de importação do ICMS", variant: "error" });
       return;
     }
     if (draft.tax === "ibs_cbs" && !/^\d{6}$/.test(draft.classificacao_tributaria)) {
-      toast({ title: "A classificação tributária do IBS/CBS tem 6 dígitos", variant: "destructive" });
+      setNotice({ message: "A classificação tributária do IBS/CBS tem 6 dígitos", variant: "error" });
       return;
     }
+    setNotice({ message: "", variant: "error" });
     const tipo_pessoa = draft.cenario === "saida_exterior" ? "estrangeira" : draft.tipo_pessoa === "estrangeira" ? "fisica" : draft.tipo_pessoa;
     setRows([...rows, { ...draft, tipo_pessoa }]);
   }
@@ -382,6 +388,7 @@ export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast
     <>
       {embedded && which ? (
         <div className="space-y-4">
+          <FiscalErrorNotice message={notice.variant === "warning" ? notice.message : ""} variant="warning" />
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">{which === "service" ? "Impostos de Serviços" : "Imposto de produto"}</h2>
             <Button onClick={() => { resetCreate(); setStep(which === "service" ? "service" : "choice"); }}>{which === "service" ? "Nova classe" : "Nova Classe"}</Button>
@@ -436,6 +443,7 @@ export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast
             </DialogTitle>
           </DialogHeader>
           <div className="max-h-[65vh] space-y-4 overflow-auto">
+            <FiscalErrorNotice message={notice.variant === "warning" ? notice.message : ""} variant="warning" />
             {!visible.length ? <p className="text-sm text-slate-500">Nenhuma classe nesta empresa.</p> : null}
             {visible.map((item) => {
               const groups = { icms: item.icms, ipi: item.ipi, pis: item.pis, cofins: item.cofins, ibs: item.ibs };
@@ -498,6 +506,7 @@ export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast
         <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle className="text-center">Criar Classe de Impostos para NFe/NFCe</DialogTitle></DialogHeader>
           <div className="max-h-[70vh] space-y-3 overflow-auto text-sm">
+            <FiscalErrorNotice message={notice.message} variant={notice.variant} />
             <p>Adicione um nome para a sua classe de imposto que permita que você a identifique depois.</p>
             <div><p>Nome da classe:</p><Input value={nome} placeholder="Digite" onChange={(event) => setNome(event.target.value)} /></div>
             <p className="font-medium">ICMS</p>
@@ -525,6 +534,7 @@ export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast
         <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle className="text-center">Criar Classe de Impostos para NFe/NFCe</DialogTitle></DialogHeader>
           <div className="max-h-[70vh] space-y-3 overflow-auto text-sm">
+            <FiscalErrorNotice message={notice.message} variant={notice.variant} />
             <p>Crie pelo menos 1 cenário para cada imposto. Você pode criar até 6 cenários para cada imposto dentro de uma mesma classe.</p>
             <div><p>Descrição da classe:</p><Input value={nome} placeholder="Digite" onChange={(event) => setNome(event.target.value)} /></div>
             <div className="space-y-2 rounded bg-slate-100 p-3">
@@ -560,6 +570,7 @@ export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast
         <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle className="text-center">Criar classe de imposto para NFS-e</DialogTitle></DialogHeader>
           <div className="grid max-h-[70vh] gap-2 overflow-auto text-sm md:grid-cols-2">
+            <div className="md:col-span-2"><FiscalErrorNotice message={notice.message} variant={notice.variant} /></div>
             <div className="md:col-span-2"><p>Descrição</p><Input value={nome} onChange={(event) => setNome(event.target.value)} /></div>
             <div><p>Código do serviço</p><Input value={service.codigo_servico} onChange={(event) => setService({ ...service, codigo_servico: event.target.value })} /></div>
             <div><p>Natureza da operação</p><Select value={service.natureza_operacao} onValueChange={(value) => setService({ ...service, natureza_operacao: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">1 - Tributação no município</SelectItem><SelectItem value="2">2 - Tributação fora do município</SelectItem><SelectItem value="3">3 - Isenção</SelectItem><SelectItem value="4">4 - Imune</SelectItem><SelectItem value="5">5 - Exigibilidade suspensa judicial</SelectItem><SelectItem value="6">6 - Exigibilidade suspensa administrativa</SelectItem></SelectContent></Select></div>
@@ -577,13 +588,15 @@ export function TaxClassDialogs({ orgId, which, classes, onClose, onSaved, toast
       <Dialog open={Boolean(removeRef)} onOpenChange={(open) => !open && setRemoveRef("")}>
         <DialogContent>
           <DialogHeader><DialogTitle>Excluir classe</DialogTitle></DialogHeader>
+          <FiscalErrorNotice message={notice.message} variant={notice.variant} />
           <p className="text-sm">A classe {removeRef} deixa de valer para as próximas notas desta empresa.</p>
           <Button variant="destructive" disabled={saving} onClick={() => {
             if (!orgId) return;
+            setNotice({ message: "", variant: "error" });
             setSaving(true);
             void fiscalCall(orgId, "class-delete", { method: "POST", body: JSON.stringify({ referencia: removeRef }) })
               .then(async () => { setRemoveRef(""); toast({ title: "Classe excluída" }); await onSaved(); })
-              .catch((error) => toast({ title: error instanceof Error ? error.message : "Não foi possível excluir", variant: "destructive" }))
+              .catch((error) => setNotice({ message: error instanceof Error ? error.message : "Não foi possível excluir", variant: "error" }))
               .finally(() => setSaving(false));
           }}>Excluir</Button>
         </DialogContent>

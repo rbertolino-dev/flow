@@ -272,6 +272,19 @@ function extractReturn(body: Record<string, unknown>) {
   };
 }
 
+function motivoFromStored(value: unknown) {
+  let body: Record<string, unknown> = {};
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object") body = parsed as Record<string, unknown>;
+    } catch { /* payload inválido */ }
+  } else if (value && typeof value === "object") {
+    body = value as Record<string, unknown>;
+  }
+  return extractReturn(body).motivo;
+}
+
 async function createBubbleNota(env: string, empresaId: string, payload: Record<string, unknown>) {
   const res = await fetch(`${bubbleBase(env)}/notafiscal`, {
     method: "POST",
@@ -834,7 +847,14 @@ serve(async (req) => {
         });
       }
       const issued = rows.rows.filter((row: Record<string, unknown>) => ["aprovado", "processado"].includes(String(row.status))).length;
-      return json({ invoices: rows.rows, issued });
+      const invoices = rows.rows.map((row: Record<string, unknown>) => {
+        const rest = { ...row };
+        const stored = rest.response_payload;
+        delete rest.request_payload;
+        delete rest.response_payload;
+        return { ...rest, motivo: motivoFromStored(stored) };
+      });
+      return json({ invoices, issued });
     }
 
     if (action === "sales") {

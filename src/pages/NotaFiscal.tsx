@@ -25,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Building2, Download, FilePenLine, FilePlus2, FileText, Package, Receipt, ShoppingBag, Trash2, Wrench, type LucideIcon } from "lucide-react";
 import { TaxClassDialogs, type FiscalClass } from "@/components/fiscal/TaxClassDialogs";
+import { FiscalErrorNotice } from "@/components/fiscal/FiscalErrorNotice";
 
 type Company = {
   name: string;
@@ -50,6 +51,7 @@ type Invoice = {
   xml_url: string | null;
   access_key: string | null;
   cce_url?: string | null;
+  motivo?: string | null;
 };
 
 
@@ -353,6 +355,12 @@ export default function NotaFiscal() {
   const [referenciar, setReferenciar] = useState(false);
   const [chaveReferencia, setChaveReferencia] = useState("");
   const [emitOpen, setEmitOpen] = useState(false);
+  const [pageNotice, setPageNotice] = useState("");
+  const [emitNotice, setEmitNotice] = useState("");
+  const [cancelNotice, setCancelNotice] = useState("");
+  const [returnNotice, setReturnNotice] = useState("");
+  const [cceNotice, setCceNotice] = useState("");
+  const [statusInvoice, setStatusInvoice] = useState<Invoice | null>(null);
   const [issuedDate, setIssuedDate] = useState(todayIso());
   const [issuedTime, setIssuedTime] = useState(() => new Date().toTimeString().slice(0, 5));
   const [moveDate, setMoveDate] = useState(todayIso());
@@ -407,7 +415,7 @@ export default function NotaFiscal() {
     setIssued(data.issued || 0);
   }, [activeOrgId, company, from, to, query]);
 
-  useEffect(() => { void loadSettings().catch((error) => toast({ title: error.message, variant: "destructive" })); }, [loadSettings, toast]);
+  useEffect(() => { void loadSettings().catch((error) => setPageNotice(error instanceof Error ? error.message : "Falha na nota fiscal")); }, [loadSettings]);
   useEffect(() => { void loadInvoices().catch(() => undefined); }, [loadInvoices]);
 
   const productClasses = useMemo(() => classes.filter((item) => item.noteType !== "nfse" && item.ref), [classes]);
@@ -417,7 +425,7 @@ export default function NotaFiscal() {
     if (!activeOrgId) return classes;
     const data = await fiscalCall(activeOrgId, "classes");
     setClasses(data.classes || []);
-    if (data.mirrorWarning) toast({ title: data.mirrorWarning, variant: "destructive" });
+    if (data.mirrorWarning) setPageNotice(String(data.mirrorWarning));
     return data.classes || [];
   }
 
@@ -436,6 +444,7 @@ export default function NotaFiscal() {
     setCarrierCnpj("");
     setCarrierExtra({ ie: "", endereco: "", uf: "", cidade: "", cep: "" });
     setVolumes({ quantidade: "", especie: "", marca: "", numeracao: "", pesoLiquido: "", pesoBruto: "", lacres: "" });
+    setEmitNotice("");
     setScreen("list");
     setEmitOpen(true);
     void ensureClasses().catch(() => undefined);
@@ -448,7 +457,7 @@ export default function NotaFiscal() {
   function openFiscalTab(tab: (typeof PAGE_TABS)[number]["id"]) {
     setPageTab(tab);
     if (tab === "product" || tab === "service" || tab === "avulsa") {
-      void ensureClasses().catch((error) => toast({ title: error instanceof Error ? error.message : "Não foi possível listar as classes", variant: "destructive" }));
+      void ensureClasses().catch((error) => setPageNotice(error instanceof Error ? error.message : "Não foi possível listar as classes"));
     }
   }
 
@@ -459,10 +468,10 @@ export default function NotaFiscal() {
       .then((data) => setSales(data.sales || []))
       .catch((error) => {
         setSales([]);
-        toast({ title: error instanceof Error ? error.message : "Não foi possível listar as vendas", variant: "destructive" });
+        setPageNotice(error instanceof Error ? error.message : "Não foi possível listar as vendas");
       })
       .finally(() => setSalesLoading(false));
-  }, [activeOrgId, from, to, toast]);
+  }, [activeOrgId, from, to]);
 
   useEffect(() => {
     if (pageTab === "sales") openLastSales();
@@ -480,7 +489,7 @@ export default function NotaFiscal() {
       });
       openLastSales();
     } catch (error) {
-      toast({ title: error instanceof Error ? error.message : "Não foi possível tirar as vendas da lista", variant: "destructive" });
+      setPageNotice(error instanceof Error ? error.message : "Não foi possível tirar as vendas da lista");
     } finally {
       setHidingIssued(false);
     }
@@ -493,7 +502,7 @@ export default function NotaFiscal() {
       const data = await fiscalCall(activeOrgId, `sale&id=${id}`);
       const items = (data.items || []).filter((item: { item_type: string }) => nextKind === "nfse" ? item.item_type === "service" : item.item_type === "product");
       if (!items.length) {
-        toast({ title: nextKind === "nfse" ? "Esta venda não tem serviço" : "Esta venda não tem produto", variant: "destructive" });
+        setPageNotice(nextKind === "nfse" ? "Esta venda não tem serviço" : "Esta venda não tem produto");
         return;
       }
       openEmit(nextKind, items.map((item: Record<string, unknown>, index: number) => ({
@@ -515,7 +524,7 @@ export default function NotaFiscal() {
       if (match) setForma(match.code);
       setDesconto(String(data.sale?.discount_amount || 0));
     } catch (error) {
-      toast({ title: error instanceof Error ? error.message : "Não foi possível abrir a emissão", variant: "destructive" });
+      setPageNotice(error instanceof Error ? error.message : "Não foi possível abrir a emissão");
     } finally {
       setSalesLoading(false);
     }
@@ -540,10 +549,10 @@ export default function NotaFiscal() {
         tax_class_ref: String((data.classById || {})[String(item.item_id || "")] || ""),
         description: String(item.name || ""),
       })), "service_order", os, data.order?.client_name || "");
-    }).catch((error) => toast({ title: error.message, variant: "destructive" }));
+    }).catch((error) => setPageNotice(error instanceof Error ? error.message : "Não foi possível abrir a emissão"));
     // openEmit é estável o bastante para este efeito de deep-link da OS
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params, activeOrgId, company, toast]);
+  }, [params, activeOrgId, company]);
 
   async function saveCompany() {
     if (!activeOrgId) return;
@@ -554,7 +563,7 @@ export default function NotaFiscal() {
       await loadSettings();
       toast({ title: "Empresa fiscal salva" });
     } catch (error) {
-      toast({ title: error instanceof Error ? error.message : "Erro ao salvar", variant: "destructive" });
+      setPageNotice(error instanceof Error ? error.message : "Erro ao salvar");
     } finally {
       setSaving(false);
     }
@@ -570,36 +579,42 @@ export default function NotaFiscal() {
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      toast({ title: data.error || "Não foi possível gravar o produto", variant: "destructive" });
+      setEmitNotice(data.error || "Não foi possível gravar o produto");
       return;
     }
     toast({ title: "Produto atualizado" });
   }
 
+  function noteWasRefused(status: string) {
+    const value = status.toLowerCase();
+    return value.includes("rejei") || value.includes("erro") || value.includes("recus");
+  }
+
   async function emit() {
     if (!activeOrgId) return;
+    setEmitNotice("");
     if (referenciar && chaveReferencia.replace(/\D/g, "").length !== 44) {
-      toast({ title: "Informe a chave de 44 dígitos da NF-e referenciada", variant: "destructive" });
+      setEmitNotice("Informe a chave de 44 dígitos da NF-e referenciada");
       return;
     }
     const missing = lines.find((line) => line.item_type === "product" && (line.origem === "" || line.ncm.replace(/\D/g, "").length !== 8 || !line.tax_class_ref));
     if (missing) {
       const field = missing.origem === "" ? "Origem do produto" : missing.ncm.replace(/\D/g, "").length !== 8 ? "Código NCM" : "Classe de imposto";
-      toast({ title: `Informações do produto faltando: ${field}`, variant: "destructive" });
+      setEmitNotice(`Informações do produto faltando: ${field}`);
       return;
     }
     if (kind === "nfse" && lines.some((line) => !line.tax_class_ref)) {
-      toast({ title: "Informe a classe de imposto do serviço", variant: "destructive" });
+      setEmitNotice("Informe a classe de imposto do serviço");
       return;
     }
     if (customer.foreign) {
       const foreignId = customer.document.trim();
       if (foreignId.length < 5 || foreignId.length > 20) {
-        toast({ title: "Informe o documento do cliente estrangeiro (5 a 20 caracteres)", variant: "destructive" });
+        setEmitNotice("Informe o documento do cliente estrangeiro (5 a 20 caracteres)");
         return;
       }
     } else if (kind !== "nfce" && customer.document.replace(/\D/g, "").length < 11) {
-      toast({ title: "Informe o CPF ou CNPJ do cliente", variant: "destructive" });
+      setEmitNotice("Informe o CPF ou CNPJ do cliente");
       return;
     }
     setSaving(true);
@@ -637,13 +652,31 @@ export default function NotaFiscal() {
           lines: lines.map((line) => ({ ...line, total: line.price * line.quantity })),
         }),
       });
-      toast({ title: data.status ? `Nota ${data.status}` : "Nota enviada", description: data.motivo || data.number || "" });
+      const status = String(data.status || "");
+      const motivo = String(data.motivo || "");
+      if (noteWasRefused(status)) {
+        setStatusInvoice({
+          id: String(data.invoiceId || ""),
+          kind,
+          number: data.number ? String(data.number) : null,
+          customer_name: customer.name,
+          created_at: new Date().toISOString(),
+          amount: total,
+          status,
+          pdf_url: null,
+          xml_url: null,
+          access_key: null,
+          motivo,
+        });
+      } else {
+        toast({ title: status ? `Nota ${status}` : "Nota enviada", description: motivo || data.number || "" });
+      }
       setEmitOpen(false);
       setScreen("list");
       await loadInvoices();
       await loadSettings();
     } catch (error) {
-      toast({ title: error instanceof Error ? error.message : "Falha ao emitir", variant: "destructive" });
+      setEmitNotice(error instanceof Error ? error.message : "Falha ao emitir");
     } finally {
       setSaving(false);
     }
@@ -651,6 +684,7 @@ export default function NotaFiscal() {
 
   async function confirmCancel() {
     if (!activeOrgId || !cancelTarget) return;
+    setCancelNotice("");
     setSaving(true);
     try {
       await fiscalCall(activeOrgId, "cancel", { method: "POST", body: JSON.stringify({ id: cancelTarget.id, motivo: cancelMotivo.trim() }) });
@@ -659,7 +693,7 @@ export default function NotaFiscal() {
       setCancelMotivo("");
       await loadInvoices();
     } catch (error) {
-      toast({ title: error instanceof Error ? error.message : "Falha ao cancelar", variant: "destructive" });
+      setCancelNotice(error instanceof Error ? error.message : "Falha ao cancelar");
     } finally {
       setSaving(false);
     }
@@ -667,12 +701,13 @@ export default function NotaFiscal() {
 
   async function confirmReturn() {
     if (!activeOrgId || !returnTarget?.access_key) return;
+    setReturnNotice("");
     setSaving(true);
     try {
       const produtos = returnItens.split(/[,;\s]+/).map((item) => Number(item)).filter((item) => item > 0);
       const quantidade = returnQtds.split(/[,;\s]+/).map((item) => Number(item.replace(",", "."))).filter((item) => !Number.isNaN(item) && item > 0);
       if (quantidade.length && quantidade.length !== produtos.length) {
-        toast({ title: "Informe uma quantidade para cada item devolvido", variant: "destructive" });
+        setReturnNotice("Informe uma quantidade para cada item devolvido");
         setSaving(false);
         return;
       }
@@ -691,7 +726,7 @@ export default function NotaFiscal() {
       setReturnTarget(null);
       await loadInvoices();
     } catch (error) {
-      toast({ title: error instanceof Error ? error.message : "Falha na devolução", variant: "destructive" });
+      setReturnNotice(error instanceof Error ? error.message : "Falha na devolução");
     } finally {
       setSaving(false);
     }
@@ -699,6 +734,7 @@ export default function NotaFiscal() {
 
   async function sendCce() {
     if (!activeOrgId) return;
+    setCceNotice("");
     setSaving(true);
     try {
       const data = await fiscalCall(activeOrgId, "cce", { method: "POST", body: JSON.stringify({ chave: cceKey, correcao: cceText.trim() }) });
@@ -706,7 +742,7 @@ export default function NotaFiscal() {
       setCceText("");
       await loadInvoices();
     } catch (error) {
-      toast({ title: error instanceof Error ? error.message : "Falha na carta de correção", variant: "destructive" });
+      setCceNotice(error instanceof Error ? error.message : "Falha na carta de correção");
     } finally {
       setSaving(false);
     }
@@ -718,7 +754,7 @@ export default function NotaFiscal() {
       await fiscalCall(activeOrgId, "refresh", { method: "POST", body: JSON.stringify({ id }) });
       await loadInvoices();
     } catch (error) {
-      toast({ title: error instanceof Error ? error.message : "Falha ao consultar", variant: "destructive" });
+      setPageNotice(error instanceof Error ? error.message : "Falha ao consultar");
     }
   }
 
@@ -728,12 +764,13 @@ export default function NotaFiscal() {
       await fiscalCall(activeOrgId, "delete", { method: "POST", body: JSON.stringify({ id }) });
       await loadInvoices();
     } catch (error) {
-      toast({ title: error instanceof Error ? error.message : "Não foi possível excluir", variant: "destructive" });
+      setPageNotice(error instanceof Error ? error.message : "Não foi possível excluir");
     }
   }
 
   const total = invoices.reduce((sum, invoice) => sum + Number(invoice.amount || 0), 0);
   const classOptions = kind === "nfse" ? serviceClasses : productClasses;
+  const openStatus = statusInvoice ? (invoices.find((item) => item.id === statusInvoice.id) || statusInvoice) : null;
 
   if (!featuresLoading && !hasFeature("nota_fiscal")) {
     return <CRMLayout activeView="nota-fiscal" onViewChange={() => {}}><div className="p-8">Peça ao administrador para habilitar Nota fiscal nesta empresa.</div></CRMLayout>;
@@ -742,6 +779,7 @@ export default function NotaFiscal() {
   return (
     <CRMLayout activeView="nota-fiscal" onViewChange={() => {}}>
       <div className="space-y-4 p-4 md:p-6">
+        <FiscalErrorNotice message={pageNotice} />
         {screen === "list" ? (
           <>
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -826,15 +864,16 @@ export default function NotaFiscal() {
                             <td className="whitespace-nowrap px-3 py-3 text-slate-500">{new Date(invoice.created_at).toLocaleString("pt-BR")}</td>
                             <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-900">{money(Number(invoice.amount || 0))}</td>
                             <td className="px-3 py-3">
-                              <button type="button" title="Atualizar status" className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ring-1 ring-inset ${statusMeta(invoice.status)}`} onClick={() => void refresh(invoice.id)}>{invoice.status}</button>
+                              <button type="button" title={invoice.motivo && !["aprovado", "processado", "cancelado"].includes(invoice.status) ? "Ver motivo" : "Atualizar status"} className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ring-1 ring-inset ${statusMeta(invoice.status)}`} onClick={() => { if (invoice.motivo && !["aprovado", "processado", "cancelado"].includes(invoice.status)) setStatusInvoice(invoice); else void refresh(invoice.id); }}>{invoice.status}</button>
+                              {invoice.motivo && !["aprovado", "processado", "cancelado"].includes(invoice.status) ? <p className="mt-1 max-w-xs text-xs text-rose-700">{invoice.motivo}</p> : null}
                             </td>
                             <td className="px-3 py-3">
                               <div className="flex flex-wrap items-center gap-1.5">
                                 {invoice.pdf_url ? <a className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100" href={invoice.pdf_url} target="_blank" rel="noreferrer">PDF</a> : null}
                                 {invoice.xml_url ? <a className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100" href={invoice.xml_url} target="_blank" rel="noreferrer">XML</a> : null}
                                 {invoice.cce_url ? <a className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100" href={invoice.cce_url} target="_blank" rel="noreferrer">CC-e</a> : null}
-                                {invoice.status === "aprovado" ? <button type="button" className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100" onClick={() => { setCancelTarget(invoice); setCancelMotivo(""); }}>Cancelar</button> : null}
-                                {invoice.kind === "nfe" && invoice.status === "aprovado" && invoice.access_key ? <button type="button" className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200" onClick={() => { setReturnTarget(invoice); setReturnCfop("1202"); setReturnNatureza("Devolução de mercadoria"); setReturnItens(""); setReturnQtds(""); }}>Devolver</button> : null}
+                                {invoice.status === "aprovado" ? <button type="button" className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100" onClick={() => { setCancelNotice(""); setCancelTarget(invoice); setCancelMotivo(""); }}>Cancelar</button> : null}
+                                {invoice.kind === "nfe" && invoice.status === "aprovado" && invoice.access_key ? <button type="button" className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200" onClick={() => { setReturnNotice(""); setReturnTarget(invoice); setReturnCfop("1202"); setReturnNatureza("Devolução de mercadoria"); setReturnItens(""); setReturnQtds(""); }}>Devolver</button> : null}
                                 {!["aprovado", "cancelado", "processado"].includes(invoice.status) ? <button type="button" className="rounded-full p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600" onClick={() => void remove(invoice.id)} aria-label="Excluir"><Trash2 className="h-4 w-4" /></button> : null}
                               </div>
                             </td>
@@ -903,6 +942,7 @@ export default function NotaFiscal() {
             ) : null}
             {pageTab === "cce" ? (
               <div className="max-w-xl space-y-3">
+                <FiscalErrorNotice message={cceNotice} />
                 <h2 className="text-lg font-semibold">Carta de Correção</h2>
                 <p className="text-sm text-slate-600">A carta corrige dados acessórios da NF-e. Não altera valor, quantidade, destinatário, data de emissão nem o número da nota.</p>
                 <div><Label>NF-e</Label>
@@ -952,6 +992,7 @@ export default function NotaFiscal() {
             <DialogTitle className="text-center text-2xl font-semibold">{kind === "nfse" ? "Emitir NFSe" : "Emitir NFe"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 text-sm">
+            <FiscalErrorNotice message={emitNotice} />
             <p className="font-medium">{kind === "nfse" ? "Informações dos serviços:" : "Informações dos produtos:"}</p>
             {lines.map((line, index) => {
               const missing = line.item_type === "product"
@@ -1103,23 +1144,32 @@ export default function NotaFiscal() {
           </div>
         </DialogContent>
       </Dialog>
-      <Dialog open={Boolean(cancelTarget)} onOpenChange={(open) => { if (!open) setCancelTarget(null); }}>
+      <Dialog open={Boolean(cancelTarget)} onOpenChange={(open) => { if (!open) { setCancelTarget(null); setCancelNotice(""); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Cancelar nota</DialogTitle></DialogHeader>
+          <FiscalErrorNotice message={cancelNotice} />
           <p className="text-sm text-slate-600">Informe o motivo do cancelamento, entre 15 e 255 caracteres.</p>
           <Textarea value={cancelMotivo} onChange={(event) => setCancelMotivo(event.target.value.slice(0, 255))} />
           <Button disabled={saving || cancelMotivo.trim().length < 15} onClick={() => void confirmCancel()}>{saving ? "Cancelando..." : "Confirmar cancelamento"}</Button>
         </DialogContent>
       </Dialog>
-      <Dialog open={Boolean(returnTarget)} onOpenChange={(open) => { if (!open) setReturnTarget(null); }}>
+      <Dialog open={Boolean(returnTarget)} onOpenChange={(open) => { if (!open) { setReturnTarget(null); setReturnNotice(""); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Devolver NF-e</DialogTitle></DialogHeader>
+          <FiscalErrorNotice message={returnNotice} />
           <p className="text-sm text-slate-600">A Webmania monta o vínculo com a nota de origem. Deixe os itens em branco para devolver a nota inteira.</p>
           <div><Label>CFOP</Label><Input value={returnCfop} onChange={(event) => setReturnCfop(event.target.value.replace(/\D/g, "").slice(0, 4))} /></div>
           <div><Label>Natureza</Label><Input value={returnNatureza} onChange={(event) => setReturnNatureza(event.target.value)} /></div>
           <div><Label>Itens parciais</Label><Input placeholder="Números dos itens, começando em 1" value={returnItens} onChange={(event) => setReturnItens(event.target.value)} /></div>
           <div><Label>Quantidades</Label><Input placeholder="Uma quantidade para cada item" value={returnQtds} onChange={(event) => setReturnQtds(event.target.value)} /></div>
           <Button disabled={saving || returnCfop.length !== 4} onClick={() => void confirmReturn()}>{saving ? "Enviando..." : "Emitir devolução"}</Button>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(openStatus)} onOpenChange={(open) => { if (!open) setStatusInvoice(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Motivo da nota</DialogTitle></DialogHeader>
+          {openStatus?.motivo ? <FiscalErrorNotice message={openStatus.motivo} /> : <p className="text-sm text-slate-600">Status: {openStatus?.status}</p>}
+          {openStatus?.id ? <Button variant="outline" onClick={() => void refresh(openStatus.id)}>Atualizar status</Button> : null}
         </DialogContent>
       </Dialog>
     </CRMLayout>
