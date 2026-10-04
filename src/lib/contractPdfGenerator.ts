@@ -365,10 +365,13 @@ export async function generateContractPDF(options: ContractPdfOptions): Promise<
         }
       });
 
+      const placedSignerTypes = new Set<string>();
+
       // Adicionar assinaturas nas posições definidas
       for (const position of options.signaturePositions) {
         const signature = signatureMap.get(position.signerType);
         if (!signature) continue;
+        placedSignerTypes.add(position.signerType);
 
         // Garantir que a página existe (com folha de rosto)
         while (doc.getNumberOfPages() < position.pageNumber) {
@@ -414,12 +417,29 @@ export async function generateContractPDF(options: ContractPdfOptions): Promise<
           doc.text(signature.name, xMm, yMm - 3);
         } catch (error) {
           console.error('Erro ao adicionar assinatura na posição:', error);
+          placedSignerTypes.delete(position.signerType);
         }
       }
+
+      const unplaced = options.signatures.filter(
+        (sig) => !sig.signerType || !placedSignerTypes.has(sig.signerType)
+      );
+      if (unplaced.length > 0) {
+        await drawSignatureBlocks(unplaced);
+      }
     } else {
-      // Comportamento padrão: adicionar assinaturas no final
-      console.log('📝 Adicionando página de assinaturas com', options.signatures.length, 'assinatura(s)');
-      // Criar nova página dedicada para assinaturas (com folha de rosto)
+      await drawSignatureBlocks(options.signatures);
+    }
+  }
+
+  async function drawSignatureBlocks(
+    signatures: NonNullable<ContractPdfOptions['signatures']>
+  ) {
+      console.log('📝 Adicionando página de assinaturas com', signatures.length, 'assinatura(s)');
+      const ordered = [...signatures].sort((a, b) => {
+        const rank = (type?: string) => (type === 'user' ? 0 : type === 'client' ? 1 : 2);
+        return rank(a.signerType) - rank(b.signerType);
+      });
       addPageWithCover();
 
     // Título da seção de assinaturas
@@ -433,131 +453,120 @@ export async function generateContractPDF(options: ContractPdfOptions): Promise<
     doc.line(margin, yPosition, pageWidth - margin, yPosition);
     yPosition += lineHeight * 2;
 
-    // Adicionar cada assinatura
-    const signatureHeight = 40; // Altura estimada para cada assinatura
-    
-    for (let i = 0; i < options.signatures.length; i++) {
-      const signature = options.signatures[i];
-      console.log(`📝 Processando assinatura ${i + 1}/${options.signatures.length}:`, signature.name);
-      
-      // Verificar se precisa de nova página para próxima assinatura
-      if (yPosition + signatureHeight + lineHeight * 3 > pageHeight - margin - 10) {
-        // Adicionar rodapé na página atual antes de criar nova
+    // Usuário e cliente lado a lado para as duas assinaturas ficarem visíveis
+    const columns = Math.min(ordered.length, 2);
+    const gap = 8;
+    const colWidth = (maxWidth - gap * (columns - 1)) / columns;
+    const blockReserve = 78;
+
+    for (let i = 0; i < ordered.length; i += columns) {
+      const row = ordered.slice(i, i + columns);
+      if (yPosition + blockReserve > pageHeight - margin) {
         addFooter(pageHeight - margin);
         addPageWithCover();
       }
 
-      // Nome do signatário
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text(signature.name, margin, yPosition);
-      yPosition += lineHeight;
+      const rowTop = yPosition;
+      let rowBottom = rowTop;
 
-      // Data e hora da assinatura
-      if (signature.signedAt) {
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        const signedDate = new Date(signature.signedAt);
-        const dateStr = signedDate.toLocaleString('pt-BR', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        });
-        doc.text(`Assinado em: ${dateStr}`, margin, yPosition);
-        yPosition += lineHeight * 1.5;
-      }
-
-      // Adicionar imagem da assinatura
-      try {
-        const signatureImg = new Image();
-        signatureImg.crossOrigin = 'anonymous';
-        
-        await new Promise<void>((resolve, reject) => {
-          signatureImg.onload = () => resolve();
-          signatureImg.onerror = () => reject(new Error('Erro ao carregar imagem da assinatura'));
-          signatureImg.src = signature.signatureData;
-        });
-
-        // Adicionar assinatura (largura máxima de 60mm, altura proporcional)
-        const signatureWidth = 60;
-        const signatureHeightImg = (signatureImg.height / signatureImg.width) * signatureWidth;
-        
-        doc.addImage(
-          signatureImg,
-          'PNG',
-          margin,
-          yPosition,
-          signatureWidth,
-          signatureHeightImg
-        );
-
-        yPosition += signatureHeightImg + lineHeight * 1.5;
-      } catch (error) {
-        console.error('Erro ao adicionar assinatura ao PDF:', error);
-        yPosition += lineHeight * 3; // Espaço mesmo se falhar
-      }
-
-      // Dados de autenticação (se disponíveis)
-      const hasAuthData = !!(signature.ipAddress || signature.userAgent || signature.validationHash);
-      if (hasAuthData) {
-        // Linha separadora antes dos dados de autenticação
-        doc.setLineWidth(0.2);
-        doc.setDrawColor(200, 200, 200);
-        doc.line(margin, yPosition, pageWidth - margin, yPosition);
-        yPosition += lineHeight;
+      for (let col = 0; col < row.length; col++) {
+        const signature = row[col];
+        const x = margin + col * (colWidth + gap);
+        let y = rowTop;
+        const role =
+          signature.signerType === 'user'
+            ? 'Usuário'
+            : signature.signerType === 'client'
+              ? 'Cliente'
+              : 'Signatário';
 
         doc.setFontSize(8);
         doc.setFont('helvetica', 'bold');
-        doc.text('Dados de Autenticação:', margin, yPosition);
-        yPosition += lineHeight * 0.8;
+        doc.setTextColor(80, 80, 80);
+        doc.text(role.toUpperCase(), x, y);
+        y += lineHeight * 0.8;
 
-        doc.setFontSize(7);
-        doc.setFont('helvetica', 'normal');
-        
-        if (signature.ipAddress) {
-          let ipText = `IP: ${signature.ipAddress}`;
-          if (signature.signedIpCountry) {
-            ipText += ` (${signature.signedIpCountry})`;
-          }
-          doc.text(ipText, margin + 5, yPosition);
-          yPosition += lineHeight * 0.7;
-        }
+        doc.setFontSize(11);
+        doc.setTextColor(20, 20, 20);
+        const nameLines = doc.splitTextToSize(signature.name, colWidth);
+        nameLines.forEach((line: string) => {
+          doc.text(line, x, y);
+          y += lineHeight * 0.85;
+        });
 
-        if (signature.userAgent) {
-          // Truncar user agent se muito longo
-          const maxUserAgentLength = 80;
-          let userAgentText = signature.userAgent;
-          if (userAgentText.length > maxUserAgentLength) {
-            userAgentText = userAgentText.substring(0, maxUserAgentLength) + '...';
-          }
-          const userAgentLines = doc.splitTextToSize(`Dispositivo: ${userAgentText}`, maxWidth - 10);
-          userAgentLines.forEach((line: string) => {
-            doc.text(line, margin + 5, yPosition);
-            yPosition += lineHeight * 0.7;
+        if (signature.signedAt) {
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(80, 80, 80);
+          const signedDate = new Date(signature.signedAt);
+          const dateStr = signedDate.toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
           });
+          doc.text(`Assinado em: ${dateStr}`, x, y);
+          y += lineHeight;
         }
 
-        if (signature.validationHash) {
-          // Hash completo em linha separada
-          const hashLines = doc.splitTextToSize(
-            `Hash Validação: ${signature.validationHash}`,
-            maxWidth - 10
+        try {
+          const signatureImg = new Image();
+          signatureImg.crossOrigin = 'anonymous';
+          await new Promise<void>((resolve, reject) => {
+            signatureImg.onload = () => resolve();
+            signatureImg.onerror = () => reject(new Error('Erro ao carregar imagem da assinatura'));
+            signatureImg.src = signature.signatureData;
+          });
+
+          const signatureWidth = Math.min(60, colWidth);
+          const naturalHeight = (signatureImg.height / signatureImg.width) * signatureWidth;
+          const signatureHeightImg = Math.min(naturalHeight, 28);
+
+          doc.addImage(
+            signatureImg,
+            'PNG',
+            x,
+            y,
+            signatureWidth,
+            signatureHeightImg
           );
-          hashLines.forEach((line: string) => {
-            doc.text(line, margin + 5, yPosition);
-            yPosition += lineHeight * 0.7;
-          });
+          y += signatureHeightImg + lineHeight * 0.6;
+        } catch (error) {
+          console.error('Erro ao adicionar assinatura ao PDF:', error);
+          y += lineHeight * 2;
         }
 
-        yPosition += lineHeight;
+        doc.setDrawColor(180, 180, 180);
+        doc.setLineWidth(0.3);
+        doc.line(x, y, x + colWidth, y);
+        y += lineHeight * 0.5;
+
+        if (signature.ipAddress || signature.validationHash) {
+          doc.setFontSize(7);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(90, 90, 90);
+          if (signature.ipAddress) {
+            const ipText = signature.signedIpCountry
+              ? `IP: ${signature.ipAddress} (${signature.signedIpCountry})`
+              : `IP: ${signature.ipAddress}`;
+            doc.text(ipText, x, y);
+            y += lineHeight * 0.7;
+          }
+          if (signature.validationHash) {
+            const shortHash = signature.validationHash.slice(0, 16);
+            doc.text(`Hash: ${shortHash}…`, x, y);
+            y += lineHeight * 0.7;
+          }
+        }
+
+        rowBottom = Math.max(rowBottom, y);
       }
+
+      yPosition = rowBottom + lineHeight;
     }
 
-      // Adicionar rodapé na última página de assinaturas
-      addFooter(pageHeight - margin);
-    }
+    addFooter(pageHeight - margin);
   }
 
   // Gerar blob do PDF

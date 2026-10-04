@@ -10,6 +10,7 @@ import { Loader2, FileSignature, CheckCircle2, AlertCircle } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { generateContractPDF } from '@/lib/contractPdfGenerator';
+import { getSignaturePositions } from '@/lib/pdfAnnotationUtils';
 // StorageService agora é obtido via StorageFactory
 interface ContractData {
   id: string;
@@ -307,7 +308,7 @@ export default function SignContract() {
       try {
         const { data, error: selectError } = await supabase
           .from('contract_signatures')
-          .select('signer_name, signature_data, signed_at, ip_address, user_agent, signed_ip_country, validation_hash')
+          .select('signer_name, signature_data, signed_at, signer_type, ip_address, user_agent, signed_ip_country, validation_hash')
           .eq('contract_id', contract.id)
           .order('signed_at', { ascending: true });
 
@@ -344,13 +345,16 @@ export default function SignContract() {
         name: sig.signer_name,
         signatureData: sig.signature_data,
         signedAt: sig.signed_at,
+        signerType: sig.signer_type as 'user' | 'client' | undefined,
         ipAddress: sig.ip_address || undefined,
         userAgent: sig.user_agent || undefined,
         signedIpCountry: sig.signed_ip_country || undefined,
         validationHash: sig.validation_hash || undefined,
       }));
 
-      console.log('📄 Gerando PDF com assinaturas:', signaturesForPdf);
+      console.log('📄 Gerando PDF com assinaturas:', signaturesForPdf.length);
+
+      const signaturePositions = await getSignaturePositions(contract.id);
 
       const pdfBlob = await generateContractPDF({
         content: contractData.content,
@@ -359,6 +363,16 @@ export default function SignContract() {
         leadName: contract.lead.name,
         coverPageUrl: coverPageUrl,
         signatures: signaturesForPdf,
+        signaturePositions: signaturePositions.length > 0
+          ? signaturePositions.map((pos) => ({
+              signerType: pos.signer_type,
+              pageNumber: pos.page_number,
+              x: pos.x_position,
+              y: pos.y_position,
+              width: pos.width,
+              height: pos.height,
+            }))
+          : undefined,
       });
 
       console.log('✅ PDF gerado com sucesso, tamanho:', pdfBlob.size, 'bytes');

@@ -64,22 +64,16 @@ export function ContractSignatureDialog({
       const hasUserSignature = allSignatures?.some(sig => sig.signer_type === 'user') || false;
       const hasClientSignature = allSignatures?.some(sig => sig.signer_type === 'client') || false;
 
-      // SEMPRE regenerar PDF quando o usuário assinar (obrigatório)
-      // Se for usuário assinando, regenerar imediatamente
-      if (signerType === 'user') {
-        console.log('✅ Usuário assinou - regenerando PDF imediatamente com assinatura do usuário');
-        try {
-          // Regenerar PDF com todas as assinaturas disponíveis (usuário + cliente se houver)
-          await regenerateContractPDF(contract.id);
-          console.log('✅ PDF regenerado com sucesso contendo assinatura do usuário');
-        } catch (pdfError: any) {
-          console.error('⚠️ Erro ao regenerar PDF:', pdfError);
-          toast({
-            title: 'Aviso',
-            description: 'Assinatura salva, mas houve erro ao regenerar PDF. Tente novamente.',
-            variant: 'default',
-          });
-        }
+      // Sempre regenerar o PDF com todas as assinaturas já salvas (usuário e cliente)
+      try {
+        await regenerateContractPDF(contract.id);
+      } catch (pdfError: any) {
+        console.error('⚠️ Erro ao regenerar PDF:', pdfError);
+        toast({
+          title: 'Aviso',
+          description: 'Assinatura salva, mas houve erro ao regenerar PDF. Use Recarregar Contrato.',
+          variant: 'default',
+        });
       }
 
       // Se ambas as partes assinaram, atualizar status para 'signed'
@@ -89,11 +83,8 @@ export function ContractSignatureDialog({
         if (contract.status !== 'signed') {
           await updateContractStatus(contract.id, 'signed');
         }
-      } else if (signerType === 'user') {
-        // Se apenas usuário assinou, também regenerar PDF (já feito acima)
-        console.log('📝 Usuário assinou. PDF regenerado com assinatura do usuário.');
       } else {
-        console.log('📝 Cliente assinou. PDF será regenerado quando usuário também assinar.');
+        console.log('📝 Assinatura registrada. PDF regenerado com as assinaturas disponíveis.');
       }
 
       toast({

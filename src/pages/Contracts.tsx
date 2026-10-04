@@ -391,6 +391,7 @@ export default function Contracts() {
         setSelectedContract({
           ...selectedContract,
           pdf_url: newPdfUrl,
+          signed_pdf_url: newPdfUrl,
         });
       }
 

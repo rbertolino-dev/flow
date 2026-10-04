@@ -80,7 +80,10 @@ export function ContractViewer({
   const [savingTitle, setSavingTitle] = useState(false);
   const { toast } = useToast();
 
-  const pdfUrl = contract.signed_pdf_url || contract.pdf_url;
+  const rawPdfUrl = contract.signed_pdf_url || contract.pdf_url;
+  const pdfUrl = rawPdfUrl
+    ? `${rawPdfUrl}${rawPdfUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(contract.updated_at || contract.id)}`
+    : undefined;
   const displayTitle = contract.title || contract.template?.name || 'CONTRATO';
   const isExpired =
     contract.status === 'expired' ||

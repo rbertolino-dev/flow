@@ -703,10 +703,17 @@ export function useContracts(filters?: ContractFilters) {
       const storageService = await createStorageService(activeOrgId);
       const pdfUrl = await storageService.uploadPDF(pdfBlob, contract.id);
 
-      // Atualizar contrato com URL do PDF
+      // Atualizar contrato com URL do PDF.
+      // O visualizador prioriza signed_pdf_url; sem atualizar essa URL o reload
+      // continua mostrando o PDF antigo, sem a assinatura do cliente.
+      const pdfUpdate: { pdf_url: string; signed_pdf_url?: string } = { pdf_url: pdfUrl };
+      if ((signatures?.length || 0) > 0) {
+        pdfUpdate.signed_pdf_url = pdfUrl;
+      }
+
       const { error: updateError } = await supabase
         .from('contracts')
-        .update({ pdf_url: pdfUrl })
+        .update(pdfUpdate)
         .eq('id', contract.id);
 
       if (updateError) {
