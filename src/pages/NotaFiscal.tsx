@@ -73,24 +73,91 @@ type EmitLine = {
 const FORMAS = [
   { code: "01", label: "01 - Dinheiro", method: "dinheiro" },
   { code: "02", label: "02 - Cheque", method: "cheque" },
-  { code: "03", label: "03 - Cartão de crédito", method: "cartao_credito" },
-  { code: "04", label: "04 - Cartão de débito", method: "cartao_debito" },
-  { code: "05", label: "05 - Crediário", method: "crediario" },
-  { code: "10", label: "10 - Vale alimentação", method: "vale_alimentacao" },
-  { code: "11", label: "11 - Vale refeição", method: "vale_refeicao" },
-  { code: "12", label: "12 - Vale presente", method: "vale_presente" },
-  { code: "13", label: "13 - Vale combustível", method: "vale_combustivel" },
-  { code: "14", label: "14 - Duplicata", method: "duplicata" },
-  { code: "15", label: "15 - Boleto", method: "boleto" },
-  { code: "16", label: "16 - Transferência", method: "transferencia_bancaria" },
-  { code: "17", label: "17 - PIX", method: "pix" },
-  { code: "18", label: "18 - TED", method: "ted" },
-  { code: "20", label: "20 - PIX estático", method: "pix_estatico" },
-  { code: "21", label: "21 - Crédito em loja", method: "credito_loja" },
+  { code: "03", label: "03 - Cartão de Crédito", method: "cartao_credito" },
+  { code: "04", label: "04 - Cartão de Débito", method: "cartao_debito" },
+  { code: "05", label: "05 - Cartão da Loja (Private Label), Crediário Digital, Outros Crediários", method: "crediario" },
+  { code: "10", label: "10 - Vale Alimentação", method: "vale_alimentacao" },
+  { code: "11", label: "11 - Vale Refeição", method: "vale_refeicao" },
+  { code: "12", label: "12 - Vale Presente", method: "vale_presente" },
+  { code: "13", label: "13 - Vale Combustível", method: "vale_combustivel" },
+  { code: "14", label: "14 - Duplicata Mercantil", method: "duplicata" },
+  { code: "15", label: "15 - Boleto Bancário", method: "boleto" },
+  { code: "16", label: "16 - Depósito Bancário", method: "transferencia_bancaria" },
+  { code: "17", label: "17 - Pagamento Instantâneo (PIX) - Dinâmico", method: "pix" },
+  { code: "18", label: "18 - Transferência bancária, Carteira Digital", method: "ted" },
+  { code: "19", label: "19 - Programa de fidelidade, Cashback, Crédito Virtual", method: "fidelidade" },
+  { code: "20", label: "20 - Pagamento Instantâneo (PIX) - Estático", method: "pix_estatico" },
+  { code: "21", label: "21 - Crédito em Loja", method: "credito_loja" },
+  { code: "22", label: "22 - Pagamento Eletrônico não Informado - falha de hardware do sistema emissor", method: "pagamento_eletronico" },
   { code: "90", label: "90 - Sem pagamento", method: "sem_pagamento" },
-  { code: "91", label: "91 - Pagamento posterior", method: "pagamento_posterior" },
   { code: "99", label: "99 - Outros", method: "outros" },
 ];
+
+const FINALIDADES = [
+  { value: "1", label: "1 - Normal" },
+  { value: "3", label: "3 - Ajuste/Estorno" },
+  { value: "4", label: "4 - Devolução" },
+];
+
+const PRESENCAS = [
+  { value: "0", label: "0 - Não se aplica (por exemplo, Nota Fiscal complementar ou de ajuste)" },
+  { value: "1", label: "1 - Operação presencial" },
+  { value: "2", label: "2 - Operação não presencial, pela Internet" },
+  { value: "3", label: "3 - Operação não presencial, Teleatendimento" },
+  { value: "4", label: "4 - NFC-e em operação com entrega a domicílio" },
+  { value: "5", label: "5 - Operação presencial, fora do estabelecimento" },
+  { value: "9", label: "9 - Operação não presencial, outros" },
+];
+
+const FRETES = [
+  { value: "0", label: "0 - Contratação do Frete por conta do Remetente (CIF)" },
+  { value: "1", label: "1 - Contratação do Frete por conta do Destinatário (FOB)" },
+  { value: "2", label: "2 - Contratação do Frete por conta de Terceiros" },
+  { value: "3", label: "3 - Transporte Próprio por conta do Remetente" },
+  { value: "4", label: "4 - Transporte Próprio por conta do Destinatário" },
+  { value: "9", label: "9 - Sem Ocorrência de Transporte" },
+];
+
+type CustomerForm = {
+  name: string;
+  document: string;
+  email: string;
+  phone: string;
+  ie: string;
+  street: string;
+  number: string;
+  district: string;
+  city: string;
+  uf: string;
+  cep: string;
+  isCompany: boolean;
+  foreign: boolean;
+};
+
+function emptyCustomer(patch: Partial<CustomerForm> = {}): CustomerForm {
+  return {
+    name: "", document: "", email: "", phone: "", ie: "", street: "", number: "", district: "", city: "", uf: "", cep: "", isCompany: false, foreign: false,
+    ...patch,
+  };
+}
+
+function customerFromLead(lead: Record<string, unknown> | null | undefined, fallbackName = "", fallbackPhone = ""): CustomerForm {
+  const doc = String(lead?.cpf_cnpj || "").replace(/\D/g, "");
+  const isCompany = doc.length === 14;
+  const company = String(lead?.company || "").trim();
+  const person = String(lead?.name || fallbackName || "").trim();
+  return emptyCustomer({
+    name: isCompany ? (company || person) : (person || company),
+    document: doc,
+    email: String(lead?.email || ""),
+    phone: String(lead?.phone || fallbackPhone || ""),
+    street: String(lead?.address || ""),
+    district: String(lead?.neighborhood || ""),
+    city: String(lead?.city || ""),
+    cep: String(lead?.postal_code || ""),
+    isCompany,
+  });
+}
 
 const PAGE_TABS: { id: "notas" | "product" | "service" | "avulsa" | "sales" | "cce" | "company" | "export"; label: string; caption: string; icon: LucideIcon }[] = [
   { id: "notas", label: "Notas", caption: "Notas emitidas no período", icon: Receipt },
@@ -341,10 +408,9 @@ export default function NotaFiscal() {
   const [lines, setLines] = useState<EmitLine[]>([]);
   const [source, setSource] = useState("avulsa");
   const [sourceId, setSourceId] = useState<string | null>(null);
-  const [customer, setCustomer] = useState({
-    name: "", document: "", email: "", phone: "", ie: "", street: "", number: "", district: "", city: "", uf: "", cep: "", isCompany: false, foreign: false,
-  });
+  const [customer, setCustomer] = useState<CustomerForm>(emptyCustomer());
   const [natureza, setNatureza] = useState("Venda de Mercadoria");
+  const [finalidade, setFinalidade] = useState("1");
   const [operacao, setOperacao] = useState("1");
   const [presenca, setPresenca] = useState("1");
   const [freteModo, setFreteModo] = useState("9");
@@ -429,12 +495,13 @@ export default function NotaFiscal() {
     return data.classes || [];
   }
 
-  function openEmit(nextKind: "nfe" | "nfce" | "nfse", nextLines: EmitLine[], nextSource: string, nextSourceId: string | null, name = "") {
+  function openEmit(nextKind: "nfe" | "nfce" | "nfse", nextLines: EmitLine[], nextSource: string, nextSourceId: string | null, customerPatch: Partial<CustomerForm> = {}) {
     setKind(nextKind);
     setLines(nextLines);
     setSource(nextSource);
     setSourceId(nextSourceId);
-    setCustomer((prev) => ({ ...prev, name }));
+    setCustomer(emptyCustomer(customerPatch));
+    setFinalidade("1");
     setReferenciar(false);
     setChaveReferencia("");
     setOperacao("1");
@@ -518,7 +585,7 @@ export default function NotaFiscal() {
         price: Number(item.unit_price || 0),
         tax_class_ref: String(item.product_class || item.service_class || ""),
         description: String(item.name || ""),
-      })), "pos_sale", id, data.sale?.customer_name || "");
+      })), "pos_sale", id, customerFromLead(data.lead, data.sale?.customer_name || "", data.sale?.customer_phone || ""));
       const payment = data.payments?.[0];
       const match = FORMAS.find((item) => item.method === payment?.method);
       if (match) setForma(match.code);
@@ -548,7 +615,7 @@ export default function NotaFiscal() {
         price: Number(item.unit_price || 0),
         tax_class_ref: String((data.classById || {})[String(item.item_id || "")] || ""),
         description: String(item.name || ""),
-      })), "service_order", os, data.order?.client_name || "");
+      })), "service_order", os, customerFromLead(data.lead, data.order?.client_name || "", data.order?.client_phone || ""));
     }).catch((error) => setPageNotice(error instanceof Error ? error.message : "Não foi possível abrir a emissão"));
     // openEmit é estável o bastante para este efeito de deep-link da OS
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -624,7 +691,7 @@ export default function NotaFiscal() {
       const data = await fiscalCall(activeOrgId, "emit", {
         method: "POST",
         body: JSON.stringify({
-          kind, source, source_id: sourceId, customer, natureza, operacao: Number(operacao), presenca: Number(presenca), modalidade_frete: Number(freteModo),
+          kind, source, source_id: sourceId, customer, natureza, finalidade: Number(finalidade), operacao: Number(operacao), presenca: Number(presenca), modalidade_frete: Number(freteModo),
           frete: Number(frete), desconto: Number(desconto), pagamento: Number(pagamento), modelo: kind === "nfce" ? "2" : "1",
           nfe_referenciada: referenciar ? chaveReferencia.replace(/\D/g, "") : "",
           data_emissao: `${issuedDate} ${issuedTime}:00`,
@@ -934,8 +1001,7 @@ export default function NotaFiscal() {
                 <Input placeholder="CPF/CNPJ" value={avulsa.document} onChange={(event) => setAvulsa({ ...avulsa, document: event.target.value })} />
                 <Input placeholder="E-mail" value={avulsa.email} onChange={(event) => setAvulsa({ ...avulsa, email: event.target.value })} />
                 <Button onClick={() => {
-                  openEmit("nfse", [{ key: "avulsa", item_type: "service", name: avulsa.description || "Serviço", code: "", ncm: "", origem: "0", quantity: 1, price: Number(avulsa.amount || 0), tax_class_ref: avulsa.tax, description: avulsa.description }], "avulsa", null, avulsa.name);
-                  setCustomer((prev) => ({ ...prev, name: avulsa.name, document: avulsa.document, email: avulsa.email }));
+                  openEmit("nfse", [{ key: "avulsa", item_type: "service", name: avulsa.description || "Serviço", code: "", ncm: "", origem: "0", quantity: 1, price: Number(avulsa.amount || 0), tax_class_ref: avulsa.tax, description: avulsa.description }], "avulsa", null, { name: avulsa.name, document: avulsa.document, email: avulsa.email });
                   setPageTab("notas");
                 }}>Continuar</Button>
               </div>
@@ -1067,19 +1133,21 @@ export default function NotaFiscal() {
                       <div><p className="text-[11px]">Modelo:</p>
                         <Select value={kind} onValueChange={(value) => setKind(value as "nfe" | "nfce")}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="nfe">1 - NF-e</SelectItem><SelectItem value="nfce">2 - NFC-e</SelectItem></SelectContent></Select>
                       </div>
-                      <div><p className="text-[11px]">Finalidade:</p><Input className="h-8" value="1 - Normal" readOnly /></div>
+                      <div><p className="text-[11px]">Finalidade:</p>
+                        <Select value={finalidade} onValueChange={setFinalidade}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent>{FINALIDADES.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select>
+                      </div>
                       <div><p className="text-[11px]">Operação:</p>
                         <Select value={operacao} onValueChange={setOperacao}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">1 - Saída</SelectItem><SelectItem value="0">0 - Entrada</SelectItem></SelectContent></Select>
                       </div>
                       <div><p className="text-[11px]">Presença:</p>
-                        <Select value={presenca} onValueChange={setPresenca}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent><SelectItem value="0">0 - Não se aplica</SelectItem><SelectItem value="1">1 - Operação presencial</SelectItem><SelectItem value="2">2 - Internet</SelectItem><SelectItem value="3">3 - Teleatendimento</SelectItem><SelectItem value="4">4 - Entrega</SelectItem><SelectItem value="5">5 - Presencial fora do estabelecimento</SelectItem><SelectItem value="9">9 - Outros</SelectItem></SelectContent></Select>
+                        <Select value={presenca} onValueChange={setPresenca}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent className="max-h-80 w-[min(36rem,90vw)]">{PRESENCAS.map((item) => <SelectItem key={item.value} value={item.value} className="whitespace-normal">{item.label}</SelectItem>)}</SelectContent></Select>
                       </div>
                       <div><p className="text-[11px]">Modalidade frete:</p>
-                        <Select value={freteModo} onValueChange={setFreteModo}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent><SelectItem value="9">9 - Sem frete</SelectItem><SelectItem value="0">0 - Emitente</SelectItem><SelectItem value="1">1 - Destinatário</SelectItem><SelectItem value="2">2 - Terceiros</SelectItem><SelectItem value="3">3 - Transporte próprio do remetente</SelectItem><SelectItem value="4">4 - Transporte próprio do destinatário</SelectItem></SelectContent></Select>
+                        <Select value={freteModo} onValueChange={setFreteModo}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent className="max-h-80 w-[min(36rem,90vw)]">{FRETES.map((item) => <SelectItem key={item.value} value={item.value} className="whitespace-normal">{item.label}</SelectItem>)}</SelectContent></Select>
                       </div>
                       <div><p className="text-[11px]">Frete:</p><Input className="h-8" value={frete} onChange={(event) => setFrete(event.target.value)} /></div>
                       <div><p className="text-[11px]">Forma de pagamento:</p>
-                        <Select value={forma} onValueChange={setForma}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent>{FORMAS.map((item) => <SelectItem key={item.code} value={item.code}>{item.label}</SelectItem>)}</SelectContent></Select>
+                        <Select value={forma} onValueChange={setForma}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent className="max-h-80 w-[min(36rem,90vw)]">{FORMAS.map((item) => <SelectItem key={item.code} value={item.code} className="whitespace-normal">{item.label}</SelectItem>)}</SelectContent></Select>
                       </div>
                       <div><p className="text-[11px]">Pagamento:</p>
                         <Select value={pagamento} onValueChange={setPagamento}><SelectTrigger className="h-8"><SelectValue placeholder="Digite" /></SelectTrigger><SelectContent><SelectItem value="0">0 - À vista</SelectItem><SelectItem value="1">1 - A prazo</SelectItem></SelectContent></Select>

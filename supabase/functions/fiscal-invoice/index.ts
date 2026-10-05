@@ -247,6 +247,8 @@ const PAYMENT_CODE: Record<string, string> = {
   ted: "18",
   pix_estatico: "20",
   credito_loja: "21",
+  fidelidade: "19",
+  pagamento_eletronico: "22",
   sem_pagamento: "90",
   pagamento_posterior: "91",
 };
@@ -255,6 +257,22 @@ function paymentCode(method: string) {
   const raw = String(method || "").trim();
   if (/^\d{2}$/.test(raw)) return raw;
   return PAYMENT_CODE[raw] || "99";
+}
+
+async function loadLead(
+  supabase: { from: (table: string) => { select: (columns: string) => { eq: (column: string, value: string) => { eq: (column: string, value: string) => { is: (column: string, value: null) => { maybeSingle: () => Promise<{ data: Record<string, unknown> | null; error: { message?: string } | null }> } } } } } } },
+  organizationId: string,
+  leadId: string,
+) {
+  const id = String(leadId || "").trim();
+  if (!id) return null;
+  const query = (columns: string) => supabase.from("leads").select(columns).eq("id", id).eq("organization_id", organizationId).is("deleted_at", null).maybeSingle();
+  const full = await query("id, name, phone, email, company, cpf_cnpj, address, neighborhood, city, postal_code");
+  if (!full.error) return full.data;
+  if (!/column|does not exist/i.test(full.error.message || "")) return null;
+  const slim = await query("id, name, phone, email, company");
+  if (slim.error) return null;
+  return slim.data;
 }
 
 function extractReturn(body: Record<string, unknown>) {
@@ -903,7 +921,7 @@ serve(async (req) => {
       const id = url.searchParams.get("id");
       if (!id) return json({ error: "Venda não informada" }, 400);
       const sale = await client.queryObject(
-        `SELECT id, organization_id, sale_number::text AS sale_number, customer_name, customer_phone,
+        `SELECT id, organization_id, sale_number::text AS sale_number, lead_id, customer_name, customer_phone,
                 subtotal::text AS subtotal, discount_amount::text AS discount_amount, total::text AS total,
                 notes, created_at
          FROM pos_sales WHERE id = $1 AND organization_id = $2`,
@@ -925,13 +943,15 @@ serve(async (req) => {
         `SELECT method, amount::text AS amount FROM pos_sale_payments WHERE sale_id = $1`,
         [id],
       );
-      return json({ sale: sale.rows[0], items: items.rows, payments: payments.rows });
+      const saleRow = sale.rows[0] as Record<string, unknown>;
+      const lead = await loadLead(supabase, organizationId, saleRow.lead_id ? String(saleRow.lead_id) : "");
+      return json({ sale: saleRow, items: items.rows, payments: payments.rows, lead });
     }
 
     if (action === "order") {
       const id = url.searchParams.get("id");
       if (!id) return json({ error: "Ordem não informada" }, 400);
-      const { data: order, error } = await supabase.from("service_orders").select("id, code, client_name, client_phone, service_name, total, discount").eq("id", id).eq("organization_id", organizationId).is("deleted_at", null).maybeSingle();
+      const { data: order, error } = await supabase.from("service_orders").select("id, code, client_name, client_phone, service_name, total, discount, lead_id").eq("id", id).eq("organization_id", organizationId).is("deleted_at", null).maybeSingle();
       if (error || !order) return json({ error: "Ordem de serviço não encontrada" }, 404);
       const { data: items } = await supabase.from("service_order_items").select("item_type, item_id, name, sku, unit, quantity, unit_price, total_price").eq("service_order_id", id).eq("organization_id", organizationId);
       const serviceIds = (items || []).filter((item) => item.item_type === "service" && item.item_id).map((item) => item.item_id);
@@ -943,7 +963,8 @@ serve(async (req) => {
         );
         classById = Object.fromEntries(classes.rows.map((row) => [row.id, row.tax_class_ref || ""]));
       }
-      return json({ order, items: items || [], classById });
+      const lead = await loadLead(supabase, organizationId, order.lead_id ? String(order.lead_id) : "");
+      return json({ order, items: items || [], classById, lead });
     }
 
     if (action === "delete") {
@@ -1204,7 +1225,7 @@ serve(async (req) => {
           operacao: Number(body.operacao) === 0 ? 0 : 1,
           natureza_operacao: String(body.natureza || settings.natureza || "Venda de Mercadoria"),
           modelo: kind === "nfce" ? "2" : "1",
-          finalidade: 1,
+          finalidade: [1, 3, 4].includes(Number(body.finalidade)) ? Number(body.finalidade) : 1,
           ambiente,
           ...(body.data_emissao ? { data_emissao: String(body.data_emissao) } : {}),
           ...(body.data_entrada_saida ? { data_entrada_saida: String(body.data_entrada_saida) } : {}),
