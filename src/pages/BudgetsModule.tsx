@@ -13,7 +13,7 @@ import { Plus, Search, X, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { generateBudgetPDF } from '@/lib/budgetPdfModule';
-import { budgetPdfFileNameFromRecord, downloadNamedPdf } from '@/lib/budgetPdfFileName';
+import { budgetPdfFileNameFromRecord, downloadNamedPdf, storageSafePdfFileName } from '@/lib/budgetPdfFileName';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 
@@ -115,7 +115,7 @@ export default function BudgetsModule() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
-      const fileName = budgetPdfFileNameFromRecord(selectedBudget);
+      const fileName = storageSafePdfFileName(budgetPdfFileNameFromRecord(selectedBudget));
       const filePath = `${selectedBudget.organization_id}/budgets/${selectedBudget.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage

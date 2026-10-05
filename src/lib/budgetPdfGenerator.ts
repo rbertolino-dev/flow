@@ -7,12 +7,48 @@ import { jsPDF } from 'jspdf';
 import { fitImageInBox, loadImageForBudgetPdf } from '@/lib/budgetPdfImage';
 import { organizationNameForDocuments } from '@/lib/organizationDisplayName';
 
+/** Helvetica do jsPDF só aceita WinAnsi. Marcadores como ● derrubam a geração do PDF. */
+function pdfSafeText(value: string): string {
+  return Array.from(value, (char) => {
+    const code = char.codePointAt(0) ?? 0;
+    if (code === 9 || code === 10 || code === 13) return ' ';
+    if (code >= 0x20 && code <= 0x7e) return char;
+    if (code >= 0xa0 && code <= 0xff) return char;
+    if (code === 0x20ac) return char;
+    if (code === 0x2013 || code === 0x2014 || code === 0x2212) return '-';
+    if (code === 0x2018 || code === 0x2019 || code === 0x2032) return "'";
+    if (code === 0x201c || code === 0x201d) return '"';
+    if (
+      code === 0x2022 ||
+      code === 0x2023 ||
+      code === 0x2043 ||
+      code === 0x25cf ||
+      code === 0x25e6 ||
+      code === 0x25aa ||
+      code === 0x25a0
+    ) {
+      return '-';
+    }
+    return '';
+  }).join('');
+}
+
 export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob> {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
     format: 'a4', // 210 x 297 mm
   });
+  const rawText = doc.text.bind(doc);
+  const rawSplit = doc.splitTextToSize.bind(doc);
+  (doc as unknown as { splitTextToSize: (text: string | string[], size: number) => string[] }).splitTextToSize = (text, size) => {
+    const safe = Array.isArray(text) ? text.map((line) => pdfSafeText(String(line))) : pdfSafeText(String(text ?? ''));
+    return rawSplit(safe, size);
+  };
+  (doc as unknown as { text: (text: string | string[], x: number, y: number, options?: object) => void }).text = (text, x, y, options) => {
+    const safe = Array.isArray(text) ? text.map((line) => pdfSafeText(String(line))) : pdfSafeText(String(text ?? ''));
+    return rawText(safe, x, y, options as never);
+  };
 
   // Configurações de página - mais compacto
   const pageWidth = 210;

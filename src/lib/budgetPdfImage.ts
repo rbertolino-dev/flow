@@ -65,7 +65,9 @@ async function downscaleDataUrlForPdf(
   }
   return new Promise((resolve) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    if (!dataUrl.startsWith('data:')) {
+      img.crossOrigin = 'anonymous';
+    }
     img.onload = () => {
       const w0 = img.naturalWidth;
       const h0 = img.naturalHeight;
@@ -151,6 +153,9 @@ export async function loadImageForBudgetPdf(url: string): Promise<LoadedPdfImage
       if (small) {
         return small;
       }
+      // Sem redução, um PNG grande vira dezenas de MB no PDF e o upload falha.
+      console.warn('Imagem grande demais para o PDF e não foi possível reduzir:', url);
+      return null;
     }
     return { dataUrl, format, naturalW: w, naturalH: h };
   } catch (e: unknown) {

@@ -16,6 +16,18 @@ export function budgetPdfFileName(
   return `Orçamento - ${client} - ${number}.pdf`;
 }
 
+/** Chave do Storage não aceita acentos. O nome bonito continua no download e no WhatsApp. */
+export function storageSafePdfFileName(fileName: string): string {
+  const ascii = fileName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9._ -]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!ascii) return 'Orcamento.pdf';
+  return ascii.toLowerCase().endsWith('.pdf') ? ascii : `${ascii}.pdf`;
+}
+
 export function budgetPdfFileNameFromRecord(budget: {
   budget_number?: string | null;
   client_data?: { name?: string | null } | null;

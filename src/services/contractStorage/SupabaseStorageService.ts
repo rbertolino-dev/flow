@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { storageSafePdfFileName } from '@/lib/budgetPdfFileName';
 import { StorageService } from './StorageService';
 
 const BUCKET_CONTRACTS = 'whatsapp-workflow-media';
@@ -20,7 +21,9 @@ export class SupabaseStorageService implements StorageService {
   ): Promise<string> {
     const bucketId = type === 'budget' ? BUCKET_BUDGET_PDFS : BUCKET_CONTRACTS;
     const fileExt = 'pdf';
-    const fileName = displayFileName || `${contractId}-${Date.now()}.${fileExt}`;
+    const fileName = displayFileName
+      ? storageSafePdfFileName(displayFileName)
+      : `${contractId}-${Date.now()}.${fileExt}`;
     const folder = type === 'budget' ? 'budgets' : 'contracts';
     const filePath = displayFileName
       ? `${this.organizationId}/${folder}/${contractId}/${fileName}`
