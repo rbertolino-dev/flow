@@ -275,6 +275,9 @@ async function loadLead(
   const id = String(leadId || "").trim();
   if (!id) return null;
   const query = (columns: string) => supabase.from("leads").select(columns).eq("id", id).eq("organization_id", organizationId).is("deleted_at", null).maybeSingle();
+  const withStreet = await query("id, name, phone, email, company, cpf_cnpj, address, address_number, neighborhood, city, uf, postal_code");
+  if (!withStreet.error) return withStreet.data;
+  if (!/column|does not exist/i.test(withStreet.error.message || "")) return null;
   const full = await query("id, name, phone, email, company, cpf_cnpj, address, neighborhood, city, postal_code");
   if (!full.error) return full.data;
   if (!/column|does not exist/i.test(full.error.message || "")) return null;

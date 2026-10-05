@@ -20,11 +20,12 @@ function leadCardLocationLine(lead: Lead): string | null {
   const parts: string[] = [];
   if (lead.neighborhood) parts.push(lead.neighborhood);
   if (lead.city) parts.push(lead.city);
+  if (lead.uf) parts.push(lead.uf);
   if (lead.postalCode && normalizeCep(lead.postalCode).length === 8) {
     parts.push(formatBrazilianCep(lead.postalCode));
   }
   if (parts.length > 0) return parts.join(" · ");
-  const addr = lead.address?.trim();
+  const addr = [lead.address?.trim(), lead.addressNumber?.trim()].filter(Boolean).join(", ");
   if (addr) return addr.length > 44 ? `${addr.slice(0, 42)}…` : addr;
   return null;
 }
@@ -623,6 +624,8 @@ export const LeadCard = memo(function LeadCard({
     prevProps.lead.postalCode === nextProps.lead.postalCode &&
     prevProps.lead.neighborhood === nextProps.lead.neighborhood &&
     prevProps.lead.address === nextProps.lead.address &&
+    prevProps.lead.addressNumber === nextProps.lead.addressNumber &&
+    prevProps.lead.uf === nextProps.lead.uf &&
     prevProps.lead.birthDate === nextProps.lead.birthDate &&
     prevProps.pendingScheduledCount === nextProps.pendingScheduledCount &&
     prevProps.onScheduleLead === nextProps.onScheduleLead &&

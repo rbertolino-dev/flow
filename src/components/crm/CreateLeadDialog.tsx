@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizePhone, isValidBrazilianPhone, normalizeCep } from "@/lib/phoneUtils";
+import { BRAZILIAN_UFS, normalizeUf } from "@/lib/brazilianUfs";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useProducts } from "@/hooks/useProducts";
@@ -49,8 +50,10 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
     sourceInstanceId: "", // ✅ Instância de origem
     birthDate: "",
     address: "",
+    addressNumber: "",
     neighborhood: "",
     city: "",
+    uf: "",
     postalCode: "",
   });
 
@@ -70,8 +73,10 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         sourceInstanceId: configs?.[0]?.id || "", // ✅ Primeira instância como padrão
         birthDate: "",
         address: "",
+        addressNumber: "",
         neighborhood: "",
         city: "",
+        uf: "",
         postalCode: "",
       });
       setSelectedTagIds([]);
@@ -171,8 +176,11 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
           extra.birth_date = formData.birthDate.trim();
         }
         if (formData.address.trim()) extra.address = formData.address.trim();
+        if (formData.addressNumber.trim()) extra.address_number = formData.addressNumber.trim();
         if (formData.neighborhood.trim()) extra.neighborhood = formData.neighborhood.trim();
         if (formData.city.trim()) extra.city = formData.city.trim();
+        const uf = normalizeUf(formData.uf);
+        if (uf) extra.uf = uf;
         const cepDigits = normalizeCep(formData.postalCode);
         if (cepDigits.length === 8) extra.postal_code = cepDigits;
         else if (cepDigits.length > 0) {
@@ -281,8 +289,10 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         sourceInstanceId: configs?.[0]?.id || "",
         birthDate: "",
         address: "",
+        addressNumber: "",
         neighborhood: "",
         city: "",
+        uf: "",
         postalCode: "",
       });
       setSelectedTagIds([]);
@@ -370,14 +380,25 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="address">Endereço</Label>
-            <Input
-              id="address"
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              placeholder="Rua, número, complemento"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="address">Rua</Label>
+              <Input
+                id="address"
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                placeholder="Nome da rua"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="addressNumber">Número da rua</Label>
+              <Input
+                id="addressNumber"
+                value={formData.addressNumber}
+                onChange={(e) => setFormData({ ...formData, addressNumber: e.target.value })}
+                placeholder="123"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -401,16 +422,35 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="postalCode">CEP</Label>
-            <Input
-              id="postalCode"
-              value={formData.postalCode}
-              onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
-              placeholder="00000-000"
-              maxLength={9}
-            />
-            <p className="text-xs text-muted-foreground">8 dígitos ou deixe em branco</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="uf">UF</Label>
+              <Select
+                value={formData.uf || "__none__"}
+                onValueChange={(value) => setFormData({ ...formData, uf: value === "__none__" ? "" : value })}
+              >
+                <SelectTrigger id="uf">
+                  <SelectValue placeholder="UF" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Não informar</SelectItem>
+                  {BRAZILIAN_UFS.map((uf) => (
+                    <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="postalCode">CEP</Label>
+              <Input
+                id="postalCode"
+                value={formData.postalCode}
+                onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+                placeholder="00000-000"
+                maxLength={9}
+              />
+              <p className="text-xs text-muted-foreground">8 dígitos ou deixe em branco</p>
+            </div>
           </div>
 
           {/* ✅ Campo de instância de origem */}

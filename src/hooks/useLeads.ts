@@ -264,8 +264,10 @@ export function useLeads() {
             cpf_cnpj: lead.cpf_cnpj || undefined,
             birthDate: lead.birth_date || undefined,
             address: lead.address || undefined,
+            addressNumber: lead.address_number || undefined,
             neighborhood: lead.neighborhood || undefined,
             city: lead.city || undefined,
+            uf: lead.uf || undefined,
             postalCode: lead.postal_code || undefined,
             activities: [],
             tags: [],
@@ -644,8 +646,10 @@ export function useLeads() {
           cpf_cnpj: lead.cpf_cnpj || undefined,
           birthDate: lead.birth_date || undefined,
           address: lead.address || undefined,
+          addressNumber: lead.address_number || undefined,
           neighborhood: lead.neighborhood || undefined,
           city: lead.city || undefined,
+          uf: lead.uf || undefined,
           postalCode: lead.postal_code || undefined,
           activities: (activities || []).map((a) => ({
             id: a.id,
@@ -1010,8 +1014,10 @@ export function useLeads() {
               stageId: updated.stage_id ?? oldLead.stageId,
               birthDate: updated.birth_date ?? oldLead.birthDate,
               address: updated.address ?? oldLead.address,
+              addressNumber: updated.address_number ?? oldLead.addressNumber,
               neighborhood: updated.neighborhood ?? oldLead.neighborhood,
               city: updated.city ?? oldLead.city,
+              uf: updated.uf ?? oldLead.uf,
               postalCode: updated.postal_code ?? oldLead.postalCode,
             };
             

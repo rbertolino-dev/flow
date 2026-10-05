@@ -23,7 +23,7 @@ import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Download, FilePenLine, FilePlus2, FileText, Package, Receipt, ShoppingBag, Trash2, Wrench, type LucideIcon } from "lucide-react";
+import { Building2, Download, FilePenLine, FilePlus2, FileText, Loader2, Package, Receipt, Search, ShoppingBag, Trash2, Wrench, X, type LucideIcon } from "lucide-react";
 import { TaxClassDialogs, type FiscalClass } from "@/components/fiscal/TaxClassDialogs";
 import { FiscalErrorNotice } from "@/components/fiscal/FiscalErrorNotice";
 
@@ -152,8 +152,10 @@ function customerFromLead(lead: Record<string, unknown> | null | undefined, fall
     email: String(lead?.email || ""),
     phone: String(lead?.phone || fallbackPhone || ""),
     street: String(lead?.address || ""),
+    number: String(lead?.address_number || ""),
     district: String(lead?.neighborhood || ""),
     city: String(lead?.city || ""),
+    uf: String(lead?.uf || "").toUpperCase().slice(0, 2),
     cep: String(lead?.postal_code || ""),
     isCompany,
   });
@@ -409,6 +411,10 @@ export default function NotaFiscal() {
   const [source, setSource] = useState("avulsa");
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [customer, setCustomer] = useState<CustomerForm>(emptyCustomer());
+  const [leadQuery, setLeadQuery] = useState("");
+  const [leadOptions, setLeadOptions] = useState<Record<string, unknown>[]>([]);
+  const [searchingLeads, setSearchingLeads] = useState(false);
+  const [pickedLeadName, setPickedLeadName] = useState("");
   const [natureza, setNatureza] = useState("Venda de Mercadoria");
   const [finalidade, setFinalidade] = useState("1");
   const [operacao, setOperacao] = useState("1");
@@ -482,6 +488,57 @@ export default function NotaFiscal() {
   }, [activeOrgId, company, from, to, query]);
 
   useEffect(() => { void loadSettings().catch((error) => setPageNotice(error instanceof Error ? error.message : "Falha na nota fiscal")); }, [loadSettings]);
+
+  useEffect(() => {
+    if (!activeOrgId || pickedLeadName || leadQuery.trim().length < 2) {
+      setLeadOptions([]);
+      return;
+    }
+    const q = leadQuery.trim().replace(/[%(),*]/g, " ");
+    const digits = q.replace(/\D/g, "");
+    const timer = setTimeout(() => {
+      void (async () => {
+        setSearchingLeads(true);
+        try {
+          const filters = [
+            `name.ilike.%${q}%`,
+            `phone.ilike.%${q}%`,
+            `company.ilike.%${q}%`,
+            `email.ilike.%${q}%`,
+          ];
+          if (digits.length >= 2) {
+            filters.push(`phone.ilike.%${digits}%`, `cpf_cnpj.ilike.%${digits}%`);
+          }
+          const columns = "id, name, phone, email, company, cpf_cnpj, address, address_number, neighborhood, city, uf, postal_code";
+          type LeadSearch = {
+            eq: (column: string, value: string) => LeadSearch;
+            is: (column: string, value: null) => LeadSearch;
+            or: (filters: string) => LeadSearch;
+            limit: (count: number) => Promise<{ data: Record<string, unknown>[] | null; error: { message?: string } | null }>;
+          };
+          const leads = supabase as unknown as { from: (table: string) => { select: (columns: string) => LeadSearch } };
+          const first = await leads.from("leads").select(columns).eq("organization_id", activeOrgId).is("deleted_at", null).or(filters.join(",")).limit(8);
+          if (first.error && /column|does not exist/i.test(String(first.error.message || ""))) {
+            const slim = await supabase
+              .from("leads")
+              .select("id, name, phone, email, company")
+              .eq("organization_id", activeOrgId)
+              .is("deleted_at", null)
+              .or(`name.ilike.%${q}%,phone.ilike.%${q}%,company.ilike.%${q}%,email.ilike.%${q}%`)
+              .limit(8);
+            setLeadOptions((slim.data || []) as Record<string, unknown>[]);
+          } else {
+            setLeadOptions((first.data || []) as Record<string, unknown>[]);
+          }
+        } catch {
+          setLeadOptions([]);
+        } finally {
+          setSearchingLeads(false);
+        }
+      })();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [leadQuery, activeOrgId, pickedLeadName]);
   useEffect(() => { void loadInvoices().catch(() => undefined); }, [loadInvoices]);
 
   const productClasses = useMemo(() => classes.filter((item) => item.noteType !== "nfse" && item.ref), [classes]);
@@ -501,6 +558,9 @@ export default function NotaFiscal() {
     setSource(nextSource);
     setSourceId(nextSourceId);
     setCustomer(emptyCustomer(customerPatch));
+    setLeadQuery("");
+    setLeadOptions([]);
+    setPickedLeadName(String(customerPatch.name || ""));
     setFinalidade("1");
     setReferenciar(false);
     setChaveReferencia("");
@@ -1191,6 +1251,59 @@ export default function NotaFiscal() {
               </div>
             ) : null}
             <p className="border-t pt-2 font-medium">Informações do cliente:</p>
+            <div>
+              <p className="text-[11px]">Cliente do CRM</p>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2 top-2 h-4 w-4 text-slate-400" />
+                <Input
+                  className="h-8 pl-8 pr-8"
+                  placeholder="Buscar contato por nome, telefone, empresa, e-mail ou CPF/CNPJ"
+                  value={pickedLeadName || leadQuery}
+                  onChange={(event) => {
+                    setPickedLeadName("");
+                    setLeadQuery(event.target.value);
+                  }}
+                />
+                {searchingLeads ? <Loader2 className="absolute right-2 top-2 h-4 w-4 animate-spin text-slate-400" /> : null}
+                {pickedLeadName && !searchingLeads ? (
+                  <button
+                    type="button"
+                    className="absolute right-2 top-2 text-slate-400 hover:text-slate-700"
+                    aria-label="Limpar busca do cliente"
+                    onClick={() => {
+                      setPickedLeadName("");
+                      setLeadQuery("");
+                      setLeadOptions([]);
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
+              </div>
+              {!pickedLeadName && leadOptions.length > 0 ? (
+                <div className="mt-1 max-h-40 overflow-auto rounded-md border bg-white">
+                  {leadOptions.map((lead) => (
+                    <button
+                      key={String(lead.id)}
+                      type="button"
+                      className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-slate-50"
+                      onClick={() => {
+                        setCustomer(customerFromLead(lead));
+                        setPickedLeadName(String(lead.name || lead.company || ""));
+                        setLeadQuery("");
+                        setLeadOptions([]);
+                      }}
+                    >
+                      <span className="font-medium">{String(lead.name || lead.company || "Contato")}</span>
+                      <span className="text-xs text-slate-500">{[lead.phone, lead.company, lead.cpf_cnpj].filter(Boolean).map(String).join(" · ")}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {!pickedLeadName && leadQuery.trim().length >= 2 && !searchingLeads && leadOptions.length === 0 ? (
+                <p className="text-[11px] text-slate-500">Nenhum contato encontrado no CRM.</p>
+              ) : null}
+            </div>
             <div className="grid gap-2 md:grid-cols-3">
               <div className="flex items-center gap-2"><Switch checked={customer.isCompany} onCheckedChange={(checked) => setCustomer({ ...customer, isCompany: checked })} /><span>Nota fiscal para empresa</span></div>
               <div className="flex items-center gap-2"><Switch checked={customer.foreign} onCheckedChange={(checked) => setCustomer({ ...customer, foreign: checked, uf: checked ? "EX" : customer.uf === "EX" ? "" : customer.uf })} /><span>Cliente no exterior</span></div>

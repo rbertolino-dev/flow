@@ -40,6 +40,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { buildCopyNumber, formatBrazilianPhone, normalizePhone, isValidBrazilianPhone, normalizeCep, formatBrazilianCep } from "@/lib/phoneUtils";
+import { BRAZILIAN_UFS, normalizeUf } from "@/lib/brazilianUfs";
 import { preventDialogCloseOnSelectPortal } from "@/lib/preventDialogCloseOnSelectPortal";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useProducts } from "@/hooks/useProducts";
@@ -129,8 +130,10 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
   const [editedCpfCnpj, setEditedCpfCnpj] = useState(lead.cpf_cnpj || "");
   const [editedBirthDate, setEditedBirthDate] = useState(lead.birthDate || "");
   const [editedAddress, setEditedAddress] = useState(lead.address || "");
+  const [editedAddressNumber, setEditedAddressNumber] = useState(lead.addressNumber || "");
   const [editedNeighborhood, setEditedNeighborhood] = useState(lead.neighborhood || "");
   const [editedCity, setEditedCity] = useState(lead.city || "");
+  const [editedUf, setEditedUf] = useState(normalizeUf(lead.uf));
   const [editedPostalCode, setEditedPostalCode] = useState(normalizeCep(lead.postalCode || ""));
   const [editedValueStr, setEditedValueStr] = useState("");
   const [editedStageId, setEditedStageId] = useState("");
@@ -149,8 +152,10 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
       setEditedCpfCnpj(l.cpf_cnpj || "");
       setEditedBirthDate(l.birthDate || "");
       setEditedAddress(l.address || "");
+      setEditedAddressNumber(l.addressNumber || "");
       setEditedNeighborhood(l.neighborhood || "");
       setEditedCity(l.city || "");
+      setEditedUf(normalizeUf(l.uf));
       setEditedPostalCode(normalizeCep(l.postalCode || ""));
       const manual = l.estimatedValueStored;
       setEditedValueStr(
@@ -1037,11 +1042,18 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
       if (editedAddress.trim() !== (currentLead.address || "")) {
         (updates as Record<string, unknown>).address = editedAddress.trim() || null;
       }
+      if (editedAddressNumber.trim() !== (currentLead.addressNumber || "")) {
+        (updates as Record<string, unknown>).address_number = editedAddressNumber.trim() || null;
+      }
       if (editedNeighborhood.trim() !== (currentLead.neighborhood || "")) {
         (updates as Record<string, unknown>).neighborhood = editedNeighborhood.trim() || null;
       }
       if (editedCity.trim() !== (currentLead.city || "")) {
         (updates as Record<string, unknown>).city = editedCity.trim() || null;
+      }
+      const nextUf = normalizeUf(editedUf);
+      if (nextUf !== normalizeUf(currentLead.uf)) {
+        (updates as Record<string, unknown>).uf = nextUf || null;
       }
       const nextCep = normalizeCep(editedPostalCode);
       const prevCep = normalizeCep(currentLead.postalCode || "");
@@ -1147,6 +1159,12 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
         ...((updates as Record<string, unknown>).address !== undefined
           ? { address: ((updates as Record<string, unknown>).address as string) || undefined }
           : {}),
+        ...((updates as Record<string, unknown>).address_number !== undefined
+          ? {
+              addressNumber:
+                ((updates as Record<string, unknown>).address_number as string) || undefined,
+            }
+          : {}),
         ...((updates as Record<string, unknown>).neighborhood !== undefined
           ? {
               neighborhood: ((updates as Record<string, unknown>).neighborhood as string) || undefined,
@@ -1154,6 +1172,9 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
           : {}),
         ...((updates as Record<string, unknown>).city !== undefined
           ? { city: ((updates as Record<string, unknown>).city as string) || undefined }
+          : {}),
+        ...((updates as Record<string, unknown>).uf !== undefined
+          ? { uf: ((updates as Record<string, unknown>).uf as string) || undefined }
           : {}),
         ...((updates as Record<string, unknown>).postal_code !== undefined
           ? {
@@ -1476,14 +1497,25 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
                       onChange={(e) => setEditedBirthDate(e.target.value)}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-address">Endereço</Label>
-                    <Input
-                      id="edit-address"
-                      value={editedAddress}
-                      onChange={(e) => setEditedAddress(e.target.value)}
-                      placeholder="Rua, número, complemento"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="edit-address">Rua</Label>
+                      <Input
+                        id="edit-address"
+                        value={editedAddress}
+                        onChange={(e) => setEditedAddress(e.target.value)}
+                        placeholder="Nome da rua"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-address-number">Número da rua</Label>
+                      <Input
+                        id="edit-address-number"
+                        value={editedAddressNumber}
+                        onChange={(e) => setEditedAddressNumber(e.target.value)}
+                        placeholder="123"
+                      />
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -1505,16 +1537,35 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-cep">CEP</Label>
-                    <Input
-                      id="edit-cep"
-                      value={editedPostalCode.length === 8 ? formatBrazilianCep(editedPostalCode) : editedPostalCode}
-                      onChange={(e) => setEditedPostalCode(normalizeCep(e.target.value))}
-                      placeholder="00000-000"
-                      maxLength={9}
-                    />
-                    <p className="text-xs text-muted-foreground">8 dígitos ou vazio</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-uf">UF</Label>
+                      <Select
+                        value={editedUf || "__none__"}
+                        onValueChange={(value) => setEditedUf(value === "__none__" ? "" : value)}
+                      >
+                        <SelectTrigger id="edit-uf">
+                          <SelectValue placeholder="UF" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Não informar</SelectItem>
+                          {BRAZILIAN_UFS.map((uf) => (
+                            <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-cep">CEP</Label>
+                      <Input
+                        id="edit-cep"
+                        value={editedPostalCode.length === 8 ? formatBrazilianCep(editedPostalCode) : editedPostalCode}
+                        onChange={(e) => setEditedPostalCode(normalizeCep(e.target.value))}
+                        placeholder="00000-000"
+                        maxLength={9}
+                      />
+                      <p className="text-xs text-muted-foreground">8 dígitos ou vazio</p>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="edit-notes">Observações</Label>
@@ -1678,27 +1729,32 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
                     </div>
                   )}
                   {(() => {
+                    const streetLine = [currentLead.address, currentLead.addressNumber]
+                      .map((part) => part?.trim())
+                      .filter(Boolean)
+                      .join(", ");
                     const subLine = [
                       currentLead.neighborhood,
                       currentLead.city,
+                      currentLead.uf,
                       currentLead.postalCode
                         ? formatBrazilianCep(currentLead.postalCode)
                         : null,
                     ]
                       .filter(Boolean)
                       .join(" · ");
-                    if (!currentLead.address && !subLine) return null;
+                    if (!streetLine && !subLine) return null;
                     return (
                       <div className="flex items-start gap-3 text-sm">
                         <MapPin className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
                         <div className="space-y-0.5 min-w-0">
-                          {currentLead.address && (
-                            <p className="break-words">{currentLead.address}</p>
-                          )}
+                          {streetLine ? (
+                            <p className="break-words">{streetLine}</p>
+                          ) : null}
                           {subLine ? (
                             <p
                               className={
-                                currentLead.address ? "text-muted-foreground" : "break-words"
+                                streetLine ? "text-muted-foreground" : "break-words"
                               }
                             >
                               {subLine}

@@ -67,9 +67,14 @@ export interface Lead {
   cpf_cnpj?: string | null;
   /** Data de nascimento (YYYY-MM-DD) */
   birthDate?: string | null;
+  /** Rua / logradouro */
   address?: string | null;
+  /** Número da rua */
+  addressNumber?: string | null;
   neighborhood?: string | null;
   city?: string | null;
+  /** UF (2 letras) */
+  uf?: string | null;
   /** CEP somente dígitos (até 8) */
   postalCode?: string | null;
   /** Preenchido pelo useLeads a partir da tabela budgets */
