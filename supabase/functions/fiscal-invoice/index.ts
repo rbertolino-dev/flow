@@ -334,14 +334,56 @@ function cancelStatus(body: Record<string, unknown>) {
   return String(nested.status || body.status || "").trim().toLowerCase();
 }
 
+function eventNodes(value: unknown): Record<string, unknown>[] {
+  if (Array.isArray(value)) return value.flatMap((item) => eventNodes(item));
+  if (value && typeof value === "object") return [value as Record<string, unknown>];
+  return [];
+}
+
+function isCancelEvent(node: Record<string, unknown>) {
+  const cStat = String(node.cStat ?? "");
+  const tpEvento = String(node.tpEvento ?? "");
+  const nome = String(node.xEvento ?? "").toLowerCase();
+  return cStat === "135" && (tpEvento === "110111" || nome.includes("cancelamento"));
+}
+
+function cancelEventRegistered(body: Record<string, unknown>) {
+  const log = recordBody(body.log);
+  const pools = [body.evento, body.aEvent, body.eventos, log.evento, log.aEvent, log.eventos];
+  for (const node of pools.flatMap((pool) => eventNodes(pool))) {
+    if (isCancelEvent(node)) return true;
+    const nested = [node.evento, node.aEvent, node.eventos].flatMap((pool) => eventNodes(pool));
+    if (nested.some(isCancelEvent)) return true;
+  }
+  return false;
+}
+
+const NFE_CANCEL_MOTIVO: Record<string, string> = {
+  "1": "1 - Erro na emissao",
+  "2": "2 - Servico nao prestado",
+  "4": "4 - Duplicidade da nota",
+};
+
+function nfeCancelMotivo(raw: string) {
+  const code = raw.trim();
+  if (NFE_CANCEL_MOTIVO[code]) return NFE_CANCEL_MOTIVO[code];
+  const normalized = code.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  for (const text of Object.values(NFE_CANCEL_MOTIVO)) {
+    if (normalized === text.toLowerCase()) return text;
+  }
+  return code;
+}
+
 function cancelRefusal(body: Record<string, unknown>, httpOk: boolean) {
   const status = cancelStatus(body);
-  if (status === "cancelado") return "";
+  if (status === "cancelado" || cancelEventRegistered(body)) return "";
   const log = recordBody(body.log);
-  const error = textField(body, ["error", "msg", "mensagem", "message"]) || textField(log, ["xMotivo", "motivo", "error"]);
+  const error = textField(body, ["error", "msg", "mensagem", "message"]) || textField(log, ["error"]);
   const motivo = textField(body, ["motivo"]);
-  if (error) return error;
-  if (motivo && status) return motivo;
+  const sefaz = textField(body, ["xMotivo"]) || textField(log, ["xMotivo"]);
+  const refusal = error || (sefaz && !/lote de evento processado|evento registrado/i.test(sefaz) ? sefaz : "");
+  if (refusal) return refusal;
+  if (motivo && status && status !== "cancelado") return motivo;
   if (!httpOk) return motivo || "A Webmania recusou o cancelamento";
   if (status) return `A Webmania respondeu "${status}" e não confirmou o cancelamento`;
   return "A Webmania não confirmou o cancelamento da nota";
@@ -1095,9 +1137,12 @@ serve(async (req) => {
         if (!["1", "2", "4"].includes(motivo)) return json({ error: "O cancelamento de NFS-e usa um destes motivos: 1 - Erro na emissão, 2 - Serviço não prestado ou 4 - Duplicidade da nota" }, 400);
         payload = { uuid, motivo: Number(motivo) };
       } else {
-        if (motivo.length < 15 || motivo.length > 255) return json({ error: "O motivo do cancelamento precisa ter de 15 a 255 caracteres" }, 400);
+        const justificativa = nfeCancelMotivo(motivo);
+        if (!NFE_CANCEL_MOTIVO[motivo] && (justificativa.length < 15 || justificativa.length > 255)) {
+          return json({ error: "Escolha o motivo do cancelamento: 1 - Erro na emissão, 2 - Serviço não prestado ou 4 - Duplicidade da nota" }, 400);
+        }
         if (chave.length !== 44 && uuid.length !== 36) return json({ error: "A nota não tem chave nem identificador da Webmania" }, 400);
-        payload = chave.length === 44 ? { chave, motivo } : { uuid, motivo };
+        payload = chave.length === 44 ? { chave, motivo: justificativa } : { uuid, motivo: justificativa };
       }
       const remote = await fetch(isService ? "https://api.webmania.com.br/2/nfse/cancelar" : "https://webmania.com.br/api/1/nfe/cancelar/", {
         method: "PUT",
@@ -1112,7 +1157,7 @@ serve(async (req) => {
           { headers: isService ? nfseHeaders(empresa) : nfeHeaders(empresa) },
         );
         const consulted = recordBody(await consult.json().catch(() => ({})));
-        if (consult.ok && cancelStatus(consulted) === "cancelado") {
+        if (consult.ok && !cancelRefusal(consulted, true)) {
           responsePayload = consulted;
           refusal = "";
         }

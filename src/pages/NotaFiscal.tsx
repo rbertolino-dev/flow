@@ -109,7 +109,7 @@ const PRESENCAS = [
   { value: "9", label: "9 - Operação não presencial, outros" },
 ];
 
-const MOTIVOS_NFSE = [
+const MOTIVOS_CANCELAMENTO = [
   { value: "1", label: "1 - Erro na emissão" },
   { value: "2", label: "2 - Serviço não prestado" },
   { value: "4", label: "4 - Duplicidade da nota" },
@@ -1017,7 +1017,7 @@ export default function NotaFiscal() {
                                 {invoice.pdf_url ? <a className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100" href={invoice.pdf_url} target="_blank" rel="noreferrer">PDF</a> : null}
                                 {invoice.xml_url ? <a className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100" href={invoice.xml_url} target="_blank" rel="noreferrer">XML</a> : null}
                                 {invoice.cce_url ? <a className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100" href={invoice.cce_url} target="_blank" rel="noreferrer">CC-e</a> : null}
-                                {invoice.status === "aprovado" ? <button type="button" className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100" onClick={() => { setCancelNotice(""); setCancelTarget(invoice); setCancelMotivo(invoice.kind === "nfse" ? "1" : ""); }}>Cancelar</button> : null}
+                                {invoice.status === "aprovado" ? <button type="button" className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100" onClick={() => { setCancelNotice(""); setCancelTarget(invoice); setCancelMotivo("1"); }}>Cancelar</button> : null}
                                 {invoice.kind === "nfe" && invoice.status === "aprovado" && invoice.access_key ? <button type="button" className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200" onClick={() => { setReturnNotice(""); setReturnTarget(invoice); setReturnCfop("1202"); setReturnNatureza("Devolução de mercadoria"); setReturnItens(""); setReturnQtds(""); }}>Devolver</button> : null}
                                 {!["aprovado", "cancelado", "processado"].includes(invoice.status) ? <button type="button" className="rounded-full p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600" onClick={() => void remove(invoice.id)} aria-label="Excluir"><Trash2 className="h-4 w-4" /></button> : null}
                               </div>
@@ -1347,24 +1347,14 @@ export default function NotaFiscal() {
         <DialogContent>
           <DialogHeader><DialogTitle>Cancelar nota</DialogTitle></DialogHeader>
           <FiscalErrorNotice message={cancelNotice} />
-          {cancelTarget?.kind === "nfse" ? (
-            <>
-              <p className="text-sm text-slate-600">Escolha o motivo. A nota só fica cancelada aqui depois que a Webmania confirmar.</p>
-              <Select value={cancelMotivo || "1"} onValueChange={setCancelMotivo}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {MOTIVOS_NFSE.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Button disabled={saving || !["1", "2", "4"].includes(cancelMotivo)} onClick={() => void confirmCancel()}>{saving ? "Cancelando..." : "Confirmar cancelamento"}</Button>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-slate-600">Informe o motivo do cancelamento, entre 15 e 255 caracteres. A nota só fica cancelada aqui depois que a Webmania confirmar.</p>
-              <Textarea value={cancelMotivo} onChange={(event) => setCancelMotivo(event.target.value.slice(0, 255))} />
-              <Button disabled={saving || cancelMotivo.trim().length < 15} onClick={() => void confirmCancel()}>{saving ? "Cancelando..." : "Confirmar cancelamento"}</Button>
-            </>
-          )}
+          <p className="text-sm text-slate-600">Escolha o motivo. A nota só fica cancelada aqui depois que a Webmania confirmar.</p>
+          <Select value={cancelMotivo || "1"} onValueChange={setCancelMotivo}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {MOTIVOS_CANCELAMENTO.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button disabled={saving || !["1", "2", "4"].includes(cancelMotivo)} onClick={() => void confirmCancel()}>{saving ? "Cancelando..." : "Confirmar cancelamento"}</Button>
         </DialogContent>
       </Dialog>
       <Dialog open={Boolean(returnTarget)} onOpenChange={(open) => { if (!open) { setReturnTarget(null); setReturnNotice(""); } }}>
