@@ -302,16 +302,49 @@ function extractReturn(body: Record<string, unknown>) {
 }
 
 function motivoFromStored(value: unknown) {
-  let body: Record<string, unknown> = {};
+  return extractReturn(recordBody(value)).motivo;
+}
+
+function recordBody(value: unknown): Record<string, unknown> {
   if (typeof value === "string") {
     try {
-      const parsed = JSON.parse(value);
-      if (parsed && typeof parsed === "object") body = parsed as Record<string, unknown>;
-    } catch { /* payload inválido */ }
-  } else if (value && typeof value === "object") {
-    body = value as Record<string, unknown>;
+      return recordBody(JSON.parse(value));
+    } catch {
+      return {};
+    }
   }
-  return extractReturn(body).motivo;
+  if (Array.isArray(value)) {
+    const first = value.find((item) => item && typeof item === "object");
+    return first && typeof first === "object" ? first as Record<string, unknown> : {};
+  }
+  return value && typeof value === "object" ? value as Record<string, unknown> : {};
+}
+
+function textField(body: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = body[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return "";
+}
+
+function cancelStatus(body: Record<string, unknown>) {
+  const nested = Array.isArray(body.info_nfse) ? recordBody(body.info_nfse[0]) : {};
+  return String(nested.status || body.status || "").trim().toLowerCase();
+}
+
+function cancelRefusal(body: Record<string, unknown>, httpOk: boolean) {
+  const status = cancelStatus(body);
+  if (status === "cancelado") return "";
+  const log = recordBody(body.log);
+  const error = textField(body, ["error", "msg", "mensagem", "message"]) || textField(log, ["xMotivo", "motivo", "error"]);
+  const motivo = textField(body, ["motivo"]);
+  if (error) return error;
+  if (motivo && status) return motivo;
+  if (!httpOk) return motivo || "A Webmania recusou o cancelamento";
+  if (status) return `A Webmania respondeu "${status}" e não confirmou o cancelamento`;
+  return "A Webmania não confirmou o cancelamento da nota";
 }
 
 async function createBubbleNota(env: string, empresaId: string, payload: Record<string, unknown>) {
@@ -1049,28 +1082,60 @@ serve(async (req) => {
 
     if (action === "cancel" && req.method === "POST") {
       const motivo = String(body.motivo || "").trim();
-      if (motivo.length < 15 || motivo.length > 255) return json({ error: "O motivo do cancelamento precisa ter de 15 a 255 caracteres" }, 400);
       const invoice = await client.queryObject<Record<string, unknown>>(`SELECT * FROM fiscal_invoices WHERE id = $1 AND organization_id = $2`, [body.id, organizationId]);
       const row = invoice.rows[0];
       if (!row) return json({ error: "Nota não encontrada" }, 404);
       if (String(row.status) === "cancelado") return json({ error: "Esta nota já está cancelada" }, 400);
-      const uuid = String(row.webmania_uuid || "");
+      const uuid = String(row.webmania_uuid || "").trim();
       const chave = digits(row.access_key);
-      if (!uuid && chave.length !== 44) return json({ error: "A nota não tem chave nem identificador da Webmania" }, 400);
       const isService = row.kind === "nfse";
-      const payload = isService ? { uuid, motivo } : { ...(chave.length === 44 ? { chave } : { uuid }), motivo };
+      let payload: Record<string, unknown>;
+      if (isService) {
+        if (uuid.length !== 36) return json({ error: "A NFS-e não tem o identificador da Webmania" }, 400);
+        if (!/^[1-9]$/.test(motivo)) return json({ error: "O cancelamento de NFS-e usa o código numérico do motivo (1 dígito), conforme a prefeitura" }, 400);
+        payload = { uuid, motivo: Number(motivo) };
+      } else {
+        if (motivo.length < 15 || motivo.length > 255) return json({ error: "O motivo do cancelamento precisa ter de 15 a 255 caracteres" }, 400);
+        if (chave.length !== 44 && uuid.length !== 36) return json({ error: "A nota não tem chave nem identificador da Webmania" }, 400);
+        payload = chave.length === 44 ? { chave, motivo } : { uuid, motivo };
+      }
       const remote = await fetch(isService ? "https://api.webmania.com.br/2/nfse/cancelar" : "https://webmania.com.br/api/1/nfe/cancelar/", {
         method: "PUT",
         headers: isService ? nfseHeaders(empresa) : nfeHeaders(empresa),
         body: JSON.stringify(payload),
       });
-      const responsePayload = await remote.json().catch(() => ({}));
-      if (!remote.ok) return json({ error: responsePayload?.error || responsePayload?.motivo || "A Webmania recusou o cancelamento", detail: responsePayload }, 400);
+      let responsePayload = recordBody(await remote.json().catch(() => ({})));
+      let refusal = cancelRefusal(responsePayload, remote.ok);
+      if (refusal && uuid) {
+        const consult = await fetch(
+          isService ? `https://api.webmania.com.br/2/nfse/consulta/${encodeURIComponent(uuid)}` : `https://webmania.com.br/api/1/nfe/consulta/?uuid=${encodeURIComponent(uuid)}`,
+          { headers: isService ? nfseHeaders(empresa) : nfeHeaders(empresa) },
+        );
+        const consulted = recordBody(await consult.json().catch(() => ({})));
+        if (consult.ok && cancelStatus(consulted) === "cancelado") {
+          responsePayload = consulted;
+          refusal = "";
+        }
+      }
+      if (refusal) {
+        const message = refusal.startsWith("A Webmania") ? refusal : `A Webmania recusou o cancelamento: ${refusal}`;
+        return json({ error: message, detail: responsePayload }, 400);
+      }
+      const parsed = extractReturn(responsePayload);
       await client.queryArray(
-        `UPDATE fiscal_invoices SET status = 'cancelado', response_payload = $2::jsonb, updated_at = now() WHERE id = $1`,
-        [row.id, JSON.stringify(responsePayload)],
+        `UPDATE fiscal_invoices SET status = 'cancelado', xml_url = COALESCE(NULLIF($3, ''), xml_url), response_payload = $2::jsonb, updated_at = now() WHERE id = $1 AND organization_id = $4`,
+        [row.id, JSON.stringify(responsePayload), parsed.xml || "", organizationId],
       );
-      return json({ ok: true });
+      try {
+        await patchBubbleNota(String(row.bubble_env || bubbleEnv), String(row.bubble_nota_id || ""), {
+          status: "cancelado",
+          xml: parsed.xml || "",
+          "text-retorno": parsed.motivo || motivo,
+        });
+      } catch (error) {
+        console.error("espelho cancelamento", error);
+      }
+      return json({ ok: true, status: "cancelado" });
     }
 
     if (action === "cce" && req.method === "POST") {

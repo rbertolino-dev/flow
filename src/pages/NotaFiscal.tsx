@@ -1329,9 +1329,19 @@ export default function NotaFiscal() {
         <DialogContent>
           <DialogHeader><DialogTitle>Cancelar nota</DialogTitle></DialogHeader>
           <FiscalErrorNotice message={cancelNotice} />
-          <p className="text-sm text-slate-600">Informe o motivo do cancelamento, entre 15 e 255 caracteres.</p>
-          <Textarea value={cancelMotivo} onChange={(event) => setCancelMotivo(event.target.value.slice(0, 255))} />
-          <Button disabled={saving || cancelMotivo.trim().length < 15} onClick={() => void confirmCancel()}>{saving ? "Cancelando..." : "Confirmar cancelamento"}</Button>
+          {cancelTarget?.kind === "nfse" ? (
+            <>
+              <p className="text-sm text-slate-600">A prefeitura exige o código numérico do motivo, com 1 dígito. A nota só fica cancelada aqui depois que a Webmania confirmar.</p>
+              <Input value={cancelMotivo} inputMode="numeric" maxLength={1} onChange={(event) => setCancelMotivo(event.target.value.replace(/\D/g, "").slice(0, 1))} />
+              <Button disabled={saving || !/^[1-9]$/.test(cancelMotivo.trim())} onClick={() => void confirmCancel()}>{saving ? "Cancelando..." : "Confirmar cancelamento"}</Button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-slate-600">Informe o motivo do cancelamento, entre 15 e 255 caracteres. A nota só fica cancelada aqui depois que a Webmania confirmar.</p>
+              <Textarea value={cancelMotivo} onChange={(event) => setCancelMotivo(event.target.value.slice(0, 255))} />
+              <Button disabled={saving || cancelMotivo.trim().length < 15} onClick={() => void confirmCancel()}>{saving ? "Cancelando..." : "Confirmar cancelamento"}</Button>
+            </>
+          )}
         </DialogContent>
       </Dialog>
       <Dialog open={Boolean(returnTarget)} onOpenChange={(open) => { if (!open) { setReturnTarget(null); setReturnNotice(""); } }}>
