@@ -259,8 +259,16 @@ function paymentCode(method: string) {
   return PAYMENT_CODE[raw] || "99";
 }
 
+type LeadRow = { data: Record<string, unknown> | null; error: { message?: string } | null };
+
+type LeadFilter = {
+  eq: (column: string, value: string) => LeadFilter;
+  is: (column: string, value: null) => LeadFilter;
+  maybeSingle: () => Promise<LeadRow>;
+};
+
 async function loadLead(
-  supabase: { from: (table: string) => { select: (columns: string) => { eq: (column: string, value: string) => { eq: (column: string, value: string) => { is: (column: string, value: null) => { maybeSingle: () => Promise<{ data: Record<string, unknown> | null; error: { message?: string } | null }> } } } } } } },
+  supabase: { from: (table: string) => { select: (columns: string) => LeadFilter } },
   organizationId: string,
   leadId: string,
 ) {
