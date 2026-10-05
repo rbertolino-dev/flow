@@ -144,7 +144,7 @@ export default function PosSalesHistory() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
-  const { loading, listSalesDetailed, getOpenCashSession, openCash, closeCash, getCashConsolidated } =
+  const { loading, listSalesDetailed, reactivateSale, getOpenCashSession, openCash, closeCash, getCashConsolidated } =
     usePosSales();
 
   const fromDefault = useMemo(() => defaultDateFrom(), []);
@@ -178,6 +178,8 @@ export default function PosSalesHistory() {
 
   const [receiptSaleId, setReceiptSaleId] = useState<string | null>(null);
   const [receiptOpen, setReceiptOpen] = useState(false);
+  const [listView, setListView] = useState<"completed" | "cancelled">("completed");
+  const [reactivateTarget, setReactivateTarget] = useState<PosSale | null>(null);
 
   const hasAdvancedFilters = useMemo(() => {
     const f = advancedFilters;
@@ -192,7 +194,7 @@ export default function PosSalesHistory() {
     );
   }, [advancedFilters]);
 
-  const loadSales = useCallback(async () => {
+  const loadSales = useCallback(async (statusOverride?: "completed" | "cancelled") => {
     try {
       const priceMin =
         advancedFilters.priceMin !== ""
@@ -218,6 +220,7 @@ export default function PosSalesHistory() {
         price_min: priceMin != null && priceMin > 0 ? priceMin : undefined,
         price_max: priceMax != null && priceMax < 500000 ? priceMax : undefined,
         with_invoice: advancedFilters.withInvoice || undefined,
+        status: statusOverride || listView,
       });
       setSales(result.data);
       setSummary(result.summary);
@@ -236,6 +239,7 @@ export default function PosSalesHistory() {
     searchExtra,
     advancedFilters,
     listSalesDetailed,
+    listView,
     toast,
   ]);
 
@@ -322,7 +326,7 @@ export default function PosSalesHistory() {
             </Button>
             <ShoppingCart className="h-6 w-6 text-primary" />
             <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
-              Histórico de vendas
+              {listView === "cancelled" ? "Vendas excluídas" : "Histórico de vendas"}
             </h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -351,9 +355,37 @@ export default function PosSalesHistory() {
         <div className="space-y-4 overflow-y-auto p-4">
           {/* Filtros */}
           <div className="rounded-lg border bg-card p-4 shadow-sm">
-            <p className="mb-3 text-sm font-medium text-muted-foreground">
-              Filtrar por período
-            </p>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium text-muted-foreground">
+                {listView === "cancelled" ? "Período da exclusão" : "Filtrar por período"}
+              </p>
+              <div className="flex rounded-full bg-slate-100 p-1">
+                <button
+                  type="button"
+                  className={`rounded-full px-3 py-1.5 text-sm font-medium ${
+                    listView === "completed" ? "bg-blue-700 text-white" : "text-slate-700"
+                  }`}
+                  onClick={() => {
+                    setListView("completed");
+                    void loadSales("completed");
+                  }}
+                >
+                  Vendas
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-full px-3 py-1.5 text-sm font-medium ${
+                    listView === "cancelled" ? "bg-blue-700 text-white" : "text-slate-700"
+                  }`}
+                  onClick={() => {
+                    setListView("cancelled");
+                    void loadSales("cancelled");
+                  }}
+                >
+                  Vendas excluídas
+                </button>
+              </div>
+            </div>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
               <div className="space-y-1">
                 <Label className="text-xs">Data inicial</Label>
@@ -507,22 +539,32 @@ export default function PosSalesHistory() {
                     <TableHead className="min-w-[140px]">Cliente</TableHead>
                     <TableHead className="min-w-[120px]">Responsável</TableHead>
                     <TableHead className="whitespace-nowrap">Nota fiscal</TableHead>
+                    {listView === "cancelled" ? (
+                      <>
+                        <TableHead className="whitespace-nowrap">Excluída em</TableHead>
+                        <TableHead className="min-w-[140px]">Excluída por</TableHead>
+                        <TableHead className="whitespace-nowrap">Estorno financeiro</TableHead>
+                        <TableHead className="whitespace-nowrap">Ação</TableHead>
+                      </>
+                    ) : null}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading && sales.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-12 text-center">
+                      <TableCell colSpan={listView === "cancelled" ? 12 : 8} className="py-12 text-center">
                         <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
                       </TableCell>
                     </TableRow>
                   ) : sales.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={8}
+                        colSpan={listView === "cancelled" ? 12 : 8}
                         className="py-12 text-center text-muted-foreground"
                       >
-                        Nenhuma venda encontrada neste período.
+                        {listView === "cancelled"
+                          ? "Nenhuma venda excluída neste período."
+                          : "Nenhuma venda encontrada neste período."}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -582,6 +624,48 @@ export default function PosSalesHistory() {
                             </Badge>
                           )}
                         </TableCell>
+                        {listView === "cancelled" ? (
+                          <>
+                            <TableCell className="whitespace-nowrap text-sm">
+                              {sale.cancelled_at ? formatDateTime(sale.cancelled_at) : "—"}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {sale.cancelled_by_name || "—"}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="secondary"
+                                className={
+                                  sale.finance_reversed
+                                    ? "rounded-full bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
+                                    : sale.generate_financial === false
+                                      ? "rounded-full bg-slate-100 text-slate-700 hover:bg-slate-100"
+                                      : "rounded-full bg-amber-100 text-amber-800 hover:bg-amber-100"
+                                }
+                              >
+                                {sale.finance_reversed
+                                  ? "Estornado"
+                                  : sale.generate_financial === false
+                                    ? "Sem lançamento"
+                                    : "Não estornado"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                                disabled={loading}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setReactivateTarget(sale);
+                                }}
+                              >
+                                Reativar
+                              </Button>
+                            </TableCell>
+                          </>
+                        ) : null}
                       </TableRow>
                     ))
                   )}
@@ -591,6 +675,40 @@ export default function PosSalesHistory() {
           </div>
         </div>
       </div>
+
+      <Dialog open={!!reactivateTarget} onOpenChange={(open) => !open && setReactivateTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reativar venda #{reactivateTarget?.sale_number}?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            A venda volta para o histórico, o estoque é baixado de novo e o financeiro estornado é reaberto.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReactivateTarget(null)}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
+              disabled={loading}
+              onClick={() => {
+                if (!reactivateTarget) return;
+                void (async () => {
+                  try {
+                    await reactivateSale(reactivateTarget.id);
+                    setReactivateTarget(null);
+                    await loadSales("cancelled");
+                  } catch {
+                    // toast no hook
+                  }
+                })();
+              }}
+            >
+              Reativar venda
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <PosCashConsolidatedDialog
         open={consolidatedOpen}
@@ -665,6 +783,7 @@ export default function PosSalesHistory() {
                 price_min: priceMin != null && priceMin > 0 ? priceMin : undefined,
                 price_max: priceMax != null && priceMax < 500000 ? priceMax : undefined,
                 with_invoice: filters.withInvoice || undefined,
+                status: listView,
               });
               setSales(result.data);
               setSummary(result.summary);
@@ -690,6 +809,7 @@ export default function PosSalesHistory() {
                 search: searchExtra.trim() || undefined,
                 include_items: true,
                 limit: 500,
+                status: listView,
               });
               setSales(result.data);
               setSummary(result.summary);

@@ -121,6 +121,11 @@ export interface PosSale {
   sold_by?: string | null;
   sold_by_name?: string | null;
   sold_at?: string | null;
+  cancelled_at?: string | null;
+  cancelled_by?: string | null;
+  cancelled_by_name?: string | null;
+  finance_reversed?: boolean | null;
+  generate_financial?: boolean | null;
   supplier_name?: string | null;
   sale_origin?: PosSaleOrigin | string | null;
   created_at: string;
@@ -158,6 +163,8 @@ export interface ListSalesOptions {
   price_max?: number;
   /** Apenas vendas com nota fiscal emitida */
   with_invoice?: boolean;
+  /** completed = histórico normal; cancelled = vendas excluídas */
+  status?: "completed" | "cancelled";
 }
 
 export interface ListSalesResult {

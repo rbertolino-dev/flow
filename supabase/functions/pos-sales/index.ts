@@ -637,9 +637,13 @@ serve(async (req) => {
       const priceMaxRaw = url.searchParams.get("price_max")?.trim() || "";
       const withInvoice = url.searchParams.get("with_invoice") === "1";
 
+      const saleStatus = url.searchParams.get("status") === "cancelled" ? "cancelled" : "completed";
+      const saleDateColumn = saleStatus === "cancelled"
+        ? "COALESCE(s.cancelled_at, s.updated_at)"
+        : "COALESCE(s.sold_at, s.created_at)";
       const where: string[] = [
         "s.organization_id = $1",
-        "s.status = 'completed'",
+        `s.status = '${saleStatus}'`,
       ];
       const params: unknown[] = [organizationId];
       let p = 1;
@@ -717,13 +721,13 @@ serve(async (req) => {
 
       if (dateFrom) {
         p++;
-        where.push(`COALESCE(s.sold_at, s.created_at) >= $${p}::timestamptz`);
+        where.push(`${saleDateColumn} >= $${p}::timestamptz`);
         params.push(dateFrom);
       }
 
       if (dateTo) {
         p++;
-        where.push(`COALESCE(s.sold_at, s.created_at) <= $${p}::timestamptz`);
+        where.push(`${saleDateColumn} <= $${p}::timestamptz`);
         params.push(dateTo);
       }
 
@@ -1637,26 +1641,165 @@ serve(async (req) => {
             `;
           }
 
-          const updated = await pg.queryObject`
+          const actorName = userName || user.email || "Usuário";
+          await pg.queryArray`
             UPDATE pos_sales
-            SET status = 'cancelled'
+            SET status = 'cancelled',
+                cancelled_at = now(),
+                cancelled_by = ${user.id},
+                cancelled_by_name = ${actorName},
+                updated_at = now()
             WHERE id = ${saleId} AND organization_id = ${organizationId}
-            RETURNING *
           `;
 
           await pg.queryArray`COMMIT`;
+          let reversedCount = 0;
           try {
-            const { error: financeError } = await supabase.rpc("cancel_financial_by_sale", {
+            const { data: reversed, error: financeError } = await supabase.rpc("cancel_financial_by_sale", {
               p_organization_id: organizationId,
               p_sale_id: saleId,
             });
             if (financeError) console.error("Erro ao estornar financeiro da venda:", financeError);
+            else reversedCount = Number(reversed || 0);
           } catch (financeErr) {
             console.error("Erro ao estornar financeiro da venda:", financeErr);
           }
+          const financeReversed = reversedCount > 0;
+          await pg.queryArray`
+            UPDATE pos_sales
+            SET finance_reversed = ${financeReversed}
+            WHERE id = ${saleId} AND organization_id = ${organizationId}
+          `;
+          await pg.queryArray`
+            INSERT INTO pos_sale_logs (
+              organization_id, sale_id, event_type, actor_id, actor_name, changes
+            ) VALUES (
+              ${organizationId},
+              ${saleId},
+              ${"sale_cancelled"},
+              ${user.id},
+              ${actorName},
+              ${JSON.stringify({ finance_reversed: financeReversed, reversed_count: reversedCount })}::jsonb
+            )
+          `;
+          const refreshed = await pg.queryObject`
+            SELECT * FROM pos_sales
+            WHERE id = ${saleId} AND organization_id = ${organizationId}
+          `;
           return json({
-            data: serializeRows([updated.rows[0] as Record<string, unknown>])[0],
-            message: "Venda cancelada e estoque revertido",
+            data: serializeRows([refreshed.rows[0] as Record<string, unknown>])[0],
+            message: financeReversed
+              ? "Venda cancelada, estoque revertido e financeiro estornado"
+              : "Venda cancelada e estoque revertido",
+          });
+        } catch (txErr) {
+          await pg.queryArray`ROLLBACK`;
+          throw txErr;
+        }
+      }
+
+      // ---- reactivate_sale: volta a venda excluída, baixa estoque e reabre o financeiro ----
+      if (postAction === "reactivate_sale") {
+        const saleId = body.sale_id || body.id;
+        if (!saleId) return json({ error: "sale_id obrigatório" }, 400);
+
+        await pg.queryArray`BEGIN`;
+        try {
+          const sale = await pg.queryObject<{ id: string; status: string }>`
+            SELECT id, status FROM pos_sales
+            WHERE id = ${saleId} AND organization_id = ${organizationId}
+            FOR UPDATE
+          `;
+          if (!sale.rows.length) {
+            await pg.queryArray`ROLLBACK`;
+            return json({ error: "Venda não encontrada" }, 404);
+          }
+          if (sale.rows[0].status !== "cancelled") {
+            await pg.queryArray`ROLLBACK`;
+            return json({ error: "Só uma venda excluída pode ser reativada" }, 400);
+          }
+
+          const items = await pg.queryObject<{
+            item_type: string;
+            item_id: string | null;
+            quantity: number;
+          }>`
+            SELECT item_type, item_id, quantity
+            FROM pos_sale_items
+            WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
+          `;
+
+          for (const item of items.rows) {
+            const qty = Number(item.quantity);
+            if (item.item_type !== "product" || !item.item_id || !(qty > 0)) continue;
+            const stockRow = await pg.queryObject<{ stock_quantity: number | null }>`
+              SELECT stock_quantity FROM products
+              WHERE id = ${item.item_id} AND organization_id = ${organizationId}
+              FOR UPDATE
+            `;
+            if (!stockRow.rows.length) continue;
+            const before = Number(stockRow.rows[0].stock_quantity ?? 0);
+            const after = before - qty;
+            await pg.queryArray`
+              UPDATE products
+              SET stock_quantity = ${after}, updated_at = now()
+              WHERE id = ${item.item_id} AND organization_id = ${organizationId}
+            `;
+            await pg.queryArray`
+              INSERT INTO pos_stock_movements (
+                organization_id, product_id, sale_id, movement_type, source,
+                quantity_delta, stock_before, stock_after, created_by, notes
+              ) VALUES (
+                ${organizationId}, ${item.item_id}, ${saleId}, 'sale', 'sale',
+                ${-qty}, ${before}, ${after}, ${user.id}, 'Reativação de venda'
+              )
+            `;
+          }
+
+          await pg.queryArray`
+            UPDATE pos_sales
+            SET status = 'completed',
+                cancelled_at = NULL,
+                cancelled_by = NULL,
+                cancelled_by_name = NULL,
+                finance_reversed = false,
+                updated_at = now()
+            WHERE id = ${saleId} AND organization_id = ${organizationId}
+          `;
+
+          await pg.queryArray`COMMIT`;
+
+          const actorName = userName || user.email || "Usuário";
+          let restoredCount = 0;
+          try {
+            const { data: restored, error: financeError } = await supabase.rpc("restore_financial_by_sale", {
+              p_organization_id: organizationId,
+              p_sale_id: saleId,
+            });
+            if (financeError) console.error("Erro ao reabrir financeiro da venda:", financeError);
+            else restoredCount = Number(restored || 0);
+          } catch (financeErr) {
+            console.error("Erro ao reabrir financeiro da venda:", financeErr);
+          }
+          await pg.queryArray`
+            INSERT INTO pos_sale_logs (
+              organization_id, sale_id, event_type, actor_id, actor_name, changes
+            ) VALUES (
+              ${organizationId},
+              ${saleId},
+              ${"sale_reactivated"},
+              ${user.id},
+              ${actorName},
+              ${JSON.stringify({ restored_count: restoredCount })}::jsonb
+            )
+          `;
+          const refreshed = await pg.queryObject`
+            SELECT * FROM pos_sales
+            WHERE id = ${saleId} AND organization_id = ${organizationId}
+          `;
+          return json({
+            data: serializeRows([refreshed.rows[0] as Record<string, unknown>])[0],
+            message: "Venda reativada",
           });
         } catch (txErr) {
           await pg.queryArray`ROLLBACK`;

@@ -93,6 +93,7 @@ export function usePosSales() {
           params.set("price_max", String(opts.price_max));
         }
         if (opts?.with_invoice) params.set("with_invoice", "1");
+        if (opts?.status) params.set("status", opts.status);
         const result = await callPos(`?${params.toString()}`);
         return {
           data: (result.data || []) as PosSale[],
@@ -298,10 +299,37 @@ export function usePosSales() {
           method: "POST",
           body: { action: "cancel_sale", sale_id: saleId },
         });
-        toast({ title: "Venda excluída", description: "Estoque revertido" });
+        toast({
+          title: "Venda excluída",
+          description: "Estoque revertido e lançamento financeiro estornado",
+        });
         return result.data as PosSale;
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Erro ao excluir venda";
+        toast({ title: "Erro", description: message, variant: "destructive" });
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [callPos, toast]
+  );
+
+  const reactivateSale = useCallback(
+    async (saleId: string): Promise<PosSale> => {
+      setLoading(true);
+      try {
+        const result = await callPos("", {
+          method: "POST",
+          body: { action: "reactivate_sale", sale_id: saleId },
+        });
+        toast({
+          title: "Venda reativada",
+          description: "A venda voltou ao histórico e o financeiro foi reaberto",
+        });
+        return result.data as PosSale;
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Erro ao reativar venda";
         toast({ title: "Erro", description: message, variant: "destructive" });
         throw error;
       } finally {
@@ -382,6 +410,7 @@ export function usePosSales() {
     updateSale,
     updateSalePayment,
     cancelSale,
+    reactivateSale,
     updateSaleItems,
     returnExchange,
   };

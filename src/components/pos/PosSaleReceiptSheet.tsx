@@ -225,7 +225,7 @@ export function PosSaleReceiptSheet({
 }: PosSaleReceiptSheetProps) {
   const { toast } = useToast();
   const { activeOrgId, activeOrganization } = useActiveOrganization();
-  const { getSale, updateSale, updateSalePayment, cancelSale, updateSaleItems, returnExchange, loading } =
+  const { getSale, updateSale, updateSalePayment, cancelSale, reactivateSale, updateSaleItems, returnExchange, loading } =
     usePosSales();
 
   const [sale, setSale] = useState<PosSale | null>(null);
@@ -252,6 +252,7 @@ export function PosSaleReceiptSheet({
   const [swapQty, setSwapQty] = useState<Record<string, string>>({});
 
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [reactivateOpen, setReactivateOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
 
   const loadSale = useCallback(async () => {
@@ -427,6 +428,18 @@ export function PosSaleReceiptSheet({
       const updated = await updateSaleItems({ sale_id: sale.id, items });
       setSale(updated);
       setSwapOpen(false);
+      onChanged?.();
+    } catch {
+      // toast já no hook
+    }
+  };
+
+  const handleReactivate = async () => {
+    if (!sale) return;
+    try {
+      const updated = await reactivateSale(sale.id);
+      setSale(updated);
+      setReactivateOpen(false);
       onChanged?.();
     } catch {
       // toast já no hook
@@ -716,14 +729,25 @@ export function PosSaleReceiptSheet({
 
                 {/* Excluir */}
                 <div className="px-4 pt-3">
-                  <Button
-                    type="button"
-                    className="h-11 w-full bg-red-600 text-base font-semibold text-white hover:bg-red-700"
-                    onClick={() => setDeleteOpen(true)}
-                    disabled={loading || sale.status === "cancelled"}
-                  >
-                    Excluir venda
-                  </Button>
+                  {sale.status === "cancelled" ? (
+                    <Button
+                      type="button"
+                      className="h-11 w-full bg-emerald-600 text-base font-semibold text-white hover:bg-emerald-700"
+                      onClick={() => setReactivateOpen(true)}
+                      disabled={loading}
+                    >
+                      Reativar venda
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      className="h-11 w-full bg-red-600 text-base font-semibold text-white hover:bg-red-700"
+                      onClick={() => setDeleteOpen(true)}
+                      disabled={loading}
+                    >
+                      Excluir venda
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
@@ -866,8 +890,9 @@ export function PosSaleReceiptSheet({
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir venda?</AlertDialogTitle>
             <AlertDialogDescription>
-              A venda #{sale?.sale_number} será cancelada e o estoque dos
-              produtos será revertido. Esta ação não pode ser desfeita.
+              A venda #{sale?.sale_number} sai do histórico, o estoque dos
+              produtos volta e o lançamento financeiro é estornado. Ela fica em
+              Vendas excluídas e pode ser reativada.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -880,6 +905,30 @@ export function PosSaleReceiptSheet({
               }}
             >
               Excluir venda
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={reactivateOpen} onOpenChange={setReactivateOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reativar venda?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A venda #{sale?.sale_number} volta para o histórico, o estoque é
+              baixado de novo e o financeiro estornado é reaberto.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-emerald-600 hover:bg-emerald-700"
+              onClick={(e) => {
+                e.preventDefault();
+                void handleReactivate();
+              }}
+            >
+              Reativar venda
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
