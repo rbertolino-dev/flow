@@ -41,6 +41,8 @@ import { PosCreateServiceDialog } from "@/components/pos/PosCreateServiceDialog"
 import { CreateProductDialog } from "@/components/shared/CreateProductDialog";
 import { useToast } from "@/hooks/use-toast";
 import {
+  ChevronLeft,
+  ChevronRight,
   History,
   Plus,
   Search,
@@ -59,6 +61,8 @@ import { cn } from "@/lib/utils";
 function formatMoney(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
+
+const CATALOG_PAGE_SIZE = 20;
 
 const CASH_SHORTCUTS = [
   { key: "F2", label: "Cliente" },
@@ -112,6 +116,7 @@ export default function Pos() {
     usePosSales();
 
   const [catalogTab, setCatalogTab] = useState<"products" | "services">("products");
+  const [catalogPage, setCatalogPage] = useState(1);
   const [search, setSearch] = useState("");
   const [exactSearch, setExactSearch] = useState(false);
   const [catalogCategory, setCatalogCategory] = useState("");
@@ -121,6 +126,7 @@ export default function Pos() {
   const [scannedIds, setScannedIds] = useState<string[]>([]);
   const [barcodeDraft, setBarcodeDraft] = useState("");
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const catalogScrollRef = useRef<HTMLDivElement>(null);
   const clientInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const discountInputRef = useRef<HTMLInputElement>(null);
@@ -346,6 +352,25 @@ export default function Pos() {
       return exactSearch ? s.name.toLowerCase() === q : hay.includes(q);
     });
   }, [services, search, exactSearch]);
+
+  const catalogTotal = catalogTab === "services" ? filteredServices.length : filteredProducts.length;
+  const catalogPageCount = Math.max(1, Math.ceil(catalogTotal / CATALOG_PAGE_SIZE));
+  const catalogPageSafe = Math.min(catalogPage, catalogPageCount);
+  const catalogFrom = catalogTotal === 0 ? 0 : (catalogPageSafe - 1) * CATALOG_PAGE_SIZE;
+  const pagedProducts = filteredProducts.slice(catalogFrom, catalogFrom + CATALOG_PAGE_SIZE);
+  const pagedServices = filteredServices.slice(catalogFrom, catalogFrom + CATALOG_PAGE_SIZE);
+
+  useEffect(() => {
+    setCatalogPage(1);
+  }, [search, exactSearch, catalogCategory, catalogTab, priceTier, barcodeMode]);
+
+  useEffect(() => {
+    if (catalogPage > catalogPageCount) setCatalogPage(catalogPageCount);
+  }, [catalogPage, catalogPageCount]);
+
+  useEffect(() => {
+    catalogScrollRef.current?.scrollTo({ top: 0 });
+  }, [catalogPageSafe, catalogTab]);
 
   const subtotal = useMemo(
     () => cart.reduce((s, i) => s + i.quantity * i.unit_price - i.discount_amount, 0),
@@ -1173,7 +1198,11 @@ export default function Pos() {
                 )}
               </div>
 
-              <TabsContent value="products" className="mt-0 min-h-0 flex-1 overflow-y-auto p-0">
+              <TabsContent
+                ref={catalogScrollRef}
+                value="products"
+                className="mt-0 min-h-0 flex-1 overflow-y-auto p-0"
+              >
                 {productsLoading ? (
                   <div className="flex justify-center py-12">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1188,7 +1217,7 @@ export default function Pos() {
                   </p>
                 ) : (
                   <ul data-pos-catalog="products">
-                    {filteredProducts.map((p, index) => {
+                    {pagedProducts.map((p, index) => {
                       const code =
                         (posSettings.stock_code_field === "barcode"
                           ? p.barcode || p.sku
@@ -1234,7 +1263,11 @@ export default function Pos() {
                 )}
               </TabsContent>
 
-              <TabsContent value="services" className="mt-0 min-h-0 flex-1 overflow-y-auto p-0">
+              <TabsContent
+                ref={catalogScrollRef}
+                value="services"
+                className="mt-0 min-h-0 flex-1 overflow-y-auto p-0"
+              >
                 {servicesLoading ? (
                   <div className="flex justify-center py-12">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1243,7 +1276,7 @@ export default function Pos() {
                   <p className="p-6 text-sm text-muted-foreground">Nenhum serviço encontrado.</p>
                 ) : (
                   <ul data-pos-catalog="services">
-                    {filteredServices.map((s, index) => (
+                    {pagedServices.map((s, index) => (
                       <li key={s.id}>
                         <button
                           type="button"
@@ -1271,6 +1304,40 @@ export default function Pos() {
                   </ul>
                 )}
               </TabsContent>
+              {catalogTotal > CATALOG_PAGE_SIZE && (
+                <div className="flex shrink-0 items-center justify-between gap-2 border-t bg-white px-3 py-2">
+                  <span className="text-xs text-slate-500">
+                    {catalogFrom + 1}–{Math.min(catalogFrom + CATALOG_PAGE_SIZE, catalogTotal)} de {catalogTotal}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2"
+                      disabled={catalogPageSafe <= 1}
+                      onClick={() => setCatalogPage((page) => Math.max(1, page - 1))}
+                      aria-label="Página anterior"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="min-w-[4.5rem] text-center text-xs font-medium text-slate-700">
+                      {catalogPageSafe} / {catalogPageCount}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2"
+                      disabled={catalogPageSafe >= catalogPageCount}
+                      onClick={() => setCatalogPage((page) => Math.min(catalogPageCount, page + 1))}
+                      aria-label="Próxima página"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Tabs>
           </div>
 
