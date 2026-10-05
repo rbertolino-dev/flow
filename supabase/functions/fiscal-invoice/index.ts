@@ -1151,6 +1151,18 @@ serve(async (req) => {
       });
       let responsePayload = recordBody(await remote.json().catch(() => ({})));
       let refusal = cancelRefusal(responsePayload, remote.ok);
+      if (refusal && !isService && /erro não catalogado/i.test(refusal)) {
+        await new Promise((resolve) => setTimeout(resolve, 8000));
+        const again = await fetch("https://webmania.com.br/api/1/nfe/cancelar/", {
+          method: "PUT",
+          headers: nfeHeaders(empresa),
+          body: JSON.stringify(payload),
+        });
+        const againBody = recordBody(await again.json().catch(() => ({})));
+        const againRefusal = cancelRefusal(againBody, again.ok);
+        responsePayload = againBody;
+        refusal = againRefusal;
+      }
       if (refusal && uuid) {
         const consult = await fetch(
           isService ? `https://api.webmania.com.br/2/nfse/consulta/${encodeURIComponent(uuid)}` : `https://webmania.com.br/api/1/nfe/consulta/?uuid=${encodeURIComponent(uuid)}`,
