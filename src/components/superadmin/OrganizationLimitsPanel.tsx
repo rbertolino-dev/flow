@@ -6,11 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, AlertCircle, Users, Smartphone, Settings, Package, Calendar, Sparkles, ToggleLeft, ToggleRight, MessageSquare } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { AVAILABLE_FEATURES } from "@/hooks/useOrganizationFeatures";
+import { AVAILABLE_FEATURES, readPlanModules } from "@/hooks/useOrganizationFeatures";
 import { invalidateEvolutionProvidersCache } from "@/hooks/useOrganizationEvolutionProviders";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -21,6 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Erro desconhecido";
+}
 
 interface OrganizationLimits {
   id?: string;
@@ -80,9 +85,11 @@ export function OrganizationLimitsPanel({
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchLimits();
-    fetchEvolutionProviders();
-    fetchOrganizationProvider();
+    void fetchLimits();
+    void fetchEvolutionProviders();
+    void fetchOrganizationProvider();
+    // Essas funções dependem só de organizationId e são recriadas a cada render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId]);
 
   const fetchLimits = async () => {
@@ -102,7 +109,7 @@ export function OrganizationLimitsPanel({
 
       if (limitsData) {
         // Helper para converter JSONB para array de forma segura
-        const jsonbToArray = (value: any): string[] => {
+        const jsonbToArray = (value: unknown): string[] => {
           if (!value) return [];
           if (Array.isArray(value)) return value as string[];
           if (typeof value === 'string') {
@@ -156,9 +163,12 @@ export function OrganizationLimitsPanel({
             .from('plans')
             .select('name, features')
             .eq('id', limitsData.plan_id)
-            .single();
+            .maybeSingle();
           setPlanName(planData?.name || null);
-          setPlanFeatures((planData?.features as string[]) || []);
+          setPlanFeatures(readPlanModules(planData?.features));
+        } else {
+          setPlanName(null);
+          setPlanFeatures([]);
         }
       } else {
         // Se não há limites configurados, buscar contadores diretamente
@@ -184,11 +194,11 @@ export function OrganizationLimitsPanel({
           users: usersCount || 0,
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao carregar limites:', error);
       toast({
         title: "Erro ao carregar configurações",
-        description: error.message,
+        description: errorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -207,11 +217,11 @@ export function OrganizationLimitsPanel({
 
       if (error) throw error;
       setEvolutionProviders(data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao carregar providers:', error);
       toast({
         title: "Erro ao carregar providers",
-        description: error.message,
+        description: errorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -245,7 +255,7 @@ export function OrganizationLimitsPanel({
           setSelectedProviderIds([]);
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao carregar providers da organização:', error);
       setSelectedProviderIds([]);
     }
@@ -277,7 +287,7 @@ export function OrganizationLimitsPanel({
         return;
       }
 
-      const limitsToSave = {
+      const limitsToSave: Database["public"]["Tables"]["organization_limits"]["Insert"] = {
         organization_id: organizationId,
         max_leads: limits.max_leads,
         max_instances: limits.max_instances,
@@ -295,7 +305,7 @@ export function OrganizationLimitsPanel({
 
       const { error: limitsError } = await supabase
         .from('organization_limits')
-        .upsert(limitsToSave as any, {
+        .upsert(limitsToSave, {
           onConflict: 'organization_id',
         });
 
@@ -339,11 +349,11 @@ export function OrganizationLimitsPanel({
       
       await fetchLimits();
       await fetchOrganizationProvider();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao salvar:', error);
       toast({
         title: "Erro ao salvar",
-        description: error.message,
+        description: errorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -398,7 +408,7 @@ export function OrganizationLimitsPanel({
   };
 
   const isFeatureFromPlan = (feature: string): boolean => {
-    return planFeatures.includes(feature);
+    return Array.isArray(planFeatures) && planFeatures.includes(feature);
   };
 
   const isInTrial = limits.trial_ends_at && new Date(limits.trial_ends_at) > new Date();
