@@ -338,12 +338,12 @@ export default function PosSettings() {
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="flex min-h-[520px] overflow-hidden rounded-lg border bg-card shadow-sm">
-            <nav className="flex w-44 shrink-0 flex-col gap-1 border-r bg-muted/40 p-3">
+          <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card shadow-sm md:min-h-[520px] md:flex-row">
+            <nav className="flex shrink-0 gap-1 overflow-x-auto border-b bg-muted/40 p-2 md:w-44 md:flex-col md:overflow-visible md:border-b-0 md:border-r md:p-3">
               <button
                 type="button"
                 className={cn(
-                  "rounded-md px-3 py-2 text-left text-sm",
+                  "shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-left text-sm md:whitespace-normal",
                   section === "vendas" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:bg-background/70"
                 )}
                 onClick={() => setSection("vendas")}
@@ -353,7 +353,7 @@ export default function PosSettings() {
               <button
                 type="button"
                 className={cn(
-                  "rounded-md px-3 py-2 text-left text-sm",
+                  "shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-left text-sm md:whitespace-normal",
                   section === "descontos" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:bg-background/70"
                 )}
                 onClick={() => setSection("descontos")}
@@ -363,7 +363,7 @@ export default function PosSettings() {
               <button
                 type="button"
                 className={cn(
-                  "rounded-md px-3 py-2 text-left text-sm",
+                  "shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-left text-sm md:whitespace-normal",
                   section === "acrescimos" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:bg-background/70"
                 )}
                 onClick={() => setSection("acrescimos")}
@@ -373,7 +373,7 @@ export default function PosSettings() {
               <button
                 type="button"
                 className={cn(
-                  "rounded-md px-3 py-2 text-left text-sm",
+                  "shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-left text-sm md:whitespace-normal",
                   section === "promocoes" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:bg-background/70"
                 )}
                 onClick={() => setSection("promocoes")}
@@ -524,7 +524,7 @@ export default function PosSettings() {
                     Nova Promoção
                   </Button>
                 </div>
-                <div className="mt-4 overflow-hidden rounded-md border">
+                <div className="mt-4 overflow-x-auto rounded-md border">
                   <div className="grid grid-cols-[minmax(0,1.4fr)_140px_90px_72px] bg-slate-700 px-3 py-2 text-sm font-medium text-white">
                     <span>Nome</span>
                     <span>Validade</span>

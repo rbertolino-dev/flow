@@ -739,14 +739,21 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
         
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {activeView !== "settings" && <VersionBanner />}
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <div
+            className={cn(
+              "min-h-0 flex-1 overflow-x-hidden",
+              location.pathname === "/pdv" ? "overflow-hidden" : "overflow-y-auto"
+            )}
+          >
             {children}
           </div>
         </div>
       </main>
       
       {/* Floating Chat Widget */}
-      <FloatingChatWidget organizationId={activeOrgId || undefined} />
+      {!location.pathname.startsWith("/pdv") && (
+        <FloatingChatWidget organizationId={activeOrgId || undefined} />
+      )}
       
       {/* Edit Organization Dialog */}
       {activeOrgId && (

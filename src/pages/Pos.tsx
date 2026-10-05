@@ -123,6 +123,7 @@ export default function Pos() {
   const [createProductOpen, setCreateProductOpen] = useState(false);
   const [createServiceOpen, setCreateServiceOpen] = useState(false);
   const [barcodeMode, setBarcodeMode] = useState(false);
+  const [mobilePane, setMobilePane] = useState<"catalog" | "summary">("catalog");
   const [scannedIds, setScannedIds] = useState<string[]>([]);
   const [barcodeDraft, setBarcodeDraft] = useState("");
   const barcodeInputRef = useRef<HTMLInputElement>(null);
@@ -936,25 +937,30 @@ export default function Pos() {
   return (
     <CRMLayout activeView="pdv" onViewChange={() => {}}>
       <div className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-100">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+        <div className="flex flex-col gap-2 border-b px-3 py-2 sm:px-4 sm:py-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
           <div className="flex items-center gap-2">
             <Button
               type="button"
               variant="outline"
               size="icon"
+              className="h-11 w-11 shrink-0 lg:h-10 lg:w-10"
               title="Configurações do PDV"
               aria-label="Configurações do PDV"
               onClick={() => navigate("/pdv/configuracoes")}
             >
               <Settings className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate("/pdv/historico")}>
+            <Button
+              variant="outline"
+              className="h-11 lg:h-9"
+              onClick={() => navigate("/pdv/historico")}
+            >
               <History className="mr-2 h-4 w-4" />
-              Histórico de vendas
+              Histórico
             </Button>
           </div>
 
-          <div className="relative flex min-w-[260px] max-w-lg flex-1 items-center gap-2">
+          <div className="relative flex w-full min-w-0 flex-1 items-center gap-2 lg:max-w-lg">
             <span className="text-sm text-muted-foreground whitespace-nowrap">Cliente</span>
             <div className="relative flex-1">
               <Input
@@ -965,7 +971,7 @@ export default function Pos() {
                   setSelectedLead(null);
                   setLeadQuery(e.target.value);
                 }}
-                className="pr-8"
+                className="h-11 pr-8 text-base lg:h-10 lg:text-sm"
               />
               {selectedLead && (
                 <button
@@ -1008,6 +1014,7 @@ export default function Pos() {
             <Button
               variant="outline"
               size="icon"
+              className="h-11 w-11 shrink-0 lg:h-10 lg:w-10"
               title="Criar cliente nesta organização"
               onClick={() => setCreateClientOpen(true)}
               disabled={!activeOrgId}
@@ -1017,7 +1024,7 @@ export default function Pos() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 border-b bg-slate-100 px-3 py-2">
+        <div className="hidden flex-nowrap items-center gap-1.5 overflow-x-auto border-b bg-slate-100 px-3 py-2 lg:flex">
           <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
             Caixa
           </span>
@@ -1048,8 +1055,13 @@ export default function Pos() {
           ))}
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(320px,1fr)_minmax(480px,580px)]">
-          <div className="flex h-full min-h-0 max-h-[42%] flex-col overflow-hidden border-r bg-white lg:max-h-none">
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(320px,460px)] xl:grid-cols-[minmax(0,1fr)_minmax(380px,540px)]">
+          <div
+            className={cn(
+              "flex min-h-0 flex-col overflow-hidden bg-white lg:h-full lg:border-r",
+              mobilePane === "summary" && "max-lg:hidden"
+            )}
+          >
             <Tabs
               value={catalogTab}
               onValueChange={(v) => setCatalogTab(v as "products" | "services")}
@@ -1118,11 +1130,11 @@ export default function Pos() {
                   </TabsList>
                 )}
                 <div className="mt-3 flex flex-wrap items-center gap-2 pb-3">
-                  <div className="relative min-w-[200px] flex-1">
+                  <div className="relative min-w-0 w-full flex-1 sm:w-auto">
                     <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       ref={searchInputRef}
-                      className="pl-8"
+                      className="h-11 pl-8 text-base lg:h-10 lg:text-sm"
                       placeholder="Buscar"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
@@ -1130,16 +1142,34 @@ export default function Pos() {
                   </div>
                   <Button
                     variant={exactSearch ? "default" : "outline"}
-                    size="sm"
+                    className="h-11 lg:h-9"
                     onClick={() => setExactSearch((v) => !v)}
                   >
                     Busca Exata
                   </Button>
                   <Button
                     type="button"
+                    variant={barcodeMode ? "default" : "outline"}
+                    size="icon"
+                    className="h-11 w-11 shrink-0 lg:hidden"
+                    title="Ler código de barras"
+                    aria-label="Leitor de código de barras"
+                    onClick={() => {
+                      setBarcodeMode((current) => {
+                        const next = !current;
+                        if (next) setMobilePane("summary");
+                        return next;
+                      });
+                      setCatalogTab("products");
+                    }}
+                  >
+                    <ScanBarcode className="h-5 w-5" />
+                  </Button>
+                  <Button
+                    type="button"
                     variant="outline"
                     size="icon"
-                    className="shrink-0"
+                    className="h-11 w-11 shrink-0 lg:h-10 lg:w-10"
                     title={
                       catalogTab === "products"
                         ? "Cadastrar novo produto"
@@ -1341,9 +1371,26 @@ export default function Pos() {
             </Tabs>
           </div>
 
-          <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-l bg-slate-50 shadow-xl">
-            <div className="flex shrink-0 items-center justify-between bg-white px-5 pb-2 pt-5">
-              <h2 className="text-3xl font-bold tracking-tight text-slate-800">Resumo</h2>
+          <div
+            className={cn(
+              "flex min-h-0 min-w-0 flex-col overflow-hidden bg-slate-50 lg:h-full lg:border-l lg:shadow-xl",
+              mobilePane === "catalog" && "max-lg:hidden"
+            )}
+          >
+            <div className="flex shrink-0 items-center justify-between gap-2 bg-white px-3 pb-2 pt-3 sm:px-5 sm:pt-5">
+              <div className="flex min-w-0 items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-11 px-2 lg:hidden"
+                  onClick={() => setMobilePane("catalog")}
+                >
+                  Catálogo
+                </Button>
+                <h2 className="truncate text-2xl font-bold tracking-tight text-slate-800 sm:text-3xl">
+                  Resumo
+                </h2>
+              </div>
               <Button
                 type="button"
                 variant={barcodeMode ? "default" : "outline"}
@@ -1356,7 +1403,11 @@ export default function Pos() {
                 }
                 aria-label="Leitor de código de barras"
                 onClick={() => {
-                  setBarcodeMode((v) => !v);
+                  setBarcodeMode((current) => {
+                    const next = !current;
+                    if (next) setMobilePane("summary");
+                    return next;
+                  });
                   setCatalogTab("products");
                 }}
               >
@@ -1364,7 +1415,7 @@ export default function Pos() {
               </Button>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 pb-5 pt-3">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 pb-4 pt-3 sm:space-y-5 sm:px-5 sm:pb-5">
               <div className="rounded-lg bg-blue-700 px-4 py-2.5 text-center text-white shadow-sm">
                 <p className="text-lg font-bold tabular-nums tracking-tight">
                   Total:{" "}
@@ -1404,7 +1455,7 @@ export default function Pos() {
                         key={item.key}
                         className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
                       >
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                           <p className="text-base font-bold leading-snug text-slate-900">
                             {item.name}
                             <span className="font-medium text-slate-500">
@@ -1427,7 +1478,7 @@ export default function Pos() {
                             </button>
                           </div>
                         </div>
-                        <div className="mt-3 grid grid-cols-3 gap-3">
+                        <div className="mt-3 grid grid-cols-3 gap-2 sm:gap-3">
                           <div className="space-y-1.5">
                             <Label className="text-xs font-medium text-slate-500">Valor unit:</Label>
                             <Input
@@ -1704,7 +1755,7 @@ export default function Pos() {
               </div>
             </div>
 
-            <div className="mt-auto shrink-0 space-y-2 border-t border-slate-200 bg-white px-5 py-3">
+            <div className="mt-auto shrink-0 space-y-2 border-t border-slate-200 bg-white px-3 py-3 sm:px-5">
               <div className="space-y-1 rounded-lg bg-blue-700 px-3.5 py-2.5 text-white shadow-sm">
                 <div className="flex items-center justify-between text-sm font-medium">
                   <span>Subtotal:</span>
@@ -1747,12 +1798,14 @@ export default function Pos() {
               </div>
               <div>
                 <Button
-                  className="h-10 w-full rounded-lg bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700"
+                  className="h-12 w-full rounded-lg bg-blue-600 text-base font-semibold text-white hover:bg-blue-700 lg:h-10 lg:text-sm"
                   disabled={!canOpenConfirm}
                   onClick={openConfirmDialog}
                 >
                   Finalizar
-                  <kbd className="ml-2 rounded bg-blue-800 px-1.5 py-0.5 text-[10px] font-bold">F12</kbd>
+                  <kbd className="ml-2 hidden rounded bg-blue-800 px-1.5 py-0.5 text-[10px] font-bold lg:inline">
+                    F12
+                  </kbd>
                 </Button>
                 {!selectedLead && cart.length > 0 && (
                   <p className="mt-1.5 text-center text-xs text-destructive">
@@ -1763,6 +1816,18 @@ export default function Pos() {
             </div>
           </div>
         </div>
+
+        {mobilePane === "catalog" && (
+          <div className="flex shrink-0 border-t bg-white p-2 lg:hidden">
+            <Button
+              type="button"
+              className="h-12 w-full bg-blue-700 text-base text-white hover:bg-blue-800"
+              onClick={() => setMobilePane("summary")}
+            >
+              Resumo{cart.length > 0 ? ` (${cart.length})` : ""} · {formatMoney(total)}
+            </Button>
+          </div>
+        )}
       </div>
 
       {activeOrgId && (

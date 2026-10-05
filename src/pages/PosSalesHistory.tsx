@@ -313,8 +313,8 @@ export default function PosSalesHistory() {
 
   return (
     <CRMLayout activeView="pdv" onViewChange={() => {}}>
-      <div className="flex h-[calc(100vh-4rem)] flex-col bg-background">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-4">
+      <div className="flex min-h-full flex-col bg-background">
+        <div className="flex flex-col gap-3 border-b px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4 sm:py-4">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
@@ -432,7 +432,7 @@ export default function PosSalesHistory() {
               </div>
             </div>
             <div className="mt-3 flex flex-wrap items-end gap-2">
-              <div className="min-w-[200px] flex-1 space-y-1">
+              <div className="min-w-0 w-full flex-1 space-y-1 sm:min-w-[200px] sm:w-auto">
                 <Label className="text-xs">Cliente / responsável</Label>
                 <Input
                   placeholder="Filtrar por nome..."
@@ -524,7 +524,69 @@ export default function PosSalesHistory() {
           ) : null}
 
           {/* Tabela */}
-          <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
+          <div className="space-y-3 lg:hidden">
+            {loading && sales.length === 0 ? (
+              <div className="flex justify-center rounded-lg border bg-card py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : sales.length === 0 ? (
+              <p className="rounded-lg border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
+                {listView === "cancelled"
+                  ? "Nenhuma venda excluída neste período."
+                  : "Nenhuma venda encontrada neste período."}
+              </p>
+            ) : (
+              sales.map((sale) => (
+                <button
+                  key={sale.id}
+                  type="button"
+                  className="w-full rounded-lg border bg-card p-4 text-left shadow-sm"
+                  onClick={() => {
+                    setReceiptSaleId(sale.id);
+                    setReceiptOpen(true);
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold">Venda #{sale.sale_number}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatDateTime(sale.sold_at || sale.created_at)}
+                      </p>
+                    </div>
+                    <p className="shrink-0 font-semibold tabular-nums">
+                      {formatMoney(saleListAmount(sale, advancedFilters.paymentMethod))}
+                    </p>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-sm">{itemsLabel(sale)}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {sale.customer_name || "Sem cliente"} · {sale.sold_by_name || "—"}
+                  </p>
+                  {listView === "cancelled" ? (
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground">
+                        Excluída {sale.cancelled_at ? formatDateTime(sale.cancelled_at) : "—"}
+                        {sale.cancelled_by_name ? ` por ${sale.cancelled_by_name}` : ""}
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="bg-emerald-600 text-white hover:bg-emerald-700"
+                        disabled={loading}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setReactivateTarget(sale);
+                        }}
+                      >
+                        Reativar
+                      </Button>
+                    </div>
+                  ) : null}
+                </button>
+              ))
+            )}
+          </div>
+
+          <div className="hidden overflow-hidden rounded-lg border bg-card shadow-sm lg:block">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
