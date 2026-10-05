@@ -109,6 +109,24 @@ const PRESENCAS = [
   { value: "9", label: "9 - Operação não presencial, outros" },
 ];
 
+const MOTIVOS_NFSE = [
+  { value: "1", label: "1 - Erro na emissão" },
+  { value: "2", label: "2 - Serviço não prestado" },
+  { value: "4", label: "4 - Duplicidade da nota" },
+];
+
+const ORIGENS = [
+  { value: "0", label: "0 - Nacional;" },
+  { value: "1", label: "1 - Estrangeira (importação direta);" },
+  { value: "2", label: "2 - Estrangeira (adquirida no mercado interno);" },
+  { value: "3", label: "3 - Nacional com mais de 40% de conteúdo estrangeiro;" },
+  { value: "4", label: "4 - Nacional produzida através de processos produtivos básicos;" },
+  { value: "5", label: "5 - Nacional com menos de 40% de conteúdo estrangeiro;" },
+  { value: "6", label: "6 - Estrangeira (importação direta) sem produto nacional similar;" },
+  { value: "7", label: "7 - Estrangeira (adquirida no mercado interno) sem produto nacional similar;" },
+  { value: "8", label: "8 - Nacional, mercadoria ou bem com Conteúdo de Importação superior a 70%;" },
+];
+
 const FRETES = [
   { value: "0", label: "0 - Contratação do Frete por conta do Remetente (CIF)" },
   { value: "1", label: "1 - Contratação do Frete por conta do Destinatário (FOB)" },
@@ -640,7 +658,7 @@ export default function NotaFiscal() {
         name: String(item.name || ""),
         code: String(item.sku || ""),
         ncm: String(item.ncm || ""),
-        origem: item.fiscal_origin != null && String(item.fiscal_origin) !== "" ? String(item.fiscal_origin) : "",
+        origem: /^[0-8]/.test(String(item.fiscal_origin ?? "").trim()) ? String(item.fiscal_origin).trim().slice(0, 1) : "",
         quantity: Number(item.quantity || 1),
         price: Number(item.unit_price || 0),
         tax_class_ref: String(item.product_class || item.service_class || ""),
@@ -999,7 +1017,7 @@ export default function NotaFiscal() {
                                 {invoice.pdf_url ? <a className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100" href={invoice.pdf_url} target="_blank" rel="noreferrer">PDF</a> : null}
                                 {invoice.xml_url ? <a className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100" href={invoice.xml_url} target="_blank" rel="noreferrer">XML</a> : null}
                                 {invoice.cce_url ? <a className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100" href={invoice.cce_url} target="_blank" rel="noreferrer">CC-e</a> : null}
-                                {invoice.status === "aprovado" ? <button type="button" className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100" onClick={() => { setCancelNotice(""); setCancelTarget(invoice); setCancelMotivo(""); }}>Cancelar</button> : null}
+                                {invoice.status === "aprovado" ? <button type="button" className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100" onClick={() => { setCancelNotice(""); setCancelTarget(invoice); setCancelMotivo(invoice.kind === "nfse" ? "1" : ""); }}>Cancelar</button> : null}
                                 {invoice.kind === "nfe" && invoice.status === "aprovado" && invoice.access_key ? <button type="button" className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200" onClick={() => { setReturnNotice(""); setReturnTarget(invoice); setReturnCfop("1202"); setReturnNatureza("Devolução de mercadoria"); setReturnItens(""); setReturnQtds(""); }}>Devolver</button> : null}
                                 {!["aprovado", "cancelado", "processado"].includes(invoice.status) ? <button type="button" className="rounded-full p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600" onClick={() => void remove(invoice.id)} aria-label="Excluir"><Trash2 className="h-4 w-4" /></button> : null}
                               </div>
@@ -1155,13 +1173,13 @@ export default function NotaFiscal() {
                       </Select>
                     </div>
                     {line.item_type === "product" && (missing || editing) ? (
-                      <div className="w-28 shrink-0">
-                        <p className="text-[11px] leading-none text-slate-500">Origem</p>
+                      <div className="w-44 shrink-0">
+                        <p className="text-[11px] leading-none text-slate-500">Origem do produto</p>
                         <Select value={line.origem === "" ? "none" : line.origem} onValueChange={(value) => setLines((prev) => prev.map((item, i) => i === index ? { ...item, origem: value === "none" ? "" : value } : item))}>
                           <SelectTrigger className="h-7"><SelectValue placeholder="Origem" /></SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="max-h-80 w-[min(36rem,90vw)]">
                             <SelectItem value="none">Selecione</SelectItem>
-                            {["0", "1", "2", "3", "4", "5", "6", "7", "8"].map((origin) => <SelectItem key={origin} value={origin}>{origin}</SelectItem>)}
+                            {ORIGENS.map((origin) => <SelectItem key={origin.value} value={origin.value} className="whitespace-normal">{origin.label}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1331,9 +1349,14 @@ export default function NotaFiscal() {
           <FiscalErrorNotice message={cancelNotice} />
           {cancelTarget?.kind === "nfse" ? (
             <>
-              <p className="text-sm text-slate-600">A prefeitura exige o código numérico do motivo, com 1 dígito. A nota só fica cancelada aqui depois que a Webmania confirmar.</p>
-              <Input value={cancelMotivo} inputMode="numeric" maxLength={1} onChange={(event) => setCancelMotivo(event.target.value.replace(/\D/g, "").slice(0, 1))} />
-              <Button disabled={saving || !/^[1-9]$/.test(cancelMotivo.trim())} onClick={() => void confirmCancel()}>{saving ? "Cancelando..." : "Confirmar cancelamento"}</Button>
+              <p className="text-sm text-slate-600">Escolha o motivo. A nota só fica cancelada aqui depois que a Webmania confirmar.</p>
+              <Select value={cancelMotivo || "1"} onValueChange={setCancelMotivo}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MOTIVOS_NFSE.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button disabled={saving || !["1", "2", "4"].includes(cancelMotivo)} onClick={() => void confirmCancel()}>{saving ? "Cancelando..." : "Confirmar cancelamento"}</Button>
             </>
           ) : (
             <>

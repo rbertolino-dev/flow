@@ -1092,7 +1092,7 @@ serve(async (req) => {
       let payload: Record<string, unknown>;
       if (isService) {
         if (uuid.length !== 36) return json({ error: "A NFS-e não tem o identificador da Webmania" }, 400);
-        if (!/^[1-9]$/.test(motivo)) return json({ error: "O cancelamento de NFS-e usa o código numérico do motivo (1 dígito), conforme a prefeitura" }, 400);
+        if (!["1", "2", "4"].includes(motivo)) return json({ error: "O cancelamento de NFS-e usa um destes motivos: 1 - Erro na emissão, 2 - Serviço não prestado ou 4 - Duplicidade da nota" }, 400);
         payload = { uuid, motivo: Number(motivo) };
       } else {
         if (motivo.length < 15 || motivo.length > 255) return json({ error: "O motivo do cancelamento precisa ter de 15 a 255 caracteres" }, 400);

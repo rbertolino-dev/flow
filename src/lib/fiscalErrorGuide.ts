@@ -31,7 +31,8 @@ const ENTRIES: Entry[] = [
   { prefix: "Os serviços desta nota precisam da mesma classe de imposto", title: "A nota não foi emitida", fix: "Use a mesma classe de imposto em todos os serviços desta nota." },
   { prefix: "Origem do produto deve ser de 0 a 8", title: "A nota não foi emitida", fix: "Troque a origem do produto para um número de 0 a 8." },
   { prefix: "O motivo do cancelamento precisa ter de 15 a 255 caracteres", title: "A nota não foi cancelada", fix: "Ajuste o motivo para ficar entre 15 e 255 caracteres." },
-  { prefix: "O cancelamento de NFS-e usa o código numérico do motivo", title: "A nota não foi cancelada", fix: "Informe o código de 1 dígito exigido pela prefeitura." },
+  { prefix: "O cancelamento de NFS-e usa o código numérico do motivo", title: "A nota não foi cancelada", fix: "Escolha 1 - Erro na emissão, 2 - Serviço não prestado ou 4 - Duplicidade da nota." },
+  { prefix: "O cancelamento de NFS-e usa um destes motivos", title: "A nota não foi cancelada", fix: "Escolha 1 - Erro na emissão, 2 - Serviço não prestado ou 4 - Duplicidade da nota." },
   { prefix: "A NFS-e não tem o identificador da Webmania", title: "A nota não foi cancelada", fix: null },
   { prefix: "Informe o CFOP de devolução com 4 dígitos", title: "A devolução não foi emitida", fix: "Preencha o CFOP com 4 números." },
   { prefix: "A quantidade precisa acompanhar cada item devolvido", title: "A devolução não foi emitida", fix: "Informe uma quantidade para cada item." },
@@ -88,6 +89,14 @@ const ENTRIES: Entry[] = [
 export function explainFiscalError(message: string): FiscalErrorGuide {
   const reason = message.trim();
   if (!reason) return { title: "A nota não foi aceita", reason: "", fix: null, unmapped: false };
+  if (/erro não catalogado/i.test(reason)) {
+    return {
+      title: "A nota não foi cancelada",
+      reason,
+      fix: "A Secretaria da Fazenda recusou sem dizer qual regra falhou. A nota continua autorizada. Não há outro motivo escondido nesse retorno.",
+      unmapped: false,
+    };
+  }
   if (/portal da prefeitura|portal nacional/i.test(reason)) {
     return {
       title: "A classe de serviço não foi criada",
