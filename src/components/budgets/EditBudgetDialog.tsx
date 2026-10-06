@@ -49,6 +49,7 @@ export function EditBudgetDialog({
   const [validityDays, setValidityDays] = useState<number>(30);
   const [deliveryDate, setDeliveryDate] = useState<string>('');
   const [deliveryLocation, setDeliveryLocation] = useState<string>('');
+  const [budgetNumber, setBudgetNumber] = useState('');
   const [observations, setObservations] = useState<string>('');
   const [additions, setAdditions] = useState<string>('0');
   const [headerColor, setHeaderColor] = useState<string>('#3b82f6');
@@ -82,6 +83,7 @@ export function EditBudgetDialog({
       setDeliveryLocation(budget.delivery_location || '');
       
       // Carregar observações
+      setBudgetNumber(budget.budget_number || '');
       setObservations(budget.observations || '');
       
       // Carregar acréscimos/descontos
@@ -142,6 +144,7 @@ export function EditBudgetDialog({
         deliveryDate: deliveryDate ? new Date(deliveryDate) : undefined,
         deliveryLocation: deliveryLocation || undefined,
         observations: observations || undefined,
+        budgetNumber,
         headerColor: headerColor || undefined,
         logoUrl: logoUrl || undefined,
         additions: parseFloat(additions) || 0,
@@ -200,6 +203,16 @@ export function EditBudgetDialog({
             <p className="text-xs text-muted-foreground">
               O cliente não pode ser alterado após a criação do orçamento
             </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-budget-number">Número do orçamento</Label>
+            <Input
+              id="edit-budget-number"
+              value={budgetNumber}
+              onChange={(event) => setBudgetNumber(event.target.value)}
+              required
+            />
           </div>
 
           {/* Produtos e Serviços */}

@@ -115,6 +115,7 @@ export function CreateBudgetDialog({
   const [enableDeliveryDate, setEnableDeliveryDate] = useState(false);
   const [deliveryLocation, setDeliveryLocation] = useState('');
   const [enableDeliveryLocation, setEnableDeliveryLocation] = useState(false);
+  const [budgetNumber, setBudgetNumber] = useState('');
   const [observations, setObservations] = useState('');
   const [enableObservations, setEnableObservations] = useState(false);
   const [discountValue, setDiscountValue] = useState('0');
@@ -301,6 +302,7 @@ export function CreateBudgetDialog({
     setEnableDeliveryDate(false);
     setDeliveryLocation('');
     setEnableDeliveryLocation(false);
+    setBudgetNumber('');
     setObservations('');
     setEnableObservations(false);
     setDiscountValue('0');
@@ -342,6 +344,7 @@ export function CreateBudgetDialog({
       deliveryDate: enableDeliveryDate && deliveryDate ? new Date(deliveryDate) : undefined,
       deliveryLocation: enableDeliveryLocation ? deliveryLocation || undefined : undefined,
       observations: enableObservations ? observations || undefined : undefined,
+      budgetNumber: budgetNumber.trim() || undefined,
       headerColor: headerColor || undefined,
       additions: totals.additionsValue,
       pdfDisplayOptions,
@@ -629,6 +632,20 @@ export function CreateBudgetDialog({
                   <h3 className="text-sm font-semibold tracking-wide text-slate-800">Visual e informações</h3>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     Ative só o que for usar. O restante fica escondido.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="budget-number">Número do orçamento</Label>
+                  <Input
+                    id="budget-number"
+                    value={budgetNumber}
+                    onChange={(event) => setBudgetNumber(event.target.value)}
+                    placeholder="Gerar automaticamente"
+                    className="h-10"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Deixe em branco para numerar sozinho. Preencha se precisar de um número específico.
                   </p>
                 </div>
 

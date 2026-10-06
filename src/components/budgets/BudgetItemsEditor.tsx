@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -777,18 +778,25 @@ export function BudgetItemsEditor({
                 </div>
                 {detailedProducts ? (
                   <div className="space-y-2">
-                    <Input
-                      value={product.description || ''}
-                      onChange={(event) => updateProduct(index, { description: event.target.value })}
-                      placeholder="Descrição"
-                      className="h-9"
-                    />
-                    <Input
-                      value={product.internal_notes || ''}
-                      onChange={(event) => updateProduct(index, { internal_notes: event.target.value })}
-                      placeholder="Observações (controle interno)"
-                      className="h-9"
-                    />
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-muted-foreground">Descrição do cadastro</Label>
+                      <Textarea
+                        value={product.description || ''}
+                        onChange={(event) => updateProduct(index, { description: event.target.value })}
+                        placeholder="Descrição salva do produto"
+                        rows={2}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-muted-foreground">Descrição digitada</Label>
+                      <Textarea
+                        value={product.internal_notes || ''}
+                        onChange={(event) => updateProduct(index, { internal_notes: event.target.value })}
+                        placeholder="Digite aqui a descrição que deve sair no PDF"
+                        rows={2}
+                      />
+                      <p className="text-[11px] text-muted-foreground">Este texto sai no PDF, junto com a descrição do cadastro.</p>
+                    </div>
                     {product.image_url ? (
                       <img
                         src={product.image_url}

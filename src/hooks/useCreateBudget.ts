@@ -7,6 +7,7 @@ import { broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
 import { generateBudgetPDF } from '@/lib/budgetPdfGenerator';
 import { SupabaseStorageService } from '@/services/contractStorage';
 import { budgetPdfFileNameFromRecord } from '@/lib/budgetPdfFileName';
+import { resolveBudgetNumber } from '@/lib/budgetNumber';
 
 export function useCreateBudget() {
   const { activeOrgId } = useActiveOrganization();
@@ -40,12 +41,7 @@ export function useCreateBudget() {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + formData.validityDays);
 
-      // Gerar número do orçamento
-      const { data: budgetNumber, error: numberError } = await (supabase as any).rpc('generate_budget_number', {
-        org_id: activeOrgId,
-      });
-
-      if (numberError) throw numberError;
+      const budgetNumber = await resolveBudgetNumber(activeOrgId, formData.budgetNumber);
 
       // Criar orçamento
       const { data, error } = await (supabase as any)

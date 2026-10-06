@@ -10,7 +10,7 @@ export interface BudgetProduct {
   image_url?: string;
   /** Desconto em reais nesta linha (reduz o subtotal do item). */
   line_discount?: number;
-  /** Controle interno — não entra no PDF. */
+  /** Texto digitado na hora. Entra no PDF junto com a descrição do cadastro. */
   internal_notes?: string;
   // Se foi adicionado manualmente (não do banco)
   isManual?: boolean;
@@ -66,6 +66,8 @@ export interface BudgetFormData {
   logoUrl?: string; // URL do logo/imagem no cabeçalho
   additions?: number; // Acréscimos/descontos
   pdfDisplayOptions?: BudgetPdfDisplayOptions;
+  /** Se preenchido, usa este número em vez do gerado automaticamente. */
+  budgetNumber?: string;
 }
 
 export interface Budget {

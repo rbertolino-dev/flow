@@ -9,6 +9,7 @@ import { broadcastRefreshEvent } from '@/utils/forceRefreshAfterMutation';
 import { generateBudgetPDF } from '@/lib/budgetPdfGenerator';
 import { SupabaseStorageService } from '@/services/contractStorage';
 import { budgetPdfFileNameFromRecord } from '@/lib/budgetPdfFileName';
+import { resolveBudgetNumber } from '@/lib/budgetNumber';
 import { format, addDays } from 'date-fns';
 import { buildBudgetPosSalePayload, createPosSaleFromBudget } from '@/lib/budgetPosSale';
 
@@ -387,14 +388,7 @@ export function useBudgets(filters?: BudgetFilters) {
       // Calcular data de expiração
       const expiresAt = addDays(new Date(), budgetData.validityDays || 30);
 
-      // Gerar número do orçamento
-      // @ts-ignore - Função existe
-      const { data: budgetNumber, error: numberError } = await supabase.rpc(
-        'generate_budget_number',
-        { org_id: activeOrgId }
-      );
-
-      if (numberError) throw numberError;
+      const budgetNumber = await resolveBudgetNumber(activeOrgId, budgetData.budgetNumber);
 
       // Criar orçamento
       // @ts-ignore - Tabela budgets existe
@@ -920,6 +914,12 @@ export function useBudgets(filters?: BudgetFilters) {
 
       if (budgetData.backgroundImageUrl !== undefined) {
         updateData.background_image_url = budgetData.backgroundImageUrl || null;
+      }
+
+      if (budgetData.budgetNumber !== undefined) {
+        const nextNumber = budgetData.budgetNumber.trim();
+        if (!nextNumber) throw new Error('Informe o número do orçamento');
+        updateData.budget_number = await resolveBudgetNumber(activeOrgId, nextNumber, budgetId);
       }
 
       // @ts-ignore - Tabela budgets existe
