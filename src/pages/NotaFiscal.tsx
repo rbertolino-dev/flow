@@ -973,7 +973,7 @@ export default function NotaFiscal() {
                   <FileText className="h-5 w-5" />
                 </span>
                 <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">Nota Fiscal</h1>
+                  <h1 className="text-2xl font-bold tracking-tight text-slate-950">Nota Fiscal</h1>
                   <p className="text-sm text-slate-600">{company?.name || "Empresa não configurada"} {company?.cnpj ? `· ${company.cnpj}` : ""}</p>
                   <p className="text-xs text-slate-500">Última emissão: {company?.lastEmission || "—"}</p>
                   <p className="mt-2 inline-flex rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700">Até {company?.limit || 50} notas no mês sem custo extra · depois, R$ 0,45 · neste mês: {monthCount}</p>
@@ -981,8 +981,8 @@ export default function NotaFiscal() {
               </div>
               <Button variant="outline" onClick={() => openFiscalTab("company")}>Editar empresa</Button>
             </div>
-            <nav className="overflow-x-auto rounded-2xl bg-slate-100/90 p-1.5" aria-label="Seções da nota fiscal">
-              <div className="flex min-w-max gap-1">
+            <nav className="overflow-x-auto rounded-2xl bg-blue-950 p-2" aria-label="Seções da nota fiscal">
+              <div className="flex min-w-max gap-2">
                 {PAGE_TABS.map(({ id, label, icon: Icon }) => {
                   const active = pageTab === id;
                   return (
@@ -990,10 +990,10 @@ export default function NotaFiscal() {
                       key={id}
                       type="button"
                       aria-current={active ? "page" : undefined}
-                      className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition-all duration-200 ${active ? "bg-white font-medium text-slate-900 shadow-sm" : "text-slate-500 hover:bg-white/70 hover:text-slate-800"}`}
+                      className={`flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-bold tracking-tight transition-colors duration-200 ${active ? "bg-white text-blue-900" : "bg-blue-700 text-white hover:bg-blue-600"}`}
                       onClick={() => openFiscalTab(id)}
                     >
-                      <span className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors duration-200 ${active ? "bg-blue-600 text-white" : "bg-white text-slate-400"}`}>
+                      <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${active ? "bg-blue-700 text-white" : "bg-blue-900 text-blue-100"}`}>
                         <Icon className="h-3.5 w-3.5" />
                       </span>
                       {label}
