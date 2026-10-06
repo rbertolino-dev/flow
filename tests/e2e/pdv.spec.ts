@@ -847,11 +847,16 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     const search = page.getByPlaceholder("Descrição");
     await human.humanType(search, marker, { clearFirst: true });
     await human.humanClick(page.getByRole("button", { name: /^pesquisar$/i }));
-    const rows = page.getByRole("row").filter({ hasText: marker });
-    await expect(rows).toHaveCount(2, { timeout: 20_000 });
-    await expect(rows.filter({ hasText: /recebido/i })).toHaveCount(1);
-    await expect(rows.filter({ hasText: /em aberto/i })).toHaveCount(1);
-    await expect(rows.filter({ hasText: /pix/i })).toHaveCount(2);
+    const openRows = page.getByRole("row").filter({ hasText: marker });
+    await expect(openRows).toHaveCount(1, { timeout: 20_000 });
+    await expect(openRows.filter({ hasText: /em aberto/i })).toHaveCount(1);
+    await expect(openRows.filter({ hasText: /pix/i })).toHaveCount(1);
+
+    await human.humanClick(page.getByRole("switch", { name: /recebidas/i }));
+    const paidRows = page.getByRole("row").filter({ hasText: marker });
+    await expect(paidRows).toHaveCount(1, { timeout: 20_000 });
+    await expect(paidRows.filter({ hasText: /recebido/i })).toHaveCount(1);
+    await expect(paidRows.filter({ hasText: /pix/i })).toHaveCount(1);
 
     await human.humanNavigate("/pdv/historico");
     await expect(page.getByRole("heading", { name: /histórico de vendas/i })).toBeVisible({ timeout: 20_000 });
@@ -873,9 +878,9 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
 
     await human.humanNavigate("/financeiro/pagar");
     await page.locator('input[type="date"]').nth(1).fill("2027-12-31");
-    await human.humanType(page.getByPlaceholder("Descrição"), `Devolução venda #${saleNumber}`, { clearFirst: true });
+    await human.humanType(page.getByPlaceholder("Descrição"), `Ajuste da venda #${saleNumber}`, { clearFirst: true });
     await human.humanClick(page.getByRole("button", { name: /^pesquisar$/i }));
-    await expect(page.getByRole("row").filter({ hasText: `Devolução venda #${saleNumber}` })).toBeVisible({
+    await expect(page.getByRole("row").filter({ hasText: `Ajuste da venda #${saleNumber}` })).toBeVisible({
       timeout: 20_000,
     });
 
