@@ -560,7 +560,11 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
 
     const notes = page.getByPlaceholder("Digite").first();
     await human.humanType(notes, marker, { clearFirst: true });
-    await human.humanType(row("Conta Financeira").getByRole("textbox"), "Pubdigital", { clearFirst: true });
+    await human.humanClick(row("Conta Financeira").getByRole("combobox"));
+    const accountOption = page.getByRole("option", { name: /pubdigital|ita[uú]/i }).first();
+    await expect(accountOption).toBeVisible();
+    const accountName = ((await accountOption.textContent()) || "").trim();
+    await human.humanClick(accountOption);
     await human.humanClick(row("Categoria Financeira").getByRole("combobox"));
     await human.humanClick(page.getByRole("option", { name: /^vendas$/i }));
     await expect(row("Registro de Meio de Pagamento").getByRole("switch")).toBeChecked();
@@ -633,7 +637,10 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
       await human.humanClick(finalize);
       const dialog = page.getByRole("dialog");
       await expect(dialog.getByText(/confirmar venda/i)).toBeVisible({ timeout: 15_000 });
-      await expect(dialog.getByPlaceholder("Conta")).toHaveValue(/pubdigital/i);
+      await expect(dialog.getByText(/^conta financeira$/i)).toBeVisible();
+      await expect(
+        dialog.getByRole("combobox").filter({ hasText: new RegExp(accountName, "i") })
+      ).toBeVisible();
       await human.humanClick(dialog.getByRole("button", { name: /^cancelar$/i }));
     } finally {
       await openSettings();
@@ -731,6 +738,13 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await expect(createOs.getByTestId("os-model-select")).toBeVisible();
     await expect(page.getByTestId("os-detail-dialog")).toHaveCount(0);
     await expect(page.getByTestId("os-detail-close-btn")).toHaveCount(0);
+
+    const userPickers = createOs.getByRole("combobox").filter({ hasText: /selecione um usuário/i });
+    const userPickerCount = await userPickers.count();
+    for (let index = 0; index < userPickerCount; index += 1) {
+      await human.humanClick(createOs.getByRole("combobox").filter({ hasText: /selecione um usuário/i }).first());
+      await human.humanClick(page.getByRole("option").first());
+    }
 
     const nextStep = createOs.getByRole("button", { name: /^próximo$/i });
     await nextStep.scrollIntoViewIfNeeded();
@@ -869,6 +883,65 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     const productAfter = page.locator("ul[data-pos-catalog] li button").filter({ hasText: /fanta laranja/i }).first();
     await expect(productAfter).toBeVisible({ timeout: 20_000 });
     await expect(productAfter.locator("p").last()).toHaveText(stockBefore);
+  });
+
+  test("PDV — vendas excluídas, períodos do caixa e telas estreitas @human-behavior @pdv", async ({
+    page,
+  }) => {
+    const human = new HumanBehavior(page);
+    const orgId = process.env.E2E_ORG_ID?.trim();
+    if (orgId) {
+      await page.addInitScript((id) => {
+        localStorage.setItem("active_organization_id", id);
+      }, orgId);
+    }
+
+    await human.humanNavigate("/pdv/historico");
+    if (page.url().includes("/login")) test.skip(true, "Sessão E2E inválida");
+    await expect(page.getByRole("heading", { name: /histórico de vendas/i })).toBeVisible({
+      timeout: 45_000,
+    });
+    await human.humanClick(page.getByRole("button", { name: /^vendas excluídas$/i }));
+    await expect(page.getByRole("heading", { name: /vendas excluídas/i })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByRole("columnheader", { name: /excluída em/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /excluída por/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /estorno financeiro/i })).toBeVisible();
+    await expect(page.getByRole("cell", { name: /pubdigital/i }).first()).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await human.humanClick(page.getByRole("button", { name: /^caixa$/i }));
+    await human.humanClick(page.getByRole("menuitem", { name: /caixa consolidado/i }));
+    const dialog = page.getByRole("dialog", { name: /caixa consolidado/i });
+    await expect(dialog).toBeVisible({ timeout: 20_000 });
+
+    for (const period of [/madrugada/i, /tarde \(12/i, /noite/i]) {
+      await human.humanClick(dialog.getByRole("combobox"));
+      await human.humanClick(page.getByRole("option", { name: period }));
+      const loaded = page.waitForResponse(
+        (res) => res.url().includes("cash_consolidated") && res.request().method() === "GET",
+        { timeout: 45_000 }
+      );
+      await human.humanClick(dialog.getByRole("button", { name: /^consultar$/i }));
+      expect((await loaded).ok()).toBeTruthy();
+    }
+
+    const download = page.waitForEvent("download", { timeout: 15_000 });
+    await human.humanClick(dialog.getByRole("button", { name: /^exportar$/i }));
+    expect((await download).suggestedFilename()).toMatch(/caixa-consolidado-.*\.csv/);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await human.humanNavigate("/pdv");
+    const summaryTab = page.getByRole("button", { name: /resumo/i });
+    await expect(summaryTab).toBeVisible({ timeout: 45_000 });
+    await human.humanClick(summaryTab);
+    await expect(page.getByRole("heading", { name: /^resumo$/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /finalizar/i }).last()).toBeVisible();
+
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await expect(page.getByRole("button", { name: /histórico/i })).toBeVisible();
   });
 
   test("PDV — acessibilidade básica @accessibility @pdv", async ({ page }) => {
