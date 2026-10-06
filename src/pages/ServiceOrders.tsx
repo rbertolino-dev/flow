@@ -57,6 +57,7 @@ import { ServiceOrdersAgenda } from '@/components/service-orders/ServiceOrdersAg
 import { ServiceOrderFormData, ServiceOrder, ServiceOrderCloseData } from '@/types/serviceOrder';
 import { maintenanceMarkLabel } from '@/lib/serviceOrderMaintenance';
 import { executionDurationLabel, formatServiceOrderMoment } from '@/lib/serviceOrderDuration';
+import { useServiceOrderViewer, visibleClientPhone } from '@/lib/serviceOrderPhone';
 import { useToast } from '@/hooks/use-toast';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import {
@@ -131,6 +132,7 @@ export default function ServiceOrders() {
   const agendaDialogWasOpen = useRef(false);
 
   const { toast } = useToast();
+  const viewer = useServiceOrderViewer();
   const { activeOrganization, activeOrgId } = useActiveOrganization();
   const location = useLocation();
   const navigate = useNavigate();
@@ -277,11 +279,23 @@ export default function ServiceOrders() {
         if (data) orgData = data as typeof orgData;
       }
 
-      let orderForPdf = order;
+      const phoneForPdf = visibleClientPhone(
+        {
+          client_phone: order.client_phone || order.lead?.phone,
+          show_client_phone: order.show_client_phone,
+          collaborator_user_id: order.collaborator_user_id,
+        },
+        viewer
+      );
+      let orderForPdf = {
+        ...order,
+        client_phone: phoneForPdf || null,
+        lead: order.lead ? { ...order.lead, phone: phoneForPdf || undefined } : order.lead,
+      };
       if (activeOrgId) {
         const equipments = await fetchEquipmentsForOrder(activeOrgId, order.id).catch(() => []);
         orderForPdf = {
-          ...order,
+          ...orderForPdf,
           equipments,
           equipment_ids: equipments.map((item) => item.id),
         };
@@ -780,7 +794,7 @@ export default function ServiceOrders() {
                         </span>
                       </div>
                       <p className="text-sm font-medium truncate">
-                        {order.client_phone ? `${order.client_phone} · ` : ''}
+                        {visibleClientPhone(order, viewer) ? `${visibleClientPhone(order, viewer)} · ` : ''}
                         {order.client_name || order.lead?.name || 'Sem cliente'}
                       </p>
                       <p className="text-xs text-muted-foreground">
@@ -869,7 +883,7 @@ export default function ServiceOrders() {
                     </TableCell>
                     <TableCell className="max-w-[200px]">
                       <div className="truncate">
-                        {order.client_phone ? `${order.client_phone} - ` : ''}
+                        {visibleClientPhone(order, viewer) ? `${visibleClientPhone(order, viewer)} - ` : ''}
                         {order.client_name || order.lead?.name || '—'}
                       </div>
                     </TableCell>

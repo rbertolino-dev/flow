@@ -28,6 +28,7 @@ import { ServiceOrder, ServiceOrderLog } from '@/types/serviceOrder';
 import { Equipment, equipmentDisplayName } from '@/types/equipment';
 import { maintenanceMarkLabel } from '@/lib/serviceOrderMaintenance';
 import { executionDurationLabel, formatServiceOrderMoment } from '@/lib/serviceOrderDuration';
+import { useServiceOrderViewer, visibleClientPhone } from '@/lib/serviceOrderPhone';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchEquipmentsForOrder } from '@/hooks/useEquipments';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
@@ -76,6 +77,7 @@ export function ServiceOrderDetailDialog({
   onCancelFutureVisits,
   exporting,
 }: ServiceOrderDetailDialogProps) {
+  const viewer = useServiceOrderViewer();
   const [logs, setLogs] = useState<ServiceOrderLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
@@ -141,8 +143,16 @@ export function ServiceOrderDetailDialog({
 
   if (!order) return null;
 
+  const phone = visibleClientPhone(
+    {
+      client_phone: order.client_phone || order.lead?.phone,
+      show_client_phone: order.show_client_phone,
+      collaborator_user_id: order.collaborator_user_id,
+    },
+    viewer
+  );
   const clientLabel = [
-    order.client_phone || order.lead?.phone,
+    phone,
     order.client_name || order.lead?.name,
   ]
     .filter(Boolean)

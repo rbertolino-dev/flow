@@ -159,6 +159,7 @@ export interface ServiceOrder {
   lead_id?: string | null;
   client_name?: string | null;
   client_phone?: string | null;
+  show_client_phone?: boolean | null;
   responsible_name?: string | null;
   responsible_user_id?: string | null;
   collaborator_name?: string | null;
@@ -257,6 +258,7 @@ export interface ServiceOrderFormData {
   lead_id?: string;
   client_name?: string;
   client_phone?: string;
+  show_client_phone?: boolean;
   responsible_name?: string;
   responsible_user_id?: string;
   collaborator_name?: string;

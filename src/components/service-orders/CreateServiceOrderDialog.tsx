@@ -99,11 +99,27 @@ function toLocalDateTimeInput(value?: string) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function nowLocalDateTimeInput() {
+  const date = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function formatLeadAddress(lead: Lead): string {
+  const street = [lead.address, lead.addressNumber].map((part) => (part || '').trim()).filter(Boolean).join(', ');
   const cep = lead.postalCode
     ? lead.postalCode.replace(/\D/g, '').replace(/(\d{5})(\d{3})/, '$1-$2')
     : '';
-  return [lead.address, lead.neighborhood, lead.city, cep].filter(Boolean).join(', ');
+  const city = [lead.city, lead.uf].map((part) => (part || '').trim()).filter(Boolean).join(' - ');
+  return [street, lead.neighborhood, city, cep].map((part) => (part || '').trim()).filter(Boolean).join(', ');
+}
+
+function RequiredMark() {
+  return (
+    <span className="ml-1.5 inline-flex rounded-full bg-amber-100 px-1.5 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+      Obrigatório
+    </span>
+  );
 }
 
 export function CreateServiceOrderDialog({
@@ -232,6 +248,7 @@ export function CreateServiceOrderDialog({
         lead_id: editingOrder.lead_id || undefined,
         client_name: editingOrder.client_name || undefined,
         client_phone: editingOrder.client_phone || undefined,
+        show_client_phone: Boolean(editingOrder.show_client_phone),
         responsible_name: editingOrder.responsible_name || undefined,
         responsible_user_id: editingOrder.responsible_user_id || undefined,
         collaborator_name: editingOrder.collaborator_name || undefined,
@@ -277,7 +294,7 @@ export function CreateServiceOrderDialog({
       ...initialDraft,
       starts_at: initialDraft?.starts_at
         ? format(new Date(initialDraft.starts_at), "yyyy-MM-dd'T'HH:mm")
-        : undefined,
+        : nowLocalDateTimeInput(),
       ends_at: initialDraft?.ends_at
         ? format(new Date(initialDraft.ends_at), "yyyy-MM-dd'T'HH:mm")
         : undefined,
@@ -399,7 +416,10 @@ export function CreateServiceOrderDialog({
         </div>
         {singleDay ? (
           <div className="space-y-1">
-            <Label htmlFor="os-schedule-start">Dia e horário</Label>
+            <Label htmlFor="os-schedule-start">
+              Dia e horário
+              <RequiredMark />
+            </Label>
             <Input
               id="os-schedule-start"
               data-testid="os-schedule-start"
@@ -411,7 +431,10 @@ export function CreateServiceOrderDialog({
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label htmlFor="os-schedule-start">Data e horário de início</Label>
+              <Label htmlFor="os-schedule-start">
+                Data e horário de início
+                <RequiredMark />
+              </Label>
               <Input
                 id="os-schedule-start"
                 data-testid="os-schedule-start"
@@ -451,7 +474,7 @@ export function CreateServiceOrderDialog({
         <div key={field.id} className="space-y-1 md:col-span-2">
           <Label>
             {field.label}
-            {field.is_required && ' *'}
+            {field.is_required && <RequiredMark />}
           </Label>
           <Input
             placeholder="Buscar cliente..."
@@ -466,11 +489,15 @@ export function CreateServiceOrderDialog({
                   type="button"
                   className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
                   onClick={() => {
-                    setField('lead_id', lead.id, false);
-                    setField('client_name', lead.name, false);
-                    setField('client_phone', lead.phone || '', false);
-                    setField('address', formatLeadAddress(lead), false);
-                    setField('equipment_ids', [], false);
+                    const address = formatLeadAddress(lead);
+                    setForm((prev) => ({
+                      ...prev,
+                      lead_id: lead.id,
+                      client_name: lead.name,
+                      client_phone: lead.phone || '',
+                      address,
+                      equipment_ids: [],
+                    }));
                     setLeadSearch(lead.name || '');
                   }}
                 >
@@ -481,10 +508,31 @@ export function CreateServiceOrderDialog({
             </div>
           )}
           {form.client_name && (
-            <Badge variant="secondary" className="mt-1">
-              {form.client_name}
-              {form.client_phone ? ` · ${form.client_phone}` : ''}
-            </Badge>
+            <div className="mt-2 space-y-2">
+              <Badge variant="secondary">
+                {form.client_name}
+                {form.client_phone ? ` · ${form.client_phone}` : ''}
+              </Badge>
+              {form.address ? (
+                <p className="text-sm text-slate-600">Endereço do cliente: {form.address}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">Este cliente não tem endereço cadastrado.</p>
+              )}
+              {form.client_phone && (
+                <label className="flex items-start gap-2 text-sm text-slate-700">
+                  <Switch
+                    checked={Boolean(form.show_client_phone)}
+                    onCheckedChange={(checked) => setField('show_client_phone', checked, false)}
+                  />
+                  <span>
+                    <span className="font-medium">Mostrar telefone para quem vai executar</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      Opcional. Sem isso, o colaborador não vê o telefone do cliente.
+                    </span>
+                  </span>
+                </label>
+              )}
+            </div>
           )}
         </div>
       );
@@ -507,7 +555,7 @@ export function CreateServiceOrderDialog({
         <div key={field.id} className="space-y-1">
           <Label>
             {field.label}
-            {field.is_required && ' *'}
+            {field.is_required && <RequiredMark />}
           </Label>
           <Select
             value={selectValue}
@@ -555,7 +603,7 @@ export function CreateServiceOrderDialog({
         <div key={field.id} className="space-y-1 md:col-span-2">
           <Label>
             {field.label}
-            {field.is_required && ' *'}
+            {field.is_required && <RequiredMark />}
           </Label>
           <Select
             value={selectValue}
@@ -609,7 +657,7 @@ export function CreateServiceOrderDialog({
         <div key={field.id} className="space-y-2 md:col-span-2">
           <Label>
             {field.label}
-            {field.is_required && ' *'}
+            {field.is_required && <RequiredMark />}
           </Label>
           <div className="w-full overflow-hidden rounded-lg border">
             <table className="w-full table-fixed border-collapse text-sm">
@@ -664,7 +712,7 @@ export function CreateServiceOrderDialog({
         <div key={field.id} className="space-y-1 md:col-span-2">
           <Label>
             {field.label}
-            {field.is_required && ' *'}
+            {field.is_required && <RequiredMark />}
           </Label>
           <Textarea
             placeholder={field.placeholder || field.label}
@@ -681,7 +729,7 @@ export function CreateServiceOrderDialog({
         <div key={field.id} className="space-y-1">
           <Label>
             {field.label}
-            {field.is_required && ' *'}
+            {field.is_required && <RequiredMark />}
           </Label>
           <Input
             type="number"
@@ -703,7 +751,7 @@ export function CreateServiceOrderDialog({
         <div key={field.id} className="space-y-1">
           <Label>
             {field.label}
-            {field.is_required && ' *'}
+            {field.is_required && <RequiredMark />}
           </Label>
           <Input
             type={field.field_type === 'date' ? 'date' : 'datetime-local'}
@@ -722,7 +770,7 @@ export function CreateServiceOrderDialog({
         <div key={field.id} className="space-y-1">
           <Label>
             {field.label}
-            {field.is_required && ' *'}
+            {field.is_required && <RequiredMark />}
           </Label>
           <Select
             value={String(value || '')}
@@ -747,7 +795,7 @@ export function CreateServiceOrderDialog({
       <div key={field.id} className="space-y-1">
         <Label>
           {field.label}
-          {field.is_required && ' *'}
+          {field.is_required && <RequiredMark />}
         </Label>
         <Input
           placeholder={field.placeholder || field.label}
