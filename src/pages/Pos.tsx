@@ -399,6 +399,7 @@ export default function Pos() {
         paymentSurcharges: posSettings.payment_surcharges,
         method: activePaymentMethod,
         installments,
+        payments: payments.map((line) => ({ method: line.method, amount: line.amount })),
       }),
     [
       subtotal,
@@ -409,11 +410,12 @@ export default function Pos() {
       posSettings.payment_surcharges,
       activePaymentMethod,
       installments,
+      payments,
     ]
   );
   const total = quote.total;
   const resolveSaleTotal = useCallback(
-    (method: string) =>
+    (method: string, cardInstallments?: number) =>
       quotePosSale({
         subtotal,
         manualDiscount: discount,
@@ -422,7 +424,7 @@ export default function Pos() {
         paymentDiscounts: posSettings.payment_discounts,
         paymentSurcharges: posSettings.payment_surcharges,
         method,
-        installments: method === "cartao_credito" ? installments : 1,
+        installments: method === "cartao_credito" ? cardInstallments || installments : 1,
       }).total,
     [subtotal, discount, selectedPromotion, cart, posSettings.payment_discounts, posSettings.payment_surcharges, installments]
   );
@@ -813,6 +815,10 @@ export default function Pos() {
       values.paymentMethod ||
       paymentMethodDraft ||
       "";
+    const quoteInstallments =
+      values.cardInstallments ||
+      (methodForDiscount === "cartao_credito" ? installments : 1);
+    const weightPayments = values.salePayments?.length ? values.salePayments : payments;
     const confirmedQuote = quotePosSale({
       subtotal,
       manualDiscount: discount,
@@ -821,7 +827,8 @@ export default function Pos() {
       paymentDiscounts: posSettings.payment_discounts,
       paymentSurcharges: posSettings.payment_surcharges,
       method: methodForDiscount,
-      installments: methodForDiscount === "cartao_credito" ? installments : 1,
+      installments: quoteInstallments,
+      payments: weightPayments.map((line) => ({ method: line.method, amount: line.amount })),
     });
     const saleDiscount = confirmedQuote.discount;
     const saleSurcharge = confirmedQuote.surcharge;
@@ -904,6 +911,7 @@ export default function Pos() {
         financial_category: values.financialCategory || null,
         default_commission_type: posSettings.commission_type,
         default_commission_value: posSettings.commission_value,
+        installments: quoteInstallments,
       });
 
       setConfirmOpen(false);

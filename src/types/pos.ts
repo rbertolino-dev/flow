@@ -410,6 +410,7 @@ export interface FinalizeSalePayload {
   sold_at?: string | null;
   default_commission_type?: "percent" | "fixed";
   default_commission_value?: number;
+  installments?: number;
   client_request_id?: string | null;
   /** Origem da venda (default no backend: pdv) */
   sale_origin?: PosSaleOrigin;

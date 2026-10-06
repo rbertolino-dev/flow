@@ -95,24 +95,39 @@ export function quotePosSale(input: {
   paymentSurcharges: PosPaymentSurcharge[];
   method: string;
   installments: number;
+  payments?: Array<{ method: string; amount: number }>;
 }) {
   const promoAmount = promotionDiscountAmount(input.promotion, input.cart);
-  const paymentRule = input.paymentDiscounts.find((item) => item.method === input.method);
-  const paymentAmount = paymentRule
-    ? roundMoney(Math.max(0, input.subtotal - promoAmount) * (paymentRule.percent / 100))
-    : 0;
+  const base = Math.max(0, input.subtotal - promoAmount);
+  const filled = (input.payments || []).filter((line) => line.method && Number(line.amount) > 0.009);
+  const lines = filled.length ? filled : [{ method: input.method, amount: base > 0 ? base : 1 }];
+  const weightSum = lines.reduce((sum, line) => sum + Number(line.amount), 0) || 1;
+
+  let methodDiscount = 0;
+  let surcharge = 0;
+  let paymentRule: { method: string; percent: number } | null = null;
+  let surchargeRule: PosPaymentSurcharge | null = null;
+
+  for (const line of lines) {
+    const share = base * (Number(line.amount) / weightSum);
+    const rule = input.paymentDiscounts.find((item) => item.method === line.method) || null;
+    const disc = rule ? roundMoney(share * (rule.percent / 100)) : 0;
+    methodDiscount = roundMoney(methodDiscount + disc);
+    if (rule && !paymentRule) paymentRule = rule;
+    const lineInstallments = line.method === "cartao_credito" ? input.installments : 1;
+    const matched = matchPaymentSurcharge(input.paymentSurcharges, line.method, lineInstallments);
+    if (matched) {
+      surcharge = roundMoney(
+        surcharge + roundMoney(Math.max(0, share - disc) * (matched.percent / 100)),
+      );
+      if (!surchargeRule || line.method === input.method) surchargeRule = matched;
+    }
+  }
+
   const discount =
     paymentRule || input.promotion
-      ? roundMoney(promoAmount + paymentAmount)
+      ? roundMoney(promoAmount + methodDiscount)
       : Math.max(0, input.manualDiscount);
-  const surchargeRule = matchPaymentSurcharge(
-    input.paymentSurcharges,
-    input.method,
-    input.installments
-  );
-  const surcharge = surchargeRule
-    ? roundMoney(Math.max(0, input.subtotal - discount) * (surchargeRule.percent / 100))
-    : 0;
   const total = roundMoney(Math.max(0, input.subtotal - discount) + surcharge);
   return { discount, surcharge, total, paymentRule, surchargeRule, promoAmount };
 }

@@ -145,6 +145,134 @@ async function getUserName(
   return data?.full_name || null;
 }
 
+async function assertPosManager(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  organizationId: string,
+) {
+  const [{ data: member }, { data: roleData }, { data: isPub }] = await Promise.all([
+    supabase
+      .from("organization_members")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("organization_id", organizationId)
+      .maybeSingle(),
+    supabase.from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle(),
+    supabase.rpc("is_pubdigital_user", { _user_id: userId }),
+  ]);
+  const role = String(member?.role || "");
+  if (role === "owner" || role === "admin" || roleData || isPub) return;
+  throw new HttpError("Só o administrador da empresa pode fazer esta ação no PDV.", 403);
+}
+
+type DiscountRule = { method: string; percent: number };
+type SurchargeRule = {
+  method: string;
+  percent: number;
+  installments_from: number | null;
+  installments_to: number | null;
+};
+
+function asRuleArray(value: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(value)) return value as Array<Record<string, unknown>>;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function matchSurchargeRule(rules: SurchargeRule[], method: string, installments: number) {
+  const matches = rules.filter((rule) => {
+    if (rule.method !== method) return false;
+    if (method !== "cartao_credito") return rule.installments_from == null && rule.installments_to == null;
+    const from = rule.installments_from ?? 1;
+    const to = rule.installments_to ?? rule.installments_from ?? 48;
+    return installments >= from && installments <= to;
+  });
+  matches.sort((a, b) => {
+    const spanA = (a.installments_to ?? a.installments_from ?? 48) - (a.installments_from ?? 1);
+    const spanB = (b.installments_to ?? b.installments_from ?? 48) - (b.installments_from ?? 1);
+    return spanA - spanB;
+  });
+  return matches[0] || null;
+}
+
+function quoteConfiguredSale(input: {
+  subtotal: number;
+  manualDiscount: number;
+  discounts: DiscountRule[];
+  surcharges: SurchargeRule[];
+  payments: Array<{ method: string; amount: number }>;
+  installments: number;
+  hasPromotion: boolean;
+}) {
+  const base = Math.max(0, input.subtotal);
+  const filled = input.payments.filter((line) => line.method && Number(line.amount) > 0.009);
+  const lines = filled.length ? filled : [{ method: "pix", amount: base || 1 }];
+  const weightSum = lines.reduce((sum, line) => sum + Number(line.amount), 0) || 1;
+  let methodDiscount = 0;
+  let surcharge = 0;
+  let usedRule = false;
+  for (const line of lines) {
+    const share = base * (Number(line.amount) / weightSum);
+    const rule = input.discounts.find((item) => item.method === line.method);
+    const disc = rule ? roundMoney(share * (Number(rule.percent) / 100)) : 0;
+    if (rule) usedRule = true;
+    methodDiscount = roundMoney(methodDiscount + disc);
+    const installments = line.method === "cartao_credito" ? input.installments : 1;
+    const matched = matchSurchargeRule(input.surcharges, line.method, installments);
+    if (matched) {
+      surcharge = roundMoney(surcharge + roundMoney(Math.max(0, share - disc) * (matched.percent / 100)));
+    }
+  }
+  const discount = usedRule || input.hasPromotion
+    ? methodDiscount
+    : Math.max(0, input.manualDiscount);
+  const total = roundMoney(Math.max(0, input.subtotal - (input.hasPromotion ? input.manualDiscount : discount)) + surcharge);
+  return { discount: input.hasPromotion ? input.manualDiscount : discount, surcharge, total, usedRule };
+}
+
+async function postCommissionEntry(
+  supabase: ReturnType<typeof createClient>,
+  input: {
+    organizationId: string;
+    saleId: string;
+    saleNumber: number;
+    amount: number;
+    userName: string | null;
+    leadId: string | null;
+    paymentDate: string;
+    account: string | null;
+    userId: string;
+  },
+) {
+  if (input.amount <= 0.009) return;
+  const { error } = await supabase.rpc("upsert_financial_entry", {
+    p_organization_id: input.organizationId,
+    p_direction: "pagar",
+    p_amount: input.amount,
+    p_due_date: input.paymentDate,
+    p_source_type: "comissao",
+    p_source_id: `pdv:${input.saleId}`,
+    p_status: "open",
+    p_settlement_status: "confirmado",
+    p_lead_id: input.leadId,
+    p_description: `Comissão venda #${input.saleNumber}`,
+    p_contact_name: input.userName || "Vendedor",
+    p_billing_name: "Sem contato",
+    p_category: "Comissão",
+    p_account: input.account || "Caixa",
+    p_origin_label: "Comissão",
+    p_created_by: input.userId,
+  });
+  if (error) throw new Error(error.message);
+}
+
 async function syncPosFinancial(
   supabase: ReturnType<typeof createClient>,
   input: {
@@ -641,6 +769,17 @@ serve(async (req) => {
       const targetOrg = String(body.organization_id || "");
       if (!targetOrg) return json({ error: "organization_id obrigatório" }, 400);
 
+      const saleIds = await pg.queryObject<{ id: string }>`
+        SELECT id FROM pos_sales WHERE organization_id = ${targetOrg}
+      `;
+      for (const row of saleIds.rows) {
+        const { error: financeError } = await supabase.rpc("cancel_financial_by_sale", {
+          p_organization_id: targetOrg,
+          p_sale_id: row.id,
+        });
+        if (financeError) console.error("Erro ao estornar financeiro da venda apagada:", financeError);
+      }
+
       await pg.queryArray`BEGIN`;
       try {
         await pg.queryArray`
@@ -802,6 +941,7 @@ serve(async (req) => {
         const saleWhere = `
           s.organization_id = $1
           AND s.status = 'completed'
+          AND COALESCE(s.sale_origin, 'pdv') <> 'orcamento'
           AND COALESCE(s.sold_at, s.created_at) >= $2::timestamptz
           AND COALESCE(s.sold_at, s.created_at) <= $3::timestamptz
           ${periodSql}
@@ -1262,8 +1402,9 @@ serve(async (req) => {
 
       if (postAction === "open_cash") {
         const existing = await pg.queryObject`
-          SELECT id FROM pos_cash_sessions
+          SELECT * FROM pos_cash_sessions
           WHERE organization_id = ${organizationId} AND status = 'open'
+          ORDER BY opened_at DESC
           LIMIT 1
         `;
         if (existing.rows.length) {
@@ -1271,19 +1412,32 @@ serve(async (req) => {
         }
 
         const openingAmount = Number(body.opening_amount || 0);
-        const result = await pg.queryObject`
-          INSERT INTO pos_cash_sessions (
-            organization_id, opened_by, opened_by_name, opening_amount, notes, status
-          ) VALUES (
-            ${organizationId}, ${user.id}, ${userName}, ${openingAmount},
-            ${body.notes || null}, 'open'
-          )
-          RETURNING *
-        `;
-        return json({ data: result.rows[0] }, 201);
+        try {
+          const result = await pg.queryObject`
+            INSERT INTO pos_cash_sessions (
+              organization_id, opened_by, opened_by_name, opening_amount, notes, status
+            ) VALUES (
+              ${organizationId}, ${user.id}, ${userName}, ${openingAmount},
+              ${body.notes || null}, 'open'
+            )
+            RETURNING *
+          `;
+          return json({ data: result.rows[0] }, 201);
+        } catch (openError) {
+          const message = openError instanceof Error ? openError.message : String(openError);
+          if (!/pos_cash_sessions_one_open|duplicate key/i.test(message)) throw openError;
+          const again = await pg.queryObject`
+            SELECT * FROM pos_cash_sessions
+            WHERE organization_id = ${organizationId} AND status = 'open'
+            ORDER BY opened_at DESC
+            LIMIT 1
+          `;
+          return json({ data: again.rows[0], message: "Já existe caixa aberto" });
+        }
       }
 
       if (postAction === "close_cash") {
+        await assertPosManager(supabase, user.id, organizationId);
         const sessionId = body.session_id;
         if (!sessionId) return json({ error: "session_id obrigatório" }, 400);
 
@@ -1364,33 +1518,85 @@ serve(async (req) => {
 
         let commissionAmount = 0;
         if (addCommission) {
+          let uncovered = 0;
           for (const item of normalizedItems) {
-            if (item.item_type !== "product" || !item.item_id) continue;
-            const prod = await pg.queryObject<{
-              commission_percentage: number | null;
-              commission_fixed: number | null;
-            }>`
-              SELECT commission_percentage, commission_fixed
-              FROM products
-              WHERE id = ${item.item_id} AND organization_id = ${organizationId}
-              LIMIT 1
-            `;
-            if (prod.rows[0]) {
-              const pct = Number(prod.rows[0].commission_percentage || 0);
-              const fixed = Number(prod.rows[0].commission_fixed || 0);
-              commissionAmount += (item.total_price * pct) / 100 + fixed * item.quantity;
+            let own = 0;
+            if (item.item_type === "product" && item.item_id) {
+              const prod = await pg.queryObject<{
+                commission_percentage: number | null;
+                commission_fixed: number | null;
+              }>`
+                SELECT commission_percentage, commission_fixed
+                FROM products
+                WHERE id = ${item.item_id} AND organization_id = ${organizationId}
+                LIMIT 1
+              `;
+              const pct = Number(prod.rows[0]?.commission_percentage || 0);
+              const fixed = Number(prod.rows[0]?.commission_fixed || 0);
+              if (pct > 0 || fixed > 0) {
+                own = (item.total_price * pct) / 100 + fixed * item.quantity;
+              }
             }
+            if (own > 0) commissionAmount += own;
+            else uncovered += item.total_price;
           }
-          if (commissionAmount === 0) {
-            const dtype = body.default_commission_type === "fixed" ? "fixed" : "percent";
-            const dvalue = Number(body.default_commission_value || 0);
-            if (dvalue > 0) {
-              commissionAmount = dtype === "fixed" ? dvalue : (total * dvalue) / 100;
-            }
+          const dtype = body.default_commission_type === "fixed" ? "fixed" : "percent";
+          const dvalue = Number(body.default_commission_value || 0);
+          if (dvalue > 0 && uncovered > 0.009) {
+            commissionAmount += dtype === "fixed" ? dvalue : (uncovered * dvalue) / 100;
           }
         }
 
-        // Ensure open cash session (create if missing)
+        const settingsRow = await pg.queryObject<{
+          payment_discounts: unknown;
+          payment_surcharges: unknown;
+        }>`
+          SELECT payment_discounts, payment_surcharges
+          FROM pos_settings
+          WHERE organization_id = ${organizationId}
+          LIMIT 1
+        `;
+        const discounts = asRuleArray(settingsRow.rows[0]?.payment_discounts)
+          .map((item) => ({
+            method: String(item.method || ""),
+            percent: Number(item.percent || 0),
+          }))
+          .filter((item) => item.method && item.percent > 0);
+        const surcharges = asRuleArray(settingsRow.rows[0]?.payment_surcharges)
+          .map((item) => ({
+            method: String(item.method || ""),
+            percent: Number(item.percent || 0),
+            installments_from: item.installments_from == null ? null : Number(item.installments_from),
+            installments_to: item.installments_to == null ? null : Number(item.installments_to),
+          }))
+          .filter((item) => item.method && item.percent > 0);
+        const cardInstallments = Math.max(1, Number(body.installments || 1));
+        if (!body.promotion_name && (discounts.length || surcharges.length)) {
+          const quoted = quoteConfiguredSale({
+            subtotal,
+            manualDiscount: discountAmount,
+            discounts,
+            surcharges,
+            payments: payments.map((payment) => ({
+              method: String(payment.method || ""),
+              amount: Number(payment.amount || 0),
+            })),
+            installments: cardInstallments,
+            hasPromotion: Boolean(body.promotion_name),
+          });
+          if (Math.abs(quoted.surcharge - surchargeAmount) > 0.05) {
+            return json({
+              error: `O acréscimo não confere com a faixa do PDV. Total esperado: ${quoted.total.toFixed(2)}`,
+            }, 400);
+          }
+          if (!body.promotion_name && Math.abs(quoted.discount - discountAmount) > 0.05) {
+            return json({
+              error: `O desconto não confere com as formas de pagamento. Total esperado: ${quoted.total.toFixed(2)}`,
+            }, 400);
+          }
+        }
+
+        // Usa o caixa já aberto. Não cria sessão com fundo zero.
         let cashSessionId: string | null = body.cash_session_id || null;
         if (!cashSessionId) {
           const openCash = await pg.queryObject<{ id: string }>`
@@ -1400,16 +1606,6 @@ serve(async (req) => {
           `;
           if (openCash.rows[0]) {
             cashSessionId = openCash.rows[0].id;
-          } else {
-            const created = await pg.queryObject<{ id: string }>`
-              INSERT INTO pos_cash_sessions (
-                organization_id, opened_by, opened_by_name, opening_amount, status
-              ) VALUES (
-                ${organizationId}, ${user.id}, ${userName}, 0, 'open'
-              )
-              RETURNING id
-            `;
-            cashSessionId = created.rows[0].id;
           }
         }
 
@@ -1584,6 +1780,24 @@ serve(async (req) => {
             }
           }
 
+          if (!generateFinancial && commissionAmount > 0.009) {
+            try {
+              await postCommissionEntry(supabase, {
+                organizationId,
+                saleId,
+                saleNumber,
+                amount: commissionAmount,
+                userName: commissionUserName,
+                leadId: body.lead_id || null,
+                paymentDate,
+                account: body.financial_account || null,
+                userId: user.id,
+              });
+            } catch (commissionErr) {
+              financeError = commissionErr instanceof Error ? commissionErr.message : String(commissionErr);
+            }
+          }
+
           return json({
             data: {
               id: saleId,
@@ -1729,6 +1943,7 @@ serve(async (req) => {
 
       // ---- update_sale_payment: altera forma de pagamento + financeiro + log ----
       if (postAction === "update_sale_payment") {
+        await assertPosManager(supabase, user.id, organizationId);
         const saleId = body.sale_id || body.id;
         const paymentId = body.payment_id;
         const newMethod = String(body.method || "").trim().toLowerCase();
@@ -1913,6 +2128,7 @@ serve(async (req) => {
 
       // ---- cancel_sale / delete_sale: soft cancel + reverter estoque ----
       if (postAction === "cancel_sale" || postAction === "delete_sale") {
+        await assertPosManager(supabase, user.id, organizationId);
         const saleId = body.sale_id || body.id;
         if (!saleId) return json({ error: "sale_id obrigatório" }, 400);
 
@@ -2013,12 +2229,44 @@ serve(async (req) => {
           await pg.queryArray`COMMIT`;
           let reversedCount = 0;
           try {
+            const { data: paidRows } = await supabase
+              .from("financial_entries")
+              .select("id, amount, paid_at, account, lead_id, contact_name, due_date")
+              .eq("organization_id", organizationId)
+              .eq("source_type", "pdv")
+              .or(`source_id.eq.${saleId},source_id.like.venda:${saleId}:%`)
+              .not("paid_at", "is", null)
+              .neq("status", "cancelled");
             const { data: reversed, error: financeError } = await supabase.rpc("cancel_financial_by_sale", {
               p_organization_id: organizationId,
               p_sale_id: saleId,
             });
             if (financeError) console.error("Erro ao estornar financeiro da venda:", financeError);
             else reversedCount = Number(reversed || 0);
+            for (const row of paidRows || []) {
+              const amount = Number(row.amount || 0);
+              if (amount <= 0.009 || !row.id) continue;
+              const { error: outflowError } = await supabase.rpc("upsert_financial_entry", {
+                p_organization_id: organizationId,
+                p_direction: "pagar",
+                p_amount: amount,
+                p_due_date: row.due_date || new Date().toISOString().slice(0, 10),
+                p_source_type: "pdv",
+                p_source_id: `estorno-pdv:${saleId}:${row.id}`,
+                p_status: "open",
+                p_settlement_status: "confirmado",
+                p_lead_id: row.lead_id,
+                p_description: "Devolução do valor já recebido nesta venda",
+                p_contact_name: row.contact_name,
+                p_billing_name: "Sem contato",
+                p_category: "Estorno",
+                p_account: row.account || "Caixa",
+                p_origin_label: "PDV",
+                p_created_by: user.id,
+              });
+              if (outflowError) console.error("Erro ao lançar saída do valor recebido:", outflowError);
+              else reversedCount += 1;
+            }
           } catch (financeErr) {
             console.error("Erro ao estornar financeiro da venda:", financeErr);
           }
@@ -2058,13 +2306,26 @@ serve(async (req) => {
 
       // ---- reactivate_sale: volta a venda excluída, baixa estoque e reabre o financeiro ----
       if (postAction === "reactivate_sale") {
+        await assertPosManager(supabase, user.id, organizationId);
         const saleId = body.sale_id || body.id;
         if (!saleId) return json({ error: "sale_id obrigatório" }, 400);
 
         await pg.queryArray`BEGIN`;
         try {
-          const sale = await pg.queryObject<{ id: string; status: string; apply_stock: boolean | null }>`
-            SELECT id, status, apply_stock FROM pos_sales
+          const sale = await pg.queryObject<{
+            id: string;
+            status: string;
+            apply_stock: boolean | null;
+            commission_amount: number | null;
+            commission_user_name: string | null;
+            sale_number: number | null;
+            lead_id: string | null;
+            payment_date: string | null;
+            financial_account: string | null;
+          }>`
+            SELECT id, status, apply_stock, commission_amount, commission_user_name,
+                   sale_number, lead_id, payment_date::text, financial_account
+            FROM pos_sales
             WHERE id = ${saleId} AND organization_id = ${organizationId}
             FOR UPDATE
           `;
@@ -2141,6 +2402,13 @@ serve(async (req) => {
           await pg.queryArray`COMMIT`;
 
           const actorName = userName || user.email || "Usuário";
+          await supabase
+            .from("financial_entries")
+            .update({ status: "cancelled" })
+            .eq("organization_id", organizationId)
+            .eq("source_type", "pdv")
+            .like("source_id", `estorno-pdv:${saleId}:%`)
+            .neq("status", "cancelled");
           let restoredCount = 0;
           try {
             const { data: restored, error: financeError } = await supabase.rpc("restore_financial_by_sale", {
@@ -2149,6 +2417,20 @@ serve(async (req) => {
             });
             if (financeError) console.error("Erro ao reabrir financeiro da venda:", financeError);
             else restoredCount = Number(restored || 0);
+            const commissionAmount = Number(sale.rows[0].commission_amount || 0);
+            if (commissionAmount > 0.009) {
+              await postCommissionEntry(supabase, {
+                organizationId,
+                saleId,
+                saleNumber: Number(sale.rows[0].sale_number || 0),
+                amount: commissionAmount,
+                userName: sale.rows[0].commission_user_name,
+                leadId: sale.rows[0].lead_id,
+                paymentDate: asDateOnly(sale.rows[0].payment_date),
+                account: sale.rows[0].financial_account,
+                userId: user.id,
+              });
+            }
           } catch (financeErr) {
             console.error("Erro ao reabrir financeiro da venda:", financeErr);
           }
@@ -2447,6 +2729,7 @@ serve(async (req) => {
       }
 
       if (postAction === "return_exchange") {
+        await assertPosManager(supabase, user.id, organizationId);
         const saleId = body.sale_id;
         const returnedItems = Array.isArray(body.returned_items) ? body.returned_items : [];
         const replacementItems = Array.isArray(body.replacement_items) ? body.replacement_items : [];

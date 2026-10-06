@@ -45,6 +45,7 @@ export type PosConfirmSaleValues = {
   financeLines: PosFinanceLine[];
   salePayments: PosPaymentLine[] | null;
   attachmentName: string | null;
+  cardInstallments?: number;
 };
 
 type Props = {
@@ -59,7 +60,7 @@ type Props = {
   defaultFinancialCategory?: string;
   defaultNotes?: string;
   existingPayments?: PosPaymentLine[];
-  resolveTotal?: (method: string) => number;
+  resolveTotal?: (method: string, installments?: number) => number;
   loading?: boolean;
   onConfirm: (values: PosConfirmSaleValues) => void;
 };
@@ -195,20 +196,28 @@ export function PosConfirmSaleDialog({
       });
   }, [open, activeOrgId]);
 
+  const parsedCount = Math.max(0, Math.floor(Number(installmentCount) || 0));
+  const cardInstallmentsFor = (method: string) =>
+    method === "cartao_credito" && splitMode === "parcelar" ? Math.max(1, parsedCount || 1) : 1;
+
   useEffect(() => {
     if (!open || !splitRecurrence) return;
+    const method = splitMode === "entrada" ? restMethod : paymentMethod;
+    const cardInstallments = method === "cartao_credito" && splitMode === "parcelar"
+      ? Math.max(1, parsedCount || 1)
+      : 1;
     setScheduleTotal(String(roundMoney(
-      resolveTotal ? resolveTotal(splitMode === "entrada" ? restMethod : paymentMethod) : total
+      resolveTotal ? resolveTotal(method, cardInstallments) : total
     )));
-  }, [open, splitRecurrence, splitMode, paymentMethod, restMethod, resolveTotal, total]);
+  }, [open, splitRecurrence, splitMode, paymentMethod, restMethod, resolveTotal, total, parsedCount]);
 
+  const chargedMethod = splitMode === "entrada" ? restMethod : paymentMethod;
   const chargedTotal = roundMoney(
     splitRecurrence && resolveTotal
-      ? resolveTotal(splitMode === "entrada" ? restMethod : paymentMethod)
+      ? resolveTotal(chargedMethod, cardInstallmentsFor(chargedMethod))
       : total
   );
   const parsedScheduleTotal = Number(String(scheduleTotal).replace(",", ".")) || 0;
-  const parsedCount = Math.max(0, Math.floor(Number(installmentCount) || 0));
   const parsedInterval = Math.max(0, Math.floor(Number(intervalMonths) || 0));
   const parsedDown = Number(String(downPayment).replace(",", ".")) || 0;
   const maxCount = splitMode === "recorrencia" ? 24 : 12;
@@ -523,6 +532,9 @@ export function PosConfirmSaleDialog({
                   }))
                   : null,
                 attachmentName,
+                cardInstallments: paymentMethod === "cartao_credito" && splitMode === "parcelar"
+                  ? Math.max(1, parsedCount || 1)
+                  : undefined,
               });
             }}
           >
