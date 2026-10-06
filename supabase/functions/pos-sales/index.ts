@@ -145,15 +145,6 @@ async function getUserName(
   return data?.full_name || null;
 }
 
-const DEFERRED_PAYMENT_METHODS = new Set([
-  "boleto",
-  "parcelado",
-  "cheque",
-  "carne",
-  "crediario",
-  "permuta",
-]);
-
 async function syncPosFinancial(
   supabase: ReturnType<typeof createClient>,
   input: {
@@ -273,6 +264,311 @@ async function syncPosFinancial(
   return created;
 }
 
+function roundMoney(value: number) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+function asDateOnly(value: unknown) {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const text = String(value || "");
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  return new Date().toISOString().slice(0, 10);
+}
+
+function allocateAmounts(current: number[], target: number): number[] {
+  if (!current.length) return [];
+  const safeTarget = roundMoney(Math.max(0, target));
+  const sum = current.reduce((acc, value) => acc + Number(value || 0), 0);
+  if (sum <= 0.009) {
+    return current.map((_, index) => (index === 0 ? safeTarget : 0));
+  }
+  let assigned = 0;
+  return current.map((amount, index) => {
+    if (index === current.length - 1) return roundMoney(safeTarget - assigned);
+    const next = roundMoney((Number(amount || 0) / sum) * safeTarget);
+    assigned = roundMoney(assigned + next);
+    return next;
+  });
+}
+
+function lineNetCredit(
+  quantity: number,
+  unitPrice: number,
+  lineDiscount: number,
+  lineQuantity: number,
+) {
+  const take = Number(quantity || 0);
+  const baseQty = Number(lineQuantity || 0);
+  if (take <= 0 || baseQty <= 0) return 0;
+  const discountShare = Number(lineDiscount || 0) * (take / baseQty);
+  return Math.max(0, roundMoney(take * Number(unitPrice || 0) - discountShare));
+}
+
+type FinanceClient = ReturnType<typeof createClient>;
+
+async function alignSaleFinance(
+  supabase: FinanceClient,
+  input: {
+    organizationId: string;
+    saleId: string;
+    saleNumber: number;
+    newTotal: number;
+    commissionAmount: number;
+    commissionUserName: string | null;
+    leadId: string | null;
+    customerName: string | null;
+    account: string | null;
+    category: string | null;
+    paymentDate: string;
+    description: string | null;
+    userId: string;
+    payments: PaymentInput[];
+    financeLines?: FinanceLineInput[];
+    attachmentName?: string | null;
+    isRecurring?: boolean;
+  },
+): Promise<string | null> {
+  try {
+    const { data, error } = await supabase
+      .from("financial_entries")
+      .select("id, amount, status, source_id")
+      .eq("organization_id", input.organizationId)
+      .eq("source_type", "pdv")
+      .like("source_id", `venda:${input.saleId}:%`)
+      .neq("status", "cancelled");
+    if (error) throw new Error(error.message);
+
+    const rows = (data || []).filter((row) => {
+      const source = String(row.source_id || "");
+      return !source.includes(":return:") && !source.includes(":adjust:");
+    });
+
+    const upsert = async (payload: Record<string, unknown>) => {
+      const { error: upsertError } = await supabase.rpc("upsert_financial_entry", payload);
+      if (upsertError) throw new Error(upsertError.message);
+    };
+
+    if (!rows.length) {
+      if (input.newTotal <= 0.009) return null;
+      await syncPosFinancial(supabase, {
+        organizationId: input.organizationId,
+        saleId: input.saleId,
+        saleNumber: input.saleNumber,
+        leadId: input.leadId,
+        customerName: input.customerName,
+        description: input.description,
+        account: input.account,
+        category: input.category,
+        paymentDate: input.paymentDate,
+        soldAt: input.paymentDate,
+        userId: input.userId,
+        payments: input.payments,
+        financeLines: input.financeLines,
+        attachmentName: input.attachmentName,
+        isRecurring: input.isRecurring,
+        commissionAmount: input.commissionAmount,
+        commissionUserName: input.commissionUserName,
+      });
+      return null;
+    }
+
+    const paid = rows.filter((row) => row.status === "paid");
+    const open = rows.filter((row) => row.status !== "paid");
+    const paidSum = roundMoney(paid.reduce((sum, row) => sum + Number(row.amount || 0), 0));
+    const targetOpen = roundMoney(input.newTotal - paidSum);
+
+    if (targetOpen < -0.009) {
+      if (open.length) {
+        const { error: cancelError } = await supabase
+          .from("financial_entries")
+          .update({ status: "cancelled" })
+          .in("id", open.map((row) => row.id));
+        if (cancelError) throw new Error(cancelError.message);
+      }
+      await upsert({
+        p_organization_id: input.organizationId,
+        p_direction: "pagar",
+        p_amount: roundMoney(-targetOpen),
+        p_due_date: input.paymentDate,
+        p_source_type: "pdv",
+        p_source_id: `venda:${input.saleId}:adjust:${crypto.randomUUID()}`,
+        p_status: "open",
+        p_settlement_status: "confirmado",
+        p_lead_id: input.leadId,
+        p_description: `Ajuste da venda #${input.saleNumber}`,
+        p_contact_name: input.customerName,
+        p_billing_name: "Sem contato",
+        p_category: input.category || "Vendas",
+        p_account: input.account || "Caixa",
+        p_origin_label: "PDV",
+        p_created_by: input.userId,
+      });
+    } else if (!open.length && targetOpen > 0.009) {
+      await upsert({
+        p_organization_id: input.organizationId,
+        p_direction: "receber",
+        p_amount: targetOpen,
+        p_due_date: input.paymentDate,
+        p_source_type: "pdv",
+        p_source_id: `venda:${input.saleId}:adjust:${crypto.randomUUID()}`,
+        p_status: "open",
+        p_settlement_status: "confirmado",
+        p_lead_id: input.leadId,
+        p_description: input.description || `Venda PDV #${input.saleNumber}`,
+        p_contact_name: input.customerName,
+        p_billing_name: "Sem contato",
+        p_category: input.category || "Vendas",
+        p_account: input.account || "Caixa",
+        p_origin_label: "PDV",
+        p_created_by: input.userId,
+      });
+    } else if (open.length) {
+      const nextAmounts = allocateAmounts(
+        open.map((row) => Number(row.amount || 0)),
+        Math.max(0, targetOpen),
+      );
+      for (let index = 0; index < open.length; index++) {
+        const amount = nextAmounts[index];
+        if (amount <= 0.009) {
+          const { error: cancelError } = await supabase
+            .from("financial_entries")
+            .update({ status: "cancelled" })
+            .eq("id", open[index].id);
+          if (cancelError) throw new Error(cancelError.message);
+          continue;
+        }
+        const { error: updateError } = await supabase
+          .from("financial_entries")
+          .update({ amount })
+          .eq("id", open[index].id);
+        if (updateError) throw new Error(updateError.message);
+      }
+    }
+
+    if (input.commissionAmount > 0.009) {
+      await upsert({
+        p_organization_id: input.organizationId,
+        p_direction: "pagar",
+        p_amount: input.commissionAmount,
+        p_due_date: input.paymentDate,
+        p_source_type: "comissao",
+        p_source_id: `pdv:${input.saleId}`,
+        p_status: "open",
+        p_settlement_status: "confirmado",
+        p_lead_id: input.leadId,
+        p_description: `Comissão venda #${input.saleNumber}`,
+        p_contact_name: input.commissionUserName || "Vendedor",
+        p_billing_name: "Sem contato",
+        p_category: "Comissão",
+        p_account: input.account || "Caixa",
+        p_origin_label: "Comissão",
+        p_created_by: input.userId,
+      });
+    } else {
+      const { error: commissionError } = await supabase
+        .from("financial_entries")
+        .update({ status: "cancelled" })
+        .eq("organization_id", input.organizationId)
+        .eq("source_type", "comissao")
+        .eq("source_id", `pdv:${input.saleId}`)
+        .neq("status", "cancelled");
+      if (commissionError) throw new Error(commissionError.message);
+    }
+
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
+async function listSaleFinanceEntries(
+  supabase: FinanceClient,
+  organizationId: string,
+  saleId: string,
+) {
+  const { data, error } = await supabase
+    .from("financial_entries")
+    .select("id, amount, due_date, status, source_id, payment_method")
+    .eq("organization_id", organizationId)
+    .eq("source_type", "pdv")
+    .like("source_id", `venda:${saleId}:%`)
+    .neq("status", "cancelled");
+  if (error) throw new Error(error.message);
+  return (data || [])
+    .filter((row) => !String(row.source_id || "").includes(":return:"))
+    .map((row) => ({
+      id: String(row.id),
+      amount: Number(row.amount || 0),
+      due_date: String(row.due_date || "").slice(0, 10),
+      method: String(row.payment_method || ""),
+      status: row.status === "paid" ? "paid" as const : "open" as const,
+    }));
+}
+
+async function resumeSaleFinance(
+  pg: Client,
+  supabase: FinanceClient,
+  organizationId: string,
+  userId: string,
+  sale: Record<string, unknown>,
+  body: Record<string, unknown>,
+) {
+  const saleId = String(sale.id || "");
+  if (!sale.generate_financial) {
+    return { financial_entries: [] as Awaited<ReturnType<typeof listSaleFinanceEntries>>, finance_error: null as string | null };
+  }
+  try {
+    const existing = await listSaleFinanceEntries(supabase, organizationId, saleId);
+    if (existing.length) return { financial_entries: existing, finance_error: null };
+  } catch (error) {
+    return {
+      financial_entries: [],
+      finance_error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  const payRows = await pg.queryObject<{ method: string; amount: number }>`
+    SELECT method, amount::float8 AS amount
+    FROM pos_sale_payments
+    WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
+    ORDER BY created_at ASC
+  `;
+  const paymentDate = String(sale.payment_date || sale.sold_at || new Date().toISOString()).slice(0, 10);
+  const financeLines = Array.isArray(body.finance_lines) ? body.finance_lines as FinanceLineInput[] : [];
+  const financeError = await alignSaleFinance(supabase, {
+    organizationId,
+    saleId,
+    saleNumber: Number(sale.sale_number || 0),
+    newTotal: Number(sale.total || 0),
+    commissionAmount: Number(sale.commission_amount || 0),
+    commissionUserName: (sale.commission_user_name as string | null) || null,
+    leadId: (sale.lead_id as string | null) || null,
+    customerName: (sale.customer_name as string | null) || null,
+    account: (sale.financial_account as string | null) || null,
+    category: (sale.financial_category as string | null) || null,
+    paymentDate,
+    description: (sale.sale_description as string | null) || null,
+    userId,
+    payments: payRows.rows.map((row) => ({ method: row.method, amount: Number(row.amount) })),
+    financeLines,
+    attachmentName: (body.attachment_name as string | null) || null,
+    isRecurring: body.split_mode === "recorrencia",
+  });
+  if (financeError) return { financial_entries: [], finance_error: financeError };
+  try {
+    const created = await listSaleFinanceEntries(supabase, organizationId, saleId);
+    if (!created.length && Number(sale.total || 0) > 0.009) {
+      return { financial_entries: [], finance_error: "O lançamento financeiro não foi criado." };
+    }
+    return { financial_entries: created, finance_error: null };
+  } catch (error) {
+    return {
+      financial_entries: [],
+      finance_error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data, (_key, value) =>
     typeof value === "bigint" ? Number(value) : value
@@ -353,7 +649,7 @@ serve(async (req) => {
             FROM pos_stock_movements
             WHERE organization_id = ${targetOrg}
               AND sale_id IS NOT NULL
-              AND movement_type IN ('sale', 'sale_cancel', 'adjustment', 'return')
+              AND movement_type IN ('sale', 'sale_cancel', 'adjustment', 'return', 'exchange')
             GROUP BY product_id
           )
           UPDATE products p
@@ -1122,15 +1418,19 @@ serve(async (req) => {
         const requestId = body.client_request_id ? String(body.client_request_id) : null;
         if (requestId) {
           const existingSale = await pg.queryObject<Record<string, unknown>>`
-            SELECT id, sale_number, total, subtotal, discount_amount, surcharge_amount,
-                   commission_amount, cash_session_id, customer_name, customer_phone,
-                   sold_at, sold_by_name, notes, sale_description, apply_stock, generate_financial
+            SELECT *
             FROM pos_sales
             WHERE organization_id = ${organizationId} AND client_request_id = ${requestId}
             LIMIT 1
           `;
           if (existingSale.rows[0]) {
-            return json({ data: serializeRows([existingSale.rows[0]])[0], idempotent: true });
+            const sale = serializeRows([existingSale.rows[0]])[0] as Record<string, unknown>;
+            const resumed = await resumeSaleFinance(pg, supabase, organizationId, user.id, sale, body);
+            return json({
+              data: { ...sale, financial_entries: resumed.financial_entries, finance_error: resumed.finance_error },
+              finance_error: resumed.finance_error,
+              idempotent: true,
+            });
           }
         }
 
@@ -1252,6 +1552,7 @@ serve(async (req) => {
             method: string;
             status: "open" | "paid";
           }> = [];
+          let financeError: string | null = null;
           if (generateFinancial) {
             try {
               const financeLines = Array.isArray(body.finance_lines) ? body.finance_lines : [];
@@ -1274,7 +1575,11 @@ serve(async (req) => {
                 commissionAmount,
                 commissionUserName,
               }) || [];
+              if (!financialEntries.length && total > 0.009) {
+                financeError = "O lançamento financeiro não foi criado.";
+              }
             } catch (financeErr) {
+              financeError = financeErr instanceof Error ? financeErr.message : String(financeErr);
               console.error("Erro ao lançar venda no financeiro:", financeErr);
             }
           }
@@ -1298,25 +1603,51 @@ serve(async (req) => {
               apply_stock: applyStock,
               generate_financial: generateFinancial,
               financial_entries: financialEntries,
+              finance_error: financeError,
             },
+            finance_error: financeError,
           }, 201);
         } catch (txErr) {
           await tx.queryArray`ROLLBACK`;
           if (requestId && txErr instanceof Error && /idx_pos_sales_org_request|client_request_id/i.test(txErr.message)) {
             const existingSale = await pg.queryObject<Record<string, unknown>>`
-              SELECT id, sale_number, total, subtotal, discount_amount, surcharge_amount,
-                     commission_amount, cash_session_id, customer_name, customer_phone,
-                     sold_at, sold_by_name, notes, sale_description, apply_stock, generate_financial
+              SELECT *
               FROM pos_sales
               WHERE organization_id = ${organizationId} AND client_request_id = ${requestId}
               LIMIT 1
             `;
             if (existingSale.rows[0]) {
-              return json({ data: serializeRows([existingSale.rows[0]])[0], idempotent: true });
+              const sale = serializeRows([existingSale.rows[0]])[0] as Record<string, unknown>;
+              const resumed = await resumeSaleFinance(pg, supabase, organizationId, user.id, sale, body);
+              return json({
+                data: { ...sale, financial_entries: resumed.financial_entries, finance_error: resumed.finance_error },
+                finance_error: resumed.finance_error,
+                idempotent: true,
+              });
             }
           }
           throw txErr;
         }
+      }
+
+      if (postAction === "retry_sale_financial") {
+        const saleId = body.sale_id || body.id;
+        if (!saleId) return json({ error: "sale_id obrigatório" }, 400);
+        const sale = await pg.queryObject<Record<string, unknown>>`
+          SELECT * FROM pos_sales
+          WHERE id = ${saleId} AND organization_id = ${organizationId}
+          LIMIT 1
+        `;
+        if (!sale.rows.length) return json({ error: "Venda não encontrada" }, 404);
+        const row = serializeRows([sale.rows[0]])[0] as Record<string, unknown>;
+        if (!row.generate_financial) {
+          return json({ error: "Esta venda foi concluída sem lançar no financeiro" }, 400);
+        }
+        const resumed = await resumeSaleFinance(pg, supabase, organizationId, user.id, row, body);
+        if (resumed.finance_error) return json({ error: resumed.finance_error }, 400);
+        return json({
+          data: { ...row, financial_entries: resumed.financial_entries },
+        });
       }
 
       // ---- update_sale: notes, customer, sold_at, supplier ----
@@ -1587,8 +1918,8 @@ serve(async (req) => {
 
         await pg.queryArray`BEGIN`;
         try {
-          const sale = await pg.queryObject<{ id: string; status: string }>`
-            SELECT id, status FROM pos_sales
+          const sale = await pg.queryObject<{ id: string; status: string; invoice_number: string | null }>`
+            SELECT id, status, invoice_number FROM pos_sales
             WHERE id = ${saleId} AND organization_id = ${organizationId}
             FOR UPDATE
           `;
@@ -1601,12 +1932,39 @@ serve(async (req) => {
             return json({ error: "Venda já está cancelada" }, 400);
           }
 
+          const invoiceTable = await pg.queryObject<{ rel: string | null }>`
+            SELECT to_regclass('public.fiscal_invoices')::text AS rel
+          `;
+          const invoiceBlock = invoiceTable.rows[0]?.rel
+            ? await pg.queryObject<{ status: string; number: string | null; kind: string | null }>`
+                SELECT status, number, kind
+                FROM fiscal_invoices
+                WHERE organization_id = ${organizationId}
+                  AND source = 'pos_sale'
+                  AND source_id = ${String(saleId)}
+              `
+            : { rows: [] as Array<{ status: string; number: string | null; kind: string | null }> };
+          const blockingInvoice = invoiceBlock.rows.find((row) => {
+            const status = String(row.status || "").toLowerCase();
+            return !["cancelado", "cancelada", "excluido", "excluida", "reprovado", "rejeitado", "denegado"].includes(status);
+          });
+          const invoiceNumber = String(sale.rows[0].invoice_number || "").trim();
+          if (blockingInvoice || (invoiceNumber && invoiceBlock.rows.length === 0)) {
+            await pg.queryArray`ROLLBACK`;
+            const label = blockingInvoice
+              ? [blockingInvoice.kind, blockingInvoice.number].filter(Boolean).join(" ")
+              : invoiceNumber;
+            return json({
+              error: `Esta venda tem nota fiscal${label ? ` (${label})` : ""}. Cancele a nota antes de excluir a venda.`,
+            }, 400);
+          }
+
           const nets = await pg.queryObject<{ product_id: string; net: number }>`
             SELECT product_id, COALESCE(SUM(quantity_delta), 0)::float8 AS net
             FROM pos_stock_movements
             WHERE sale_id = ${saleId}
               AND organization_id = ${organizationId}
-              AND movement_type IN ('sale', 'sale_cancel', 'adjustment', 'return')
+              AND movement_type IN ('sale', 'sale_cancel', 'adjustment', 'return', 'exchange')
             GROUP BY product_id
           `;
 
@@ -1705,8 +2063,8 @@ serve(async (req) => {
 
         await pg.queryArray`BEGIN`;
         try {
-          const sale = await pg.queryObject<{ id: string; status: string }>`
-            SELECT id, status FROM pos_sales
+          const sale = await pg.queryObject<{ id: string; status: string; apply_stock: boolean | null }>`
+            SELECT id, status, apply_stock FROM pos_sales
             WHERE id = ${saleId} AND organization_id = ${organizationId}
             FOR UPDATE
           `;
@@ -1719,41 +2077,54 @@ serve(async (req) => {
             return json({ error: "Só uma venda excluída pode ser reativada" }, 400);
           }
 
-          const items = await pg.queryObject<{
-            item_type: string;
-            item_id: string | null;
-            quantity: number;
-          }>`
-            SELECT item_type, item_id, quantity
-            FROM pos_sale_items
-            WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
-          `;
+          if (sale.rows[0].apply_stock !== false) {
+            const stockPolicy = await pg.queryObject<{ block_out_of_stock: boolean | null }>`
+              SELECT block_out_of_stock FROM pos_settings
+              WHERE organization_id = ${organizationId}
+              LIMIT 1
+            `;
+            const blockStock = Boolean(stockPolicy.rows[0]?.block_out_of_stock);
+            const cancelled = await pg.queryObject<{ product_id: string; net: number }>`
+              SELECT product_id, COALESCE(SUM(quantity_delta), 0)::float8 AS net
+              FROM pos_stock_movements
+              WHERE sale_id = ${saleId}
+                AND organization_id = ${organizationId}
+                AND movement_type = 'sale_cancel'
+              GROUP BY product_id
+            `;
 
-          for (const item of items.rows) {
-            const qty = Number(item.quantity);
-            if (item.item_type !== "product" || !item.item_id || !(qty > 0)) continue;
-            const stockRow = await pg.queryObject<{ stock_quantity: number | null }>`
-              SELECT stock_quantity FROM products
-              WHERE id = ${item.item_id} AND organization_id = ${organizationId}
-              FOR UPDATE
-            `;
-            if (!stockRow.rows.length) continue;
-            const before = Number(stockRow.rows[0].stock_quantity ?? 0);
-            const after = before - qty;
-            await pg.queryArray`
-              UPDATE products
-              SET stock_quantity = ${after}, updated_at = now()
-              WHERE id = ${item.item_id} AND organization_id = ${organizationId}
-            `;
-            await pg.queryArray`
-              INSERT INTO pos_stock_movements (
-                organization_id, product_id, sale_id, movement_type, source,
-                quantity_delta, stock_before, stock_after, created_by, notes
-              ) VALUES (
-                ${organizationId}, ${item.item_id}, ${saleId}, 'sale', 'sale',
-                ${-qty}, ${before}, ${after}, ${user.id}, 'Reativação de venda'
-              )
-            `;
+            for (const row of cancelled.rows) {
+              const delta = -Number(row.net || 0);
+              if (!delta) continue;
+              const stockRow = await pg.queryObject<{ stock_quantity: number | null }>`
+                SELECT stock_quantity FROM products
+                WHERE id = ${row.product_id} AND organization_id = ${organizationId}
+                FOR UPDATE
+              `;
+              if (!stockRow.rows.length) continue;
+              const before = Number(stockRow.rows[0].stock_quantity ?? 0);
+              const after = before + delta;
+              if (blockStock && after < -0.0001) {
+                await pg.queryArray`ROLLBACK`;
+                return json({
+                  error: "Estoque insuficiente para reativar esta venda",
+                }, 400);
+              }
+              await pg.queryArray`
+                UPDATE products
+                SET stock_quantity = ${after}, updated_at = now()
+                WHERE id = ${row.product_id} AND organization_id = ${organizationId}
+              `;
+              await pg.queryArray`
+                INSERT INTO pos_stock_movements (
+                  organization_id, product_id, sale_id, movement_type, source,
+                  quantity_delta, stock_before, stock_after, created_by, notes
+                ) VALUES (
+                  ${organizationId}, ${row.product_id}, ${saleId}, 'sale', 'sale',
+                  ${delta}, ${before}, ${after}, ${user.id}, 'Reativação de venda'
+                )
+              `;
+            }
           }
 
           await pg.queryArray`
@@ -1824,10 +2195,25 @@ serve(async (req) => {
           const sale = await pg.queryObject<{
             id: string;
             status: string;
+            sale_number: number;
+            total: number;
             discount_amount: number;
             surcharge_amount: number;
+            apply_stock: boolean | null;
+            generate_financial: boolean | null;
+            commission_amount: number;
+            commission_user_name: string | null;
+            lead_id: string | null;
+            customer_name: string | null;
+            financial_account: string | null;
+            financial_category: string | null;
+            payment_date: string | null;
+            sale_description: string | null;
           }>`
-            SELECT id, status, discount_amount, surcharge_amount FROM pos_sales
+            SELECT id, status, sale_number, total, discount_amount, surcharge_amount, apply_stock,
+                   generate_financial, commission_amount, commission_user_name, lead_id, customer_name,
+                   financial_account, financial_category, payment_date, sale_description
+            FROM pos_sales
             WHERE id = ${saleId} AND organization_id = ${organizationId}
             FOR UPDATE
           `;
@@ -1839,6 +2225,13 @@ serve(async (req) => {
             await pg.queryArray`ROLLBACK`;
             return json({ error: "Venda cancelada não pode ser alterada" }, 400);
           }
+          const applyStock = sale.rows[0].apply_stock !== false;
+          const stockPolicy = await pg.queryObject<{ block_out_of_stock: boolean | null }>`
+            SELECT block_out_of_stock FROM pos_settings
+            WHERE organization_id = ${organizationId}
+            LIMIT 1
+          `;
+          const blockStock = Boolean(stockPolicy.rows[0]?.block_out_of_stock);
 
           for (const upd of itemUpdates) {
             const newQty = Number(upd.quantity);
@@ -1851,11 +2244,12 @@ serve(async (req) => {
               id: string;
               item_type: string;
               item_id: string | null;
+              name: string;
               quantity: number;
               unit_price: number;
               discount_amount: number;
             }>`
-              SELECT id, item_type, item_id, quantity, unit_price, discount_amount
+              SELECT id, item_type, item_id, name, quantity, unit_price, discount_amount
               FROM pos_sale_items
               WHERE id = ${upd.id} AND sale_id = ${saleId} AND organization_id = ${organizationId}
               FOR UPDATE
@@ -1870,8 +2264,7 @@ serve(async (req) => {
             const delta = newQty - oldQty;
 
             if (newQty === 0) {
-              // Remover item e devolver estoque
-              if (item.item_type === "product" && item.item_id && oldQty > 0) {
+              if (applyStock && item.item_type === "product" && item.item_id && oldQty > 0) {
                 const stockRow = await pg.queryObject<{ stock_quantity: number | null }>`
                   SELECT stock_quantity FROM products
                   WHERE id = ${item.item_id} AND organization_id = ${organizationId}
@@ -1903,7 +2296,7 @@ serve(async (req) => {
               continue;
             }
 
-            if (delta !== 0 && item.item_type === "product" && item.item_id) {
+            if (applyStock && delta !== 0 && item.item_type === "product" && item.item_id) {
               const stockRow = await pg.queryObject<{ stock_quantity: number | null }>`
                 SELECT stock_quantity FROM products
                 WHERE id = ${item.item_id} AND organization_id = ${organizationId}
@@ -1911,8 +2304,11 @@ serve(async (req) => {
               `;
               if (stockRow.rows.length) {
                 const before = Number(stockRow.rows[0].stock_quantity ?? 0);
-                // delta > 0 = vendeu mais (reduz estoque); delta < 0 = devolve
                 const after = before - delta;
+                if (blockStock && after < -0.0001) {
+                  await pg.queryArray`ROLLBACK`;
+                  return json({ error: `Estoque insuficiente para ${item.name}` }, 400);
+                }
                 await pg.queryArray`
                   UPDATE products
                   SET stock_quantity = ${after}, updated_at = now()
@@ -1931,12 +2327,14 @@ serve(async (req) => {
             }
 
             const unitPrice = Number(item.unit_price);
-            const itemDiscount = Number(item.discount_amount || 0);
-            const totalPrice = Math.max(0, newQty * unitPrice - itemDiscount);
+            const itemDiscount = oldQty > 0
+              ? roundMoney(Number(item.discount_amount || 0) * (newQty / oldQty))
+              : 0;
+            const totalPrice = Math.max(0, roundMoney(newQty * unitPrice - itemDiscount));
 
             await pg.queryArray`
               UPDATE pos_sale_items
-              SET quantity = ${newQty}, total_price = ${totalPrice}
+              SET quantity = ${newQty}, discount_amount = ${itemDiscount}, total_price = ${totalPrice}
               WHERE id = ${item.id} AND organization_id = ${organizationId}
             `;
           }
@@ -1948,9 +2346,13 @@ serve(async (req) => {
             WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
           `;
           const subtotal = Number(totals.rows[0]?.subtotal || 0);
-          const discountAmount = Number(sale.rows[0].discount_amount || 0);
+          const oldTotal = Number(sale.rows[0].total || 0);
+          const discountAmount = Math.min(Number(sale.rows[0].discount_amount || 0), subtotal);
           const surchargeAmount = Number(sale.rows[0].surcharge_amount || 0);
-          const total = Math.max(0, subtotal - discountAmount + surchargeAmount);
+          const total = Math.max(0, roundMoney(subtotal - discountAmount + surchargeAmount));
+          const commissionAmount = oldTotal > 0.009
+            ? roundMoney(Number(sale.rows[0].commission_amount || 0) * (total / oldTotal))
+            : 0;
 
           const remaining = await pg.queryObject<{ cnt: string }>`
             SELECT COUNT(*)::text AS cnt FROM pos_sale_items
@@ -1963,24 +2365,56 @@ serve(async (req) => {
 
           await pg.queryArray`
             UPDATE pos_sales
-            SET subtotal = ${subtotal}, total = ${total}
+            SET subtotal = ${subtotal},
+                discount_amount = ${discountAmount},
+                total = ${total},
+                commission_amount = ${commissionAmount}
             WHERE id = ${saleId} AND organization_id = ${organizationId}
           `;
 
-          // Ajustar pagamentos proporcionalmente se houver um único pagamento
-          const payments = await pg.queryObject<{ id: string; amount: number }>`
-            SELECT id, amount FROM pos_sale_payments
+          const payments = await pg.queryObject<{ id: string; method: string; amount: number }>`
+            SELECT id, method, amount::float8 AS amount
+            FROM pos_sale_payments
             WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
+            ORDER BY created_at ASC
           `;
-          if (payments.rows.length === 1) {
+          const scaledPayments = allocateAmounts(
+            payments.rows.map((row) => Number(row.amount || 0)),
+            total,
+          );
+          for (let index = 0; index < payments.rows.length; index++) {
             await pg.queryArray`
               UPDATE pos_sale_payments
-              SET amount = ${total}
-              WHERE id = ${payments.rows[0].id}
+              SET amount = ${scaledPayments[index]}
+              WHERE id = ${payments.rows[index].id}
             `;
           }
 
           await pg.queryArray`COMMIT`;
+
+          let financeError: string | null = null;
+          if (sale.rows[0].generate_financial) {
+            const paymentDate = asDateOnly(sale.rows[0].payment_date);
+            financeError = await alignSaleFinance(supabase, {
+              organizationId,
+              saleId,
+              saleNumber: Number(sale.rows[0].sale_number || 0),
+              newTotal: total,
+              commissionAmount,
+              commissionUserName: sale.rows[0].commission_user_name,
+              leadId: sale.rows[0].lead_id,
+              customerName: sale.rows[0].customer_name,
+              account: sale.rows[0].financial_account,
+              category: sale.rows[0].financial_category,
+              paymentDate,
+              description: sale.rows[0].sale_description,
+              userId: user.id,
+              payments: payments.rows.map((row, index) => ({
+                method: row.method,
+                amount: scaledPayments[index],
+              })),
+            });
+          }
 
           // Retornar venda completa
           const full = await pg.queryObject`
@@ -2004,6 +2438,7 @@ serve(async (req) => {
               items: serializeRows(itemsOut.rows as Record<string, unknown>[]),
               payments: serializeRows(paymentsOut.rows as Record<string, unknown>[]),
             },
+            finance_error: financeError,
           });
         } catch (txErr) {
           await pg.queryArray`ROLLBACK`;
@@ -2026,12 +2461,24 @@ serve(async (req) => {
             id: string;
             status: string;
             sale_number: string;
+            total: number;
+            subtotal: number;
+            discount_amount: number;
+            surcharge_amount: number;
+            apply_stock: boolean | null;
+            generate_financial: boolean | null;
+            commission_amount: number;
+            commission_user_name: string | null;
             lead_id: string | null;
             customer_name: string | null;
             financial_account: string | null;
             financial_category: string | null;
+            payment_date: string | null;
+            sale_description: string | null;
           }>`
-            SELECT id, status, sale_number, lead_id, customer_name, financial_account, financial_category
+            SELECT id, status, sale_number, total, subtotal, discount_amount, surcharge_amount,
+                   apply_stock, generate_financial, commission_amount, commission_user_name,
+                   lead_id, customer_name, financial_account, financial_category, payment_date, sale_description
             FROM pos_sales
             WHERE id = ${saleId} AND organization_id = ${organizationId}
             FOR UPDATE
@@ -2054,8 +2501,9 @@ serve(async (req) => {
             unit: string | null;
             quantity: number;
             unit_price: number;
+            discount_amount: number;
           }>`
-            SELECT id, item_type, item_id, name, sku, unit, quantity, unit_price
+            SELECT id, item_type, item_id, name, sku, unit, quantity, unit_price, discount_amount
             FROM pos_sale_items
             WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
           `;
@@ -2097,7 +2545,12 @@ serve(async (req) => {
               await pg.queryArray`ROLLBACK`;
               return json({ error: `Quantidade inválida para ${item.name}` }, 400);
             }
-            const totalPrice = Math.round(qty * Number(item.unit_price) * 100) / 100;
+            const totalPrice = lineNetCredit(
+              qty,
+              Number(item.unit_price),
+              Number(item.discount_amount || 0),
+              Number(item.quantity),
+            );
             returnedAmount += totalPrice;
             normalizedReturned.push({
               id: item.id,
@@ -2144,8 +2597,15 @@ serve(async (req) => {
             });
           }
 
-          returnedAmount = Math.round(returnedAmount * 100) / 100;
-          replacementAmount = Math.round(replacementAmount * 100) / 100;
+          returnedAmount = roundMoney(returnedAmount);
+          const saleSubtotal = Number(sale.rows[0].subtotal || 0);
+          const returnedShare = saleSubtotal > 0.009 ? returnedAmount / saleSubtotal : 0;
+          returnedAmount = Math.max(0, roundMoney(
+            returnedAmount
+              - Number(sale.rows[0].discount_amount || 0) * returnedShare
+              + Number(sale.rows[0].surcharge_amount || 0) * returnedShare,
+          ));
+          replacementAmount = roundMoney(replacementAmount);
           const difference = Math.round((replacementAmount - returnedAmount) * 100) / 100;
           const kind = normalizedReplacement.length ? "exchange" : "return";
 
@@ -2161,11 +2621,19 @@ serve(async (req) => {
           `;
           const returnId = createdReturn.rows[0].id;
 
+          const applyStock = sale.rows[0].apply_stock !== false;
+          const stockPolicy = await pg.queryObject<{ block_out_of_stock: boolean | null }>`
+            SELECT block_out_of_stock FROM pos_settings
+            WHERE organization_id = ${organizationId}
+            LIMIT 1
+          `;
+          const blockStock = Boolean(stockPolicy.rows[0]?.block_out_of_stock);
           const moveStock = async (
             productId: string,
             delta: number,
             movementType: string
           ) => {
+            if (!applyStock) return;
             const stockRow = await pg.queryObject<{ stock_quantity: number | null }>`
               SELECT stock_quantity FROM products
               WHERE id = ${productId} AND organization_id = ${organizationId}
@@ -2174,6 +2642,9 @@ serve(async (req) => {
             if (!stockRow.rows.length) return;
             const before = Number(stockRow.rows[0].stock_quantity ?? 0);
             const after = before + delta;
+            if (blockStock && after < -0.0001) {
+              throw new Error("Estoque insuficiente para concluir a troca");
+            }
             await pg.queryArray`
               UPDATE products
               SET stock_quantity = ${after}, updated_at = now()
@@ -2220,38 +2691,59 @@ serve(async (req) => {
             }
           }
 
+          const oldTotal = Number(sale.rows[0].total || 0);
+          const newTotal = Math.max(0, roundMoney(oldTotal - returnedAmount + replacementAmount));
+          const commissionAmount = oldTotal > 0.009
+            ? roundMoney(Number(sale.rows[0].commission_amount || 0) * (newTotal / oldTotal))
+            : 0;
+          await pg.queryArray`
+            UPDATE pos_sales
+            SET total = ${newTotal}, commission_amount = ${commissionAmount}, updated_at = now()
+            WHERE id = ${saleId} AND organization_id = ${organizationId}
+          `;
+          const payments = await pg.queryObject<{ id: string; method: string; amount: number }>`
+            SELECT id, method, amount::float8 AS amount
+            FROM pos_sale_payments
+            WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
+            ORDER BY created_at ASC
+          `;
+          const scaledPayments = allocateAmounts(
+            payments.rows.map((row) => Number(row.amount || 0)),
+            newTotal,
+          );
+          for (let index = 0; index < payments.rows.length; index++) {
+            await pg.queryArray`
+              UPDATE pos_sale_payments
+              SET amount = ${scaledPayments[index]}
+              WHERE id = ${payments.rows[index].id}
+            `;
+          }
+
           await pg.queryArray`COMMIT`;
 
-          const absDiff = Math.abs(difference);
-          if (absDiff > 0.009) {
-            const direction = difference < 0 ? "pagar" : "receber";
-            const deferred = DEFERRED_PAYMENT_METHODS.has(settlementMethod.toLowerCase());
-            const paid = settleNow && !deferred;
-            const today = new Date().toISOString().slice(0, 10);
-            try {
-              await supabase.rpc("upsert_financial_entry", {
-                p_organization_id: organizationId,
-                p_direction: direction,
-                p_amount: absDiff,
-                p_due_date: today,
-                p_source_type: "pdv",
-                p_source_id: `venda:${saleId}:return:${returnId}`,
-                p_status: paid ? "paid" : "open",
-                p_settlement_status: "confirmado",
-                p_lead_id: sale.rows[0].lead_id,
-                p_description: `${kind === "exchange" ? "Troca" : "Devolução"} venda #${sale.rows[0].sale_number}`,
-                p_contact_name: sale.rows[0].customer_name,
-                p_billing_name: "Sem contato",
-                p_category: sale.rows[0].financial_category || "Vendas",
-                p_account: sale.rows[0].financial_account || "Caixa",
-                p_origin_label: "PDV",
-                p_paid_at: paid ? new Date().toISOString() : null,
-                p_created_by: user.id,
-                p_payment_method: settlementMethod,
-              });
-            } catch (financeErr) {
-              console.error("Erro ao lançar devolução no financeiro:", financeErr);
-            }
+          let financeError: string | null = null;
+          if (sale.rows[0].generate_financial) {
+            const paymentDate = asDateOnly(sale.rows[0].payment_date);
+            financeError = await alignSaleFinance(supabase, {
+              organizationId,
+              saleId,
+              saleNumber: Number(sale.rows[0].sale_number || 0),
+              newTotal,
+              commissionAmount,
+              commissionUserName: sale.rows[0].commission_user_name,
+              leadId: sale.rows[0].lead_id,
+              customerName: sale.rows[0].customer_name,
+              account: sale.rows[0].financial_account,
+              category: sale.rows[0].financial_category,
+              paymentDate,
+              description: sale.rows[0].sale_description
+                || `${kind === "exchange" ? "Troca" : "Devolução"} venda #${sale.rows[0].sale_number}`,
+              userId: user.id,
+              payments: payments.rows.map((row, index) => ({
+                method: row.method,
+                amount: scaledPayments[index],
+              })),
+            });
           }
 
           const full = await pg.queryObject`
@@ -2261,9 +2753,13 @@ serve(async (req) => {
           `;
           return json({
             data: serializeRows([full.rows[0] as Record<string, unknown>])[0],
+            finance_error: financeError,
           });
         } catch (txErr) {
           await pg.queryArray`ROLLBACK`;
+          if (txErr instanceof Error && txErr.message.includes("Estoque insuficiente")) {
+            return json({ error: txErr.message }, 400);
+          }
           throw txErr;
         }
       }

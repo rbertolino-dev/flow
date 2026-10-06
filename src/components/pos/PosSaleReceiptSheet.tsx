@@ -892,7 +892,8 @@ export function PosSaleReceiptSheet({
             <AlertDialogDescription>
               A venda #{sale?.sale_number} sai do histórico, o estoque dos
               produtos volta e o lançamento financeiro é estornado. Ela fica em
-              Vendas excluídas e pode ser reativada.
+              Vendas excluídas e pode ser reativada. Se houver nota fiscal
+              autorizada, cancele a nota antes.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -939,6 +940,9 @@ export function PosSaleReceiptSheet({
           open={returnOpen}
           saleId={sale.id}
           items={sale.items || []}
+          saleSubtotal={Number(sale.subtotal || 0)}
+          saleDiscount={Number(sale.discount_amount || 0)}
+          saleSurcharge={Number(sale.surcharge_amount || 0)}
           loading={loading}
           onOpenChange={setReturnOpen}
           onConfirm={(payload: PosReturnPayload) => {

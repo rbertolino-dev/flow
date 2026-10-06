@@ -2,6 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -112,7 +119,7 @@ export default function Pos() {
   const [priceTier, setPriceTier] = useState<ProductPriceTier>("retail");
   const { services = [], loading: servicesLoading, refetch: refetchServices } =
     useServices();
-  const { loading: posLoading, finalizeSale, getOpenCashSession, openCash, getPosSettings } =
+  const { loading: posLoading, finalizeSale, retrySaleFinancial, getOpenCashSession, openCash, getPosSettings } =
     usePosSales();
 
   const [catalogTab, setCatalogTab] = useState<"products" | "services">("products");
@@ -151,6 +158,7 @@ export default function Pos() {
   const [orgMembers, setOrgMembers] = useState<OrgMemberOption[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [financeOpen, setFinanceOpen] = useState(false);
+  const [financeRetry, setFinanceRetry] = useState<{ saleId: string; message: string } | null>(null);
   const [financeEntries, setFinanceEntries] = useState<PosFinanceEntryRef[]>([]);
   const [financeDescription, setFinanceDescription] = useState("");
   const [successOpen, setSuccessOpen] = useState(false);
@@ -914,10 +922,17 @@ export default function Pos() {
       setLastSalePayments(snapshotPayments);
       resetSale();
       await refetchProducts();
-      if (values.generateFinancial && result.financial_entries?.length) {
+      if (values.generateFinancial && result.finance_error) {
+        setFinanceRetry({ saleId: result.id, message: result.finance_error });
+      } else if (values.generateFinancial && result.financial_entries?.length) {
         setFinanceEntries(result.financial_entries);
         setFinanceDescription(values.saleDescription);
         setFinanceOpen(true);
+      } else if (values.generateFinancial) {
+        setFinanceRetry({
+          saleId: result.id,
+          message: "O lançamento financeiro não foi criado.",
+        });
       } else {
         setSuccessOpen(true);
       }
@@ -1895,6 +1910,52 @@ export default function Pos() {
         loading={posLoading}
         onConfirm={(values) => void handleConfirmSale(values)}
       />
+
+      <Dialog open={!!financeRetry} onOpenChange={(open) => !open && setFinanceRetry(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Venda registrada sem o financeiro</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            A venda já foi salva. {financeRetry?.message} Você pode tentar o lançamento de novo.
+          </p>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setFinanceRetry(null);
+                setSuccessOpen(true);
+              }}
+            >
+              Continuar
+            </Button>
+            <Button
+              type="button"
+              disabled={posLoading || !financeRetry}
+              onClick={() => {
+                if (!financeRetry) return;
+                void (async () => {
+                  try {
+                    const retried = await retrySaleFinancial(financeRetry.saleId);
+                    setFinanceRetry(null);
+                    if (retried.financial_entries?.length) {
+                      setFinanceEntries(retried.financial_entries);
+                      setFinanceOpen(true);
+                    } else {
+                      setSuccessOpen(true);
+                    }
+                  } catch {
+                    // toast no hook
+                  }
+                })();
+              }}
+            >
+              Tentar de novo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <PosFinanceCreatedDialog
         open={financeOpen}

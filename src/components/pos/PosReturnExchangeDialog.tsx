@@ -45,6 +45,9 @@ type Props = {
   open: boolean;
   saleId: string;
   items: PosSaleItem[];
+  saleSubtotal?: number;
+  saleDiscount?: number;
+  saleSurcharge?: number;
   loading?: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: (payload: PosReturnPayload) => void;
@@ -58,6 +61,9 @@ export function PosReturnExchangeDialog({
   open,
   saleId,
   items,
+  saleSubtotal = 0,
+  saleDiscount = 0,
+  saleSurcharge = 0,
   loading,
   onOpenChange,
   onConfirm,
@@ -105,11 +111,19 @@ export function PosReturnExchangeDialog({
   }, [open, activeOrgId]);
 
   const returnedAmount = useMemo(() => {
-    return items.reduce((sum, item) => {
-      const quantity = Math.max(0, Number(qty[item.id] || 0));
-      return sum + Math.min(quantity, Number(item.quantity)) * Number(item.unit_price);
+    const net = items.reduce((sum, item) => {
+      const quantity = Math.min(Math.max(0, Number(qty[item.id] || 0)), Number(item.quantity));
+      const baseQty = Number(item.quantity);
+      if (quantity <= 0 || baseQty <= 0) return sum;
+      const lineDiscount = Number(item.discount_amount || 0) * (quantity / baseQty);
+      return sum + Math.max(0, quantity * Number(item.unit_price) - lineDiscount);
     }, 0);
-  }, [items, qty]);
+    const subtotal = saleSubtotal > 0.009
+      ? saleSubtotal
+      : items.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
+    const share = subtotal > 0.009 ? net / subtotal : 0;
+    return roundMoney(Math.max(0, net - saleDiscount * share + saleSurcharge * share));
+  }, [items, qty, saleDiscount, saleSubtotal, saleSurcharge]);
 
   const replacement = useMemo(() => {
     if (!replacementId) return null;

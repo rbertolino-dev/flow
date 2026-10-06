@@ -432,6 +432,7 @@ export interface FinalizeSaleResult {
   apply_stock?: boolean;
   generate_financial?: boolean;
   financial_entries?: PosFinanceEntryRef[];
+  finance_error?: string | null;
 }
 
 export interface UpdateSalePayload {

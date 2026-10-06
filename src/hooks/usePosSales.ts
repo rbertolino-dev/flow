@@ -209,13 +209,20 @@ export function usePosSales() {
             client_request_id: payload.client_request_id || crypto.randomUUID(),
           },
         });
-        if (!options?.silent) {
+        const data = result.data as FinalizeSaleResult;
+        if (data.finance_error) {
+          toast({
+            title: "Venda registrada sem o financeiro",
+            description: data.finance_error,
+            variant: "destructive",
+          });
+        } else if (!options?.silent) {
           toast({
             title: "Venda finalizada",
-            description: `Venda #${result.data.sale_number} — R$ ${Number(result.data.total).toFixed(2)}`,
+            description: `Venda #${data.sale_number} — R$ ${Number(data.total).toFixed(2)}`,
           });
         }
-        return result.data as FinalizeSaleResult;
+        return data;
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Erro ao finalizar venda";
         if (!options?.silent) {
@@ -361,10 +368,43 @@ export function usePosSales() {
           method: "POST",
           body: { action: "return_exchange", ...payload },
         });
-        toast({ title: "Devolução registrada" });
+        if (result.finance_error) {
+          toast({
+            title: "Devolução registrada sem ajustar o financeiro",
+            description: String(result.finance_error),
+            variant: "destructive",
+          });
+        } else {
+          toast({ title: "Devolução registrada" });
+        }
         return result.data as PosSale;
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Erro na devolução";
+        toast({ title: "Erro", description: message, variant: "destructive" });
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [callPos, toast]
+  );
+
+  const retrySaleFinancial = useCallback(
+    async (saleId: string): Promise<FinalizeSaleResult> => {
+      setLoading(true);
+      try {
+        const result = await callPos("", {
+          method: "POST",
+          body: { action: "retry_sale_financial", sale_id: saleId },
+        });
+        const data = result.data as FinalizeSaleResult;
+        toast({
+          title: "Financeiro lançado",
+          description: `Venda #${data.sale_number}`,
+        });
+        return data;
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Erro ao lançar no financeiro";
         toast({ title: "Erro", description: message, variant: "destructive" });
         throw error;
       } finally {
@@ -382,7 +422,15 @@ export function usePosSales() {
           method: "POST",
           body: { action: "update_sale_items", ...payload },
         });
-        toast({ title: "Itens atualizados" });
+        if (result.finance_error) {
+          toast({
+            title: "Itens atualizados sem ajustar o financeiro",
+            description: String(result.finance_error),
+            variant: "destructive",
+          });
+        } else {
+          toast({ title: "Itens atualizados" });
+        }
         return result.data as PosSale;
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Erro ao trocar produtos";
@@ -407,6 +455,7 @@ export function usePosSales() {
     openCash,
     closeCash,
     finalizeSale,
+    retrySaleFinancial,
     updateSale,
     updateSalePayment,
     cancelSale,
