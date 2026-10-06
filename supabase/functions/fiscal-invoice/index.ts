@@ -954,9 +954,11 @@ serve(async (req) => {
       const invoices = rows.rows.map((row: Record<string, unknown>) => {
         const rest = { ...row };
         const stored = rest.response_payload;
+        const request = recordBody(rest.request_payload);
+        const customerUf = String(recordBody(request.cliente).uf || "").toUpperCase();
         delete rest.request_payload;
         delete rest.response_payload;
-        return { ...rest, motivo: motivoFromStored(stored) };
+        return { ...rest, motivo: motivoFromStored(stored), customer_uf: customerUf };
       });
       return json({ invoices, issued });
     }
@@ -1243,12 +1245,19 @@ serve(async (req) => {
       const document = digits(customer.document);
       const isCompany = Boolean(customer.isCompany) || document.length === 14;
       const foreignCustomer = Boolean(customer.foreign);
+      const countryCode = digits(customer.cod_pais || customer.countryCode);
+      const countryName = String(customer.nome_pais || customer.countryName || "").trim();
       if (foreignCustomer) {
         const foreignId = String(customer.document || "").trim();
         if (foreignId.length < 5 || foreignId.length > 20) return json({ error: "Informe o documento do cliente estrangeiro (5 a 20 caracteres)" }, 400);
+        if (countryCode.length < 2 || countryCode.length > 4 || countryCode === "1058") return json({ error: "Informe o código BACEN do país, com 2 a 4 números e diferente de 1058" }, 400);
+        if (countryName.length < 2 || countryName.length > 60) return json({ error: "Informe o nome do país do cliente estrangeiro" }, 400);
       } else if (kind !== "nfce" && document.length !== 11 && document.length !== 14) return json({ error: "Informe o CPF ou CNPJ do cliente" }, 400);
       if (!String(customer.name || "").trim()) return json({ error: "Informe o nome do cliente" }, 400);
-      if (kind === "nfe" && (!customer.street || !customer.city || !customer.uf || !digits(customer.cep))) {
+      if (kind === "nfe" && foreignCustomer && (!String(customer.street || "").trim() || !String(customer.district || "").trim())) {
+        return json({ error: "NF-e de cliente no exterior precisa de logradouro e bairro" }, 400);
+      }
+      if (kind === "nfe" && !foreignCustomer && (!customer.street || !customer.city || !customer.uf || !digits(customer.cep))) {
         return json({ error: "NF-e precisa do endereço do cliente: logradouro, cidade, UF e CEP" }, 400);
       }
 
@@ -1330,7 +1339,9 @@ serve(async (req) => {
         const foreign = Boolean(customer.foreign);
         if (foreign) {
           cliente.id_estrangeiro = String(customer.document || "").trim();
-          cliente.nome_completo = String(customer.name);
+          cliente.nome_estrangeiro = String(customer.name);
+          cliente.cod_pais = countryCode;
+          cliente.nome_pais = countryName;
           cliente.uf = "EX";
         } else if (document.length === 14 || isCompany) {
           cliente.cnpj = document;
@@ -1341,16 +1352,24 @@ serve(async (req) => {
         } else {
           cliente.nome_completo = String(customer.name);
         }
+        if (!foreign) {
+          const ie = String(customer.ie || "").trim();
+          const chosen = String(customer.contribuinte || "");
+          const role = chosen === "1" || chosen === "2" || chosen === "9" ? Number(chosen) : (ie ? 1 : 9);
+          if (role === 1 && !ie) return json({ error: "Informe a inscrição estadual do contribuinte de ICMS" }, 400);
+          cliente.contribuinte = role;
+          cliente.consumidor_final = kind === "nfce" || role !== 1 ? 1 : 0;
+          if (role === 1) cliente.ie = ie;
+        }
         if (customer.email) cliente.email = String(customer.email);
         if (customer.phone) cliente.telefone = String(customer.phone);
-        if (customer.ie) cliente.ie = String(customer.ie);
         if (customer.street) {
           cliente.endereco = String(customer.street);
           cliente.numero = String(customer.number || "S/N");
           cliente.bairro = String(customer.district || "");
-          cliente.cidade = String(customer.city || "");
+          if (customer.city) cliente.cidade = String(customer.city);
           cliente.uf = foreign ? "EX" : String(customer.uf || "");
-          cliente.cep = digits(customer.cep);
+          if (!foreign) cliente.cep = digits(customer.cep);
         }
         const payments = Array.isArray(body.payments) && body.payments.length ? body.payments : [{ method: "dinheiro", amount }];
         requestPayload = {
@@ -1402,6 +1421,18 @@ serve(async (req) => {
       const parsed = extractReturn(responsePayload);
       if (!remoteOk && !parsed.uuid) {
         return json({ error: parsed.motivo || "A Webmania recusou a emissão", detail: responsePayload }, 400);
+      }
+      const knownKey = parsed.accessKey.length === 44 ? parsed.accessKey : "";
+      const knownUuid = parsed.uuid.length === 36 ? parsed.uuid : "";
+      if (knownKey || knownUuid) {
+        const existing = await client.queryObject<{ id: string }>(
+          `SELECT id FROM fiscal_invoices
+           WHERE organization_id = $1 AND status <> 'excluido'
+             AND (($2 <> '' AND access_key = $2) OR ($3 <> '' AND webmania_uuid = $3))
+           ORDER BY created_at ASC LIMIT 1`,
+          [organizationId, knownKey, knownUuid],
+        );
+        if (existing.rows[0]) return json({ ok: true, invoiceId: existing.rows[0].id, ...parsed, alreadyExists: true });
       }
       const inserted = await client.queryObject<{ id: string }>(
         `INSERT INTO fiscal_invoices (

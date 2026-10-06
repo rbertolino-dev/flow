@@ -44,6 +44,7 @@ type Invoice = {
   kind: string;
   number: string | null;
   customer_name: string | null;
+  customer_uf?: string | null;
   created_at: string;
   amount: number | string | null;
   status: string;
@@ -53,6 +54,21 @@ type Invoice = {
   cce_url?: string | null;
   motivo?: string | null;
 };
+
+const UF_POR_CUF: Record<string, string> = {
+  "11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16": "AP", "17": "TO",
+  "21": "MA", "22": "PI", "23": "CE", "24": "RN", "25": "PB", "26": "PE", "27": "AL", "28": "SE", "29": "BA",
+  "31": "MG", "32": "ES", "33": "RJ", "35": "SP",
+  "41": "PR", "42": "SC", "43": "RS",
+  "50": "MS", "51": "MT", "52": "GO", "53": "DF",
+};
+
+function cfopDevolucao(invoice: Invoice) {
+  const emitente = UF_POR_CUF[String(invoice.access_key || "").slice(0, 2)] || "";
+  const destino = String(invoice.customer_uf || "").toUpperCase();
+  if (!emitente || !destino || destino === "EX" || emitente === destino) return "1202";
+  return "2202";
+}
 
 
 type EmitLine = {
@@ -127,6 +143,12 @@ const ORIGENS = [
   { value: "8", label: "8 - Nacional, mercadoria ou bem com Conteúdo de Importação superior a 70%;" },
 ];
 
+const CONTRIBUINTES = [
+  { value: "9", label: "9 - Não contribuinte" },
+  { value: "1", label: "1 - Contribuinte ICMS" },
+  { value: "2", label: "2 - Contribuinte isento" },
+];
+
 const FRETES = [
   { value: "0", label: "0 - Contratação do Frete por conta do Remetente (CIF)" },
   { value: "1", label: "1 - Contratação do Frete por conta do Destinatário (FOB)" },
@@ -150,11 +172,14 @@ type CustomerForm = {
   cep: string;
   isCompany: boolean;
   foreign: boolean;
+  countryCode: string;
+  countryName: string;
+  contribuinte: string;
 };
 
 function emptyCustomer(patch: Partial<CustomerForm> = {}): CustomerForm {
   return {
-    name: "", document: "", email: "", phone: "", ie: "", street: "", number: "", district: "", city: "", uf: "", cep: "", isCompany: false, foreign: false,
+    name: "", document: "", email: "", phone: "", ie: "", street: "", number: "", district: "", city: "", uf: "", cep: "", isCompany: false, foreign: false, countryCode: "", countryName: "", contribuinte: "",
     ...patch,
   };
 }
@@ -754,12 +779,25 @@ export default function NotaFiscal() {
     }
     if (customer.foreign) {
       const foreignId = customer.document.trim();
+      const countryCode = customer.countryCode.replace(/\D/g, "");
       if (foreignId.length < 5 || foreignId.length > 20) {
         setEmitNotice("Informe o documento do cliente estrangeiro (5 a 20 caracteres)");
         return;
       }
+      if (countryCode.length < 2 || countryCode.length > 4 || countryCode === "1058") {
+        setEmitNotice("Informe o código BACEN do país, com 2 a 4 números e diferente de 1058");
+        return;
+      }
+      if (customer.countryName.trim().length < 2) {
+        setEmitNotice("Informe o nome do país do cliente estrangeiro");
+        return;
+      }
     } else if (kind !== "nfce" && customer.document.replace(/\D/g, "").length < 11) {
       setEmitNotice("Informe o CPF ou CNPJ do cliente");
+      return;
+    }
+    if (!customer.foreign && kind !== "nfse" && (customer.contribuinte || (customer.ie.trim() ? "1" : "9")) === "1" && !customer.ie.trim()) {
+      setEmitNotice("Informe a inscrição estadual do contribuinte de ICMS");
       return;
     }
     setSaving(true);
@@ -813,6 +851,8 @@ export default function NotaFiscal() {
           access_key: null,
           motivo,
         });
+      } else if (data.alreadyExists) {
+        toast({ title: "Esta nota já estava emitida", description: data.number ? `Nota ${data.number}` : "" });
       } else {
         toast({ title: status ? `Nota ${status}` : "Nota enviada", description: motivo || data.number || "" });
       }
@@ -1018,7 +1058,7 @@ export default function NotaFiscal() {
                                 {invoice.xml_url ? <a className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100" href={invoice.xml_url} target="_blank" rel="noreferrer">XML</a> : null}
                                 {invoice.cce_url ? <a className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100" href={invoice.cce_url} target="_blank" rel="noreferrer">CC-e</a> : null}
                                 {invoice.status === "aprovado" ? <button type="button" className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100" onClick={() => { setCancelNotice(""); setCancelTarget(invoice); setCancelMotivo("1"); }}>Cancelar</button> : null}
-                                {invoice.kind === "nfe" && invoice.status === "aprovado" && invoice.access_key ? <button type="button" className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200" onClick={() => { setReturnNotice(""); setReturnTarget(invoice); setReturnCfop("1202"); setReturnNatureza("Devolução de mercadoria"); setReturnItens(""); setReturnQtds(""); }}>Devolver</button> : null}
+                                {invoice.kind === "nfe" && invoice.status === "aprovado" && invoice.access_key ? <button type="button" className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200" onClick={() => { setReturnNotice(""); setReturnTarget(invoice); setReturnCfop(cfopDevolucao(invoice)); setReturnNatureza("Devolução de mercadoria"); setReturnItens(""); setReturnQtds(""); }}>Devolver</button> : null}
                                 {!["aprovado", "cancelado", "processado"].includes(invoice.status) ? <button type="button" className="rounded-full p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600" onClick={() => void remove(invoice.id)} aria-label="Excluir"><Trash2 className="h-4 w-4" /></button> : null}
                               </div>
                             </td>
@@ -1324,9 +1364,15 @@ export default function NotaFiscal() {
             </div>
             <div className="grid gap-2 md:grid-cols-3">
               <div className="flex items-center gap-2"><Switch checked={customer.isCompany} onCheckedChange={(checked) => setCustomer({ ...customer, isCompany: checked })} /><span>Nota fiscal para empresa</span></div>
-              <div className="flex items-center gap-2"><Switch checked={customer.foreign} onCheckedChange={(checked) => setCustomer({ ...customer, foreign: checked, uf: checked ? "EX" : customer.uf === "EX" ? "" : customer.uf })} /><span>Cliente no exterior</span></div>
+              <div className="flex items-center gap-2"><Switch checked={customer.foreign} onCheckedChange={(checked) => setCustomer({ ...customer, foreign: checked, uf: checked ? "EX" : customer.uf === "EX" ? "" : customer.uf, ie: checked ? "" : customer.ie })} /><span>Cliente no exterior</span></div>
               <div><p className="text-[11px]">Nome do contato</p><Input className="h-8" value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} /></div>
               <div><p className="text-[11px]">{customer.foreign ? "Documento estrangeiro" : "CPF/CNPJ"}</p><Input className="h-8" value={customer.document} onChange={(event) => setCustomer({ ...customer, document: event.target.value })} /></div>
+              {customer.foreign ? (
+                <>
+                  <div><p className="text-[11px]">Código do país (BACEN)</p><Input className="h-8" value={customer.countryCode} onChange={(event) => setCustomer({ ...customer, countryCode: event.target.value.replace(/\D/g, "").slice(0, 4) })} /></div>
+                  <div><p className="text-[11px]">Nome do país</p><Input className="h-8" value={customer.countryName} onChange={(event) => setCustomer({ ...customer, countryName: event.target.value.slice(0, 60) })} /></div>
+                </>
+              ) : null}
               <div className="md:col-span-2"><p className="text-[11px]">Logradouro</p><Input className="h-8" value={customer.street} onChange={(event) => setCustomer({ ...customer, street: event.target.value })} /></div>
               <div><p className="text-[11px]">CEP</p><Input className="h-8" value={customer.cep} onChange={(event) => setCustomer({ ...customer, cep: event.target.value })} /></div>
               <div><p className="text-[11px]">Cidade</p><Input className="h-8" value={customer.city} onChange={(event) => setCustomer({ ...customer, city: event.target.value })} /></div>
@@ -1334,7 +1380,23 @@ export default function NotaFiscal() {
               <div><p className="text-[11px]">Número</p><Input className="h-8" value={customer.number} onChange={(event) => setCustomer({ ...customer, number: event.target.value })} /></div>
               <div><p className="text-[11px]">UF</p><Input className="h-8" value={customer.foreign ? "EX" : customer.uf} readOnly={customer.foreign} onChange={(event) => setCustomer({ ...customer, uf: event.target.value.toUpperCase().slice(0, 2) })} /></div>
               <div className="md:col-span-2"><p className="text-[11px]">Email</p><Input className="h-8" value={customer.email} onChange={(event) => setCustomer({ ...customer, email: event.target.value })} /><p className="text-[11px] text-slate-500">O PDF e o XML da nota emitida serão enviados para o email informado.</p></div>
-              {kind !== "nfse" ? <div><p className="text-[11px]">Inscrição Estadual</p><Input className="h-8" value={customer.ie} onChange={(event) => setCustomer({ ...customer, ie: event.target.value })} /><p className="text-[11px] text-slate-500">Obrigatório caso o cliente tiver Inscrição Estadual</p></div> : null}
+              {kind !== "nfse" && !customer.foreign ? (
+                <>
+                  <div>
+                    <p className="text-[11px]">Contribuinte ICMS</p>
+                    <Select
+                      value={customer.contribuinte || (customer.ie.trim() ? "1" : "9")}
+                      onValueChange={(value) => setCustomer({ ...customer, contribuinte: value, ie: value === "1" ? customer.ie : "" })}
+                    >
+                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {CONTRIBUINTES.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><p className="text-[11px]">Inscrição Estadual</p><Input className="h-8" value={customer.ie} disabled={(customer.contribuinte || (customer.ie.trim() ? "1" : "9")) !== "1"} onChange={(event) => setCustomer({ ...customer, ie: event.target.value, contribuinte: event.target.value.trim() ? "1" : customer.contribuinte })} /><p className="text-[11px] text-slate-500">Obrigatória para contribuinte de ICMS</p></div>
+                </>
+              ) : null}
               <div className="md:col-span-3"><p className="text-[11px]">Informações Complementares (opcional)</p><Textarea value={complemento} onChange={(event) => setComplemento(event.target.value)} /></div>
             </div>
             <div className="flex justify-center pt-2">
