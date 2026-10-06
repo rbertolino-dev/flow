@@ -902,8 +902,11 @@ export function PosSaleReceiptSheet({
                   como um orçamento sem baixa, permanece sem movimento.
                 </p>
                 <p>
-                  O financeiro desta venda é estornado. Se houver nota fiscal
-                  autorizada, cancele a nota antes de excluir.
+                  O financeiro desta venda é desfeito. O que ainda estava em
+                  aberto deixa de existir. O que já tinha sido recebido deixa
+                  de contar como entrada: devolva esse valor ao cliente no
+                  caixa ou no PIX. Se houver nota fiscal autorizada, cancele a
+                  nota antes de excluir.
                 </p>
               </div>
             </AlertDialogDescription>
@@ -938,7 +941,10 @@ export function PosSaleReceiptSheet({
                   faltar produto e o PDV bloquear estoque negativo, a reativação
                   é recusada.
                 </p>
-                <p>O financeiro estornado é reaberto.</p>
+                <p>
+                  O financeiro desfeito volta como estava, inclusive o valor
+                  que já tinha sido recebido.
+                </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>

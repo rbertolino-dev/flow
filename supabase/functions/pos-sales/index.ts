@@ -2229,44 +2229,20 @@ serve(async (req) => {
           await pg.queryArray`COMMIT`;
           let reversedCount = 0;
           try {
-            const { data: paidRows } = await supabase
-              .from("financial_entries")
-              .select("id, amount, paid_at, account, lead_id, contact_name, due_date")
-              .eq("organization_id", organizationId)
-              .eq("source_type", "pdv")
-              .or(`source_id.eq.${saleId},source_id.like.venda:${saleId}:%`)
-              .not("paid_at", "is", null)
-              .neq("status", "cancelled");
             const { data: reversed, error: financeError } = await supabase.rpc("cancel_financial_by_sale", {
               p_organization_id: organizationId,
               p_sale_id: saleId,
             });
             if (financeError) console.error("Erro ao estornar financeiro da venda:", financeError);
             else reversedCount = Number(reversed || 0);
-            for (const row of paidRows || []) {
-              const amount = Number(row.amount || 0);
-              if (amount <= 0.009 || !row.id) continue;
-              const { error: outflowError } = await supabase.rpc("upsert_financial_entry", {
-                p_organization_id: organizationId,
-                p_direction: "pagar",
-                p_amount: amount,
-                p_due_date: row.due_date || new Date().toISOString().slice(0, 10),
-                p_source_type: "pdv",
-                p_source_id: `estorno-pdv:${saleId}:${row.id}`,
-                p_status: "open",
-                p_settlement_status: "confirmado",
-                p_lead_id: row.lead_id,
-                p_description: "Devolução do valor já recebido nesta venda",
-                p_contact_name: row.contact_name,
-                p_billing_name: "Sem contato",
-                p_category: "Estorno",
-                p_account: row.account || "Caixa",
-                p_origin_label: "PDV",
-                p_created_by: user.id,
-              });
-              if (outflowError) console.error("Erro ao lançar saída do valor recebido:", outflowError);
-              else reversedCount += 1;
-            }
+            // Título já recebido é cancelado no lugar. Não nasce conta a pagar.
+            await supabase
+              .from("financial_entries")
+              .update({ status: "cancelled" })
+              .eq("organization_id", organizationId)
+              .eq("source_type", "pdv")
+              .like("source_id", `estorno-pdv:${saleId}:%`)
+              .neq("status", "cancelled");
           } catch (financeErr) {
             console.error("Erro ao estornar financeiro da venda:", financeErr);
           }
