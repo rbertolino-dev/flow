@@ -70,12 +70,9 @@ export function PosCreateClientDialog({
       toast({ title: "Informe o nome", variant: "destructive" });
       return;
     }
-    if (!form.phone.trim()) {
-      setPhoneError("Telefone é obrigatório.");
-      return;
-    }
-    if (!isValidBrazilianPhone(form.phone)) {
-      setPhoneError("Use DDD + número, com 10 ou 11 dígitos.");
+    const phoneDigits = normalizePhone(form.phone.trim());
+    if (phoneDigits && !isValidBrazilianPhone(phoneDigits)) {
+      setPhoneError("Use DDD + número, com 10 ou 11 dígitos, ou deixe em branco.");
       return;
     }
     setPhoneError("");
@@ -100,7 +97,7 @@ export function PosCreateClientDialog({
         .from("leads")
         .insert({
           name: form.name.trim(),
-          phone: normalizePhone(form.phone.trim()),
+          phone: phoneDigits,
           email: form.email.trim() || null,
           company: form.company.trim() || null,
           notes: form.notes.trim() || null,
@@ -162,7 +159,7 @@ export function PosCreateClientDialog({
         <DialogHeader className="px-6 pt-6">
           <DialogTitle>Novo cliente</DialogTitle>
           <DialogDescription>
-            O telefone é obrigatório. Os demais dados podem ser preenchidos agora.
+            O nome basta para a venda. Telefone e os demais dados são opcionais.
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4">
@@ -171,7 +168,7 @@ export function PosCreateClientDialog({
             <Input value={form.name} onChange={(e) => setField("name", e.target.value)} autoFocus />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="pdv-client-phone">Telefone *</Label>
+            <Label htmlFor="pdv-client-phone">Telefone</Label>
             <Input
               id="pdv-client-phone"
               value={form.phone}
@@ -180,8 +177,6 @@ export function PosCreateClientDialog({
                 if (phoneError) setPhoneError("");
               }}
               placeholder="(11) 98765-4321"
-              required
-              aria-required="true"
               aria-invalid={phoneError ? true : undefined}
               autoComplete="tel"
             />
@@ -300,7 +295,7 @@ export function PosCreateClientDialog({
           <Button
             type="button"
             onClick={() => void handleCreate()}
-            disabled={saving || !form.name.trim() || !form.phone.trim()}
+            disabled={saving || !form.name.trim()}
           >
             {saving ? "Salvando..." : "Criar cliente"}
           </Button>
