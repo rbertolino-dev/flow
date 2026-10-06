@@ -779,25 +779,24 @@ export function BudgetItemsEditor({
                 {detailedProducts ? (
                   <div className="space-y-2">
                     <div className="space-y-1">
-                      <Label className="text-[11px] text-muted-foreground">Descrição do cadastro</Label>
-                      <Textarea
-                        value={product.description || ''}
-                        readOnly
-                        placeholder="Sem descrição no cadastro"
-                        rows={2}
-                        className="bg-slate-50"
-                      />
-                      <p className="text-[11px] text-muted-foreground">Esta descrição não sai no PDF.</p>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[11px] text-muted-foreground">Descrição do orçamento</Label>
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="text-[11px] text-muted-foreground">Descrição</Label>
+                        {product.description ? (
+                          <button
+                            type="button"
+                            className="text-[11px] font-medium text-blue-700 hover:underline"
+                            onClick={() => updateProduct(index, { internal_notes: product.description || '' })}
+                          >
+                            Usar do cadastro
+                          </button>
+                        ) : null}
+                      </div>
                       <Textarea
                         value={product.internal_notes || ''}
                         onChange={(event) => updateProduct(index, { internal_notes: event.target.value })}
-                        placeholder="Digite a descrição que deve sair no PDF"
+                        placeholder="Digite a descrição ou use a do cadastro"
                         rows={2}
                       />
-                      <p className="text-[11px] text-muted-foreground">Só este texto sai no PDF.</p>
                     </div>
                     {product.image_url ? (
                       <img

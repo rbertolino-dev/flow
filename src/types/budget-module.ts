@@ -10,7 +10,7 @@ export interface BudgetProduct {
   image_url?: string;
   /** Desconto em reais nesta linha (reduz o subtotal do item). */
   line_discount?: number;
-  /** Texto digitado na hora do orçamento. É a única descrição do produto que entra no PDF. */
+  /** Descrição deste orçamento. Pode ser digitada ou copiada do cadastro. É o que entra no PDF. */
   internal_notes?: string;
   // Se foi adicionado manualmente (não do banco)
   isManual?: boolean;
