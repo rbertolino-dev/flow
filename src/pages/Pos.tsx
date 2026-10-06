@@ -30,7 +30,7 @@ import { usePosSales } from "@/hooks/usePosSales";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { supabase } from "@/integrations/supabase/client";
 import { PAYMENT_METHODS } from "@/lib/paymentMethods";
-import { isPromotionValid, quotePosSale } from "@/lib/posAdjustments";
+import { amountThatClosesSale, isPromotionValid, quotePosSale } from "@/lib/posAdjustments";
 import { paymentsMatchTotal, roundMoney } from "@/lib/posFinanceSchedule";
 import {
   DEFAULT_POS_SETTINGS,
@@ -624,9 +624,18 @@ export default function Pos() {
 
   const addPayment = () => {
     if (!paymentMethodDraft || total <= 0) return;
-    const remaining = roundMoney(Math.max(0, total - paymentsSum));
-    if (remaining <= 0) return;
-    const amount = remaining;
+    const amount = amountThatClosesSale({
+      subtotal,
+      manualDiscount: discount,
+      promotion: selectedPromotion,
+      cart,
+      paymentDiscounts: posSettings.payment_discounts,
+      paymentSurcharges: posSettings.payment_surcharges,
+      installments,
+      existing: payments.map((line) => ({ method: line.method, amount: line.amount })),
+      method: paymentMethodDraft,
+    });
+    if (amount <= 0.009) return;
     setPayments((prev) => [
       ...prev,
       {

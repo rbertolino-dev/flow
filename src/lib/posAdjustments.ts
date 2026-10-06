@@ -131,3 +131,47 @@ export function quotePosSale(input: {
   const total = roundMoney(Math.max(0, input.subtotal - discount) + surcharge);
   return { discount, surcharge, total, paymentRule, surchargeRule, promoAmount };
 }
+
+export function amountThatClosesSale(input: {
+  subtotal: number;
+  manualDiscount: number;
+  promotion: PosPromotion | null;
+  cart: QuoteLine[];
+  paymentDiscounts: Array<{ method: string; percent: number }>;
+  paymentSurcharges: PosPaymentSurcharge[];
+  installments: number;
+  existing: Array<{ method: string; amount: number }>;
+  method: string;
+}) {
+  const existingSum = roundMoney(
+    input.existing.reduce((sum, line) => sum + Number(line.amount || 0), 0),
+  );
+  const quoteWith = (payments: Array<{ method: string; amount: number }>, method: string) =>
+    quotePosSale({
+      subtotal: input.subtotal,
+      manualDiscount: input.manualDiscount,
+      promotion: input.promotion,
+      cart: input.cart,
+      paymentDiscounts: input.paymentDiscounts,
+      paymentSurcharges: input.paymentSurcharges,
+      method,
+      installments: input.installments,
+      payments,
+    });
+
+  const opened = quoteWith(input.existing, input.existing[0]?.method || input.method);
+  let amount = roundMoney(Math.max(0, opened.total - existingSum));
+  if (amount <= 0.009) return 0;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const quoted = quoteWith(
+      [...input.existing, { method: input.method, amount }],
+      input.method,
+    );
+    const gap = roundMoney(quoted.total - (existingSum + amount));
+    if (Math.abs(gap) <= 0.009) return amount;
+    amount = roundMoney(amount + gap);
+    if (amount <= 0.009) return 0;
+  }
+  return amount;
+}
