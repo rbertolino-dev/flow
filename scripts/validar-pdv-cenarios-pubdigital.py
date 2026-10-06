@@ -181,6 +181,9 @@ def main() -> int:
         return 1
     ok(f"Cliente: {lead.get('name')}")
     only_discounts = "--so-descontos" in sys.argv or "--so-ajustes" in sys.argv
+    created_ids: list[str] = []
+    _, settings_body = api.call("/functions/v1/pos-sales?action=pos_settings")
+    original_settings = (settings_body or {}).get("data") if isinstance(settings_body, dict) else None
 
     def save_settings(payload: dict, label: str) -> None:
         body = {
@@ -513,6 +516,7 @@ def main() -> int:
             fail(f"Venda {label}: acréscimo {data.get('surcharge_amount')} ≠ {body['surcharge_amount']}")
             return None
         ok(f"Venda #{data.get('sale_number')} — {label} — R$ {float(data.get('total') or 0):.2f}")
+        created_ids.append(str(data["id"]))
         return data
 
     def product_item(qty: float = 1, unit_price: float | None = None) -> dict:
@@ -527,10 +531,11 @@ def main() -> int:
             "discount_amount": 0,
         }
 
+    def registered_sales() -> dict | None:
         info("Vendas cadastradas na Pubdigital")
         half = round(price / 2, 2)
         rest = round(price - half, 2)
-        sell(
+        pix_sale = sell(
             "PIX",
             total=price,
             items=[product_item()],
@@ -603,7 +608,7 @@ def main() -> int:
 
         if service:
             service_price = float(service.get("price") or 0)
-            sell(
+            service_sale = sell(
                 "Serviço",
                 total=service_price,
                 financial_category="servicos",
@@ -619,7 +624,20 @@ def main() -> int:
                     }
                 ],
                 payments=[{"method": "pix", "amount": service_price}],
+                add_commission=True,
+                commission_user_id=seller_id,
+                commission_user_name=seller_name,
+                default_commission_type="percent",
+                default_commission_value=10,
             )
+            if service_sale is not None:
+                expected = round(service_price * 0.10, 2)
+                amount = float(service_sale.get("commission_amount") or 0)
+                if abs(amount - expected) > 0.05:
+                    fail(f"Comissão do serviço: {amount} ≠ {expected}")
+                else:
+                    ok(f"Comissão do serviço: R$ {amount:.2f}")
+        return pix_sale
 
     def adjustment_scenarios() -> None:
         info("Acréscimos e promoções")
@@ -694,6 +712,29 @@ def main() -> int:
             "Acréscimos por forma e promoções com validade",
         )
 
+        rejected_body = {
+            "action": "finalize_sale",
+            "items": [product_item()],
+            "payments": [{"method": "pix", "amount": price}],
+            "discount_amount": 0,
+            "surcharge_amount": 0,
+            "notes": "CENARIO_PDV acréscimo divergente",
+            "customer_name": lead["name"],
+            "lead_id": lead["id"],
+            "apply_stock": False,
+            "generate_financial": False,
+            "sale_origin": "pdv",
+        }
+        rejected_status, rejected = api.call("/functions/v1/pos-sales", "POST", rejected_body)
+        rejected_error = str((rejected or {}).get("error") or "")
+        if rejected_status == 400 and "acréscimo" in rejected_error.lower():
+            ok("Recusa venda cujo acréscimo não confere com a configuração")
+        else:
+            fail(f"Acréscimo divergente: HTTP {rejected_status} {rejected_error}")
+            rejected_id = str(((rejected or {}).get("data") or {}).get("id") or "")
+            if rejected_id:
+                created_ids.append(rejected_id)
+
         pix_surcharge = round(price * 0.03, 2)
         sell(
             "Acréscimo Pix 3%",
@@ -732,36 +773,225 @@ def main() -> int:
             surcharge_amount=card_surcharge,
             items=[product_item()],
             payments=[{"method": "cartao_credito", "amount": round(price + card_surcharge, 2)}],
+            installments=2,
         )
         ok("Promoção vencida fica cadastrada e não entra nessas vendas")
 
-    if "--so-ajustes" in sys.argv:
-        adjustment_scenarios()
-    else:
-        payment_discounts_scenarios()
+    def clear_adjustments() -> None:
+        status, cleared = api.call(
+            "/functions/v1/pos-sales",
+            "POST",
+            {
+                "action": "save_pos_settings",
+                "sale_notes": "Garantia de 90 dias. Pagamento conforme combinado.",
+                "financial_account": "Pubdigital",
+                "financial_category": "vendas",
+                "default_lead_id": lead["id"],
+                "default_lead_name": lead["name"],
+                "simple_sale": False,
+                "commission_required": False,
+                "show_payment_method": True,
+                "commission_type": "percent",
+                "commission_value": 0,
+                "stock_code_field": "sku",
+                "block_out_of_stock": False,
+                "payment_discounts": [],
+                "payment_surcharges": [],
+                "promotions": [],
+            },
+        )
+        data = (cleared or {}).get("data") or {}
+        discounts = data.get("payment_discounts") or []
+        surcharges = data.get("payment_surcharges") or []
+        promotions = data.get("promotions") or []
+        if status != 200 or discounts or surcharges or promotions:
+            fail(f"Limpar ajustes: HTTP {status} descontos={discounts} acréscimos={surcharges} promoções={promotions}")
+        else:
+            ok("PDV sem desconto, acréscimo ou promoção")
 
-    info("Caixa consolidado enxerga as vendas do mês")
-    from datetime import datetime
+    def consolidated() -> dict:
+        from datetime import datetime
 
-    now = datetime.now().astimezone()
-    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    end = now.replace(hour=23, minute=59, second=59, microsecond=0)
-    query = urllib.parse.urlencode(
-        {
-            "action": "cash_consolidated",
-            "date_from": start.isoformat(),
-            "date_to": end.isoformat(),
+        now = datetime.now().astimezone()
+        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end = now.replace(hour=23, minute=59, second=59, microsecond=0)
+        query = urllib.parse.urlencode(
+            {
+                "action": "cash_consolidated",
+                "date_from": start.isoformat(),
+                "date_to": end.isoformat(),
+            }
+        )
+        status, report = api.call(f"/functions/v1/pos-sales?{query}")
+        data = (report or {}).get("data") or {}
+        if status != 200:
+            fail(f"Caixa consolidado HTTP {status}")
+            return {}
+        return data
+
+    def listed(sale_id: str, sale_status: str) -> bool:
+        query = urllib.parse.urlencode(
+            {
+                "action": "list_sales",
+                "status": sale_status,
+                "search": "CENARIO_PDV",
+                "limit": "200",
+            }
+        )
+        status, body = api.call(f"/functions/v1/pos-sales?{query}")
+        rows = (body or {}).get("data") or []
+        if status != 200 or not isinstance(rows, list):
+            fail(f"Histórico {sale_status}: HTTP {status}")
+            return False
+        return any(str(row.get("id")) == sale_id for row in rows)
+
+    def cancel_sale(sale_id: str) -> None:
+        status, result = api.call(
+            "/functions/v1/pos-sales",
+            "POST",
+            {"action": "cancel_sale", "sale_id": sale_id},
+        )
+        if status != 200:
+            fail(f"Excluir {sale_id[:8]}: HTTP {status} {(result or {}).get('error')}")
+
+    def restore_settings() -> None:
+        if not isinstance(original_settings, dict):
+            return
+        payload = {
+            "action": "save_pos_settings",
+            "sale_notes": original_settings.get("sale_notes") or "",
+            "financial_account": original_settings.get("financial_account") or "",
+            "financial_category": original_settings.get("financial_category") or "",
+            "default_lead_id": original_settings.get("default_lead_id"),
+            "default_lead_name": original_settings.get("default_lead_name"),
+            "simple_sale": bool(original_settings.get("simple_sale")),
+            "commission_required": bool(original_settings.get("commission_required")),
+            "show_payment_method": original_settings.get("show_payment_method") is not False,
+            "commission_type": original_settings.get("commission_type") or "percent",
+            "commission_value": original_settings.get("commission_value") or 0,
+            "stock_code_field": original_settings.get("stock_code_field") or "sku",
+            "block_out_of_stock": bool(original_settings.get("block_out_of_stock")),
+            "payment_discounts": original_settings.get("payment_discounts") or [],
+            "payment_surcharges": original_settings.get("payment_surcharges") or [],
+            "promotions": original_settings.get("promotions") or [],
         }
-    )
-    status, report = api.call(f"/functions/v1/pos-sales?{query}")
-    data = (report or {}).get("data") or {}
-    methods = {row.get("method") for row in data.get("payments") or []}
-    if status != 200:
-        fail(f"Caixa consolidado HTTP {status}")
-    elif not {"pix", "dinheiro", "cartao_credito", "cartao_debito"} <= methods:
-        fail(f"Formas no consolidado: {sorted(methods)}")
-    else:
-        ok("Consolidado com PIX, dinheiro, crédito e débito")
+        status, restored = api.call("/functions/v1/pos-sales", "POST", payload)
+        if status != 200:
+            fail(f"Restaurar configuração: HTTP {status} {(restored or {}).get('error')}")
+        else:
+            ok("Configuração do PDV restaurada")
+
+    pix_sale = None
+    try:
+        if "--so-ajustes" in sys.argv:
+            adjustment_scenarios()
+        elif "--so-descontos" in sys.argv:
+            payment_discounts_scenarios()
+        else:
+            clear_adjustments()
+            pix_sale = registered_sales()
+            payment_discounts_scenarios()
+            adjustment_scenarios()
+
+        info("Caixa consolidado enxerga as vendas do mês")
+        before = consolidated()
+        methods = {row.get("method") for row in before.get("payments") or []}
+        if before and not {"pix", "dinheiro", "cartao_credito", "cartao_debito"} <= methods:
+            fail(f"Formas no consolidado: {sorted(method for method in methods if method)}")
+        elif before:
+            ok("Consolidado com PIX, dinheiro, crédito e débito")
+        for key in ("products_by_category", "services_by_category", "other_entries"):
+            if before and not isinstance(before.get(key), list):
+                fail(f"Consolidado sem {key}")
+
+        if before:
+            before_payments = {
+                str(row.get("method")): round(float(row.get("amount") or 0), 2)
+                for row in before.get("payments") or []
+            }
+            before_budget = sum(
+                float(row.get("amount") or 0)
+                for row in before.get("other_entries") or []
+                if row.get("description") == "Orçamento"
+            )
+            budget_surcharge = round(price * 0.03, 2)
+            budget_total = round(price + budget_surcharge, 2)
+            budget_sale = sell(
+                "Orçamento",
+                total=budget_total,
+                surcharge_amount=budget_surcharge,
+                items=[product_item()],
+                payments=[{"method": "pix", "amount": budget_total}],
+                sale_origin="orcamento",
+                generate_financial=False,
+            )
+            if budget_sale is not None:
+                after = consolidated()
+                after_payments = {
+                    str(row.get("method")): round(float(row.get("amount") or 0), 2)
+                    for row in after.get("payments") or []
+                }
+                after_budget = sum(
+                    float(row.get("amount") or 0)
+                    for row in after.get("other_entries") or []
+                    if row.get("description") == "Orçamento"
+                )
+                if abs(after_budget - (before_budget + budget_total)) > 0.05:
+                    fail(f"Orçamento no consolidado: {after_budget} ≠ {before_budget + budget_total}")
+                elif after_payments != before_payments:
+                    fail("Orçamento entrou nas formas de pagamento")
+                else:
+                    ok("Orçamento só em Outras entradas, com a descrição Orçamento")
+
+        watched = pix_sale or None
+        if watched and watched.get("id"):
+            info("Histórico e exclusão")
+            sale_id = str(watched["id"])
+            if not listed(sale_id, "completed"):
+                fail("Venda concluída não apareceu no histórico")
+            else:
+                ok("Venda concluída aparece no histórico")
+            cancel_sale(sale_id)
+            if listed(sale_id, "completed"):
+                fail("Venda excluída continua no histórico de concluídas")
+            else:
+                ok("Venda excluída saiu do histórico de concluídas")
+            if not listed(sale_id, "cancelled"):
+                fail("Venda excluída não entrou em vendas excluídas")
+            else:
+                ok("Venda excluída entrou em vendas excluídas")
+            finance_query = (
+                f"/rest/v1/financial_entries?organization_id=eq.{org_id}"
+                "&select=id,status,source_id,source_type,direction"
+                f"&or=(source_id.eq.{sale_id},source_id.like.venda:{sale_id}:*,source_id.like.estorno-pdv:{sale_id}:*)"
+            )
+            status, entries = api.call(finance_query)
+            rows = entries if isinstance(entries, list) else []
+            if status != 200:
+                fail(f"Financeiro da venda: HTTP {status}")
+            else:
+                open_payable = [
+                    row for row in rows
+                    if str(row.get("source_id") or "").startswith("estorno-pdv:")
+                    and row.get("status") != "cancelled"
+                ]
+                still_open = [row for row in rows if row.get("status") != "cancelled"]
+                if open_payable:
+                    fail("Exclusão criou conta a pagar")
+                elif still_open:
+                    fail(f"Títulos ainda abertos após excluir: {still_open}")
+                elif not rows:
+                    fail("Exclusão não encontrou títulos da venda")
+                else:
+                    ok("Títulos cancelados, sem conta a pagar")
+    finally:
+        info("Encerrando vendas de teste")
+        for sale_id in created_ids:
+            status, current = api.call(f"/functions/v1/pos-sales?action=get_sale&id={sale_id}")
+            current_status = ((current or {}).get("data") or {}).get("status")
+            if status == 200 and current_status == "completed":
+                cancel_sale(sale_id)
+        restore_settings()
 
     print()
     if ERRORS:

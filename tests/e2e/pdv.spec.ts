@@ -28,13 +28,13 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
       test.skip(true, "Sessão E2E inválida — rode auth.setup");
     }
 
-    await expect(page.getByRole("button", { name: /histórico de vendas/i })).toBeVisible({
+    await expect(page.getByRole("button", { name: /^histórico$/i })).toBeVisible({
       timeout: 45_000,
     });
     await expect(page.getByText(/^resumo$/i)).toBeVisible();
     await expect(page.getByRole("tab", { name: /produtos/i })).toBeVisible();
     await expect(page.getByRole("tab", { name: /serviços/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /^finalizar$/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /finalizar/i }).last()).toBeVisible();
 
     const productBtn = page.locator("ul[data-pos-catalog] li button").first();
     const emptyMsg = page.getByText(/nenhum produto encontrado/i);
@@ -71,7 +71,7 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
       await human.humanType(createDialog.locator("input").nth(1), "11999998888");
       await human.hesitate(300, 600);
       await human.humanClick(createDialog.getByRole("button", { name: /^criar cliente$/i }));
-      await expect(page.getByText(/cliente criado/i)).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText("Cliente criado", { exact: true })).toBeVisible({ timeout: 15_000 });
     }
 
     await human.randomDelay(200, 400);
@@ -83,7 +83,7 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await human.humanClick(pixOption);
 
     await human.hesitate(400, 800);
-    const finalize = page.getByRole("button", { name: /^finalizar$/i });
+    const finalize = page.getByRole("button", { name: /finalizar/i }).last();
     await expect(finalize).toBeEnabled();
     await human.humanClick(finalize);
 
@@ -108,7 +108,16 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
 
     // Tela VENDA FINALIZADA + impressão cupom/A4 + nova venda
     await expect(page.getByText(/venda finalizada/i)).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByRole("button", { name: /nova venda/i })).toBeVisible();
+    const financeTitle = page.getByRole("heading", { name: /lançamentos financeiros criados/i });
+    await financeTitle.waitFor({ state: "visible", timeout: 8_000 }).catch(() => undefined);
+    if (await financeTitle.isVisible().catch(() => false)) {
+      await page
+        .getByRole("dialog", { name: /lançamentos financeiros criados/i })
+        .getByRole("button", { name: /^ok$/i })
+        .click();
+      await expect(financeTitle).toBeHidden({ timeout: 10_000 });
+    }
+    await expect(page.getByRole("button", { name: /nova venda/i })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("button", { name: /imprimir cupom/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /imprimir comprovante a4/i })).toBeVisible();
 
@@ -124,7 +133,7 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
         res.request().method() === "GET",
       { timeout: 45_000 }
     );
-    await human.humanClick(page.getByRole("button", { name: /histórico de vendas/i }));
+    await human.humanClick(page.getByRole("button", { name: /^histórico$/i }));
     await page.waitForURL(/\/pdv\/historico/, { timeout: 15_000 });
     await expect(
       page.getByRole("heading", { name: /histórico de vendas/i })
@@ -408,7 +417,7 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await expect(dialog.getByText(/formas de pagamento/i)).toBeVisible();
     await expect(dialog.getByText(/vendas de produtos por categoria/i)).toBeVisible();
     await expect(dialog.getByText(/vendas de serviços por categoria/i)).toBeVisible();
-    await expect(dialog.getByText(/outras entradas/i)).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /outras entradas/i })).toBeVisible();
     await expect(dialog.getByRole("button", { name: /^consultar$/i })).toBeVisible();
     await expect(dialog.getByRole("button", { name: /^exportar$/i })).toBeVisible();
 
