@@ -379,46 +379,91 @@ export function useEquipments(filters?: EquipmentFilters, options?: { enabled?: 
 
   const getEquipmentHistory = async (equipmentId: string): Promise<EquipmentServiceHistoryItem[]> => {
     if (!activeOrgId) return [];
+    const richSelect = `
+      service_order:service_orders(
+        id, code, starts_at, created_at, responsible_name, collaborator_name,
+        service_name, solution, client_report, diagnosis, execution_summary,
+        equipment_conditions, is_closed, deleted_at,
+        status:service_order_statuses(name, color),
+        items:service_order_items(item_type, name, quantity, unit, notes)
+      )
+    `;
+    const plainSelect = `
+      service_order:service_orders(
+        id, code, starts_at, created_at, responsible_name, service_name,
+        solution, client_report, diagnosis, deleted_at
+      )
+    `;
     try {
       // @ts-expect-error tabela ainda nao tipada no client gerado
-      const { data, error } = await supabase
+      let result = await supabase
         .from('service_order_equipments')
-        .select(`
-          service_order:service_orders(
-            id, code, starts_at, created_at, responsible_name, service_name,
-            solution, client_report, diagnosis, deleted_at
-          )
-        `)
+        .select(richSelect)
         .eq('organization_id', activeOrgId)
         .eq('equipment_id', equipmentId);
-      if (error) throw error;
+      if (result.error) {
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        result = await supabase
+          .from('service_order_equipments')
+          .select(plainSelect)
+          .eq('organization_id', activeOrgId)
+          .eq('equipment_id', equipmentId);
+      }
+      if (result.error) throw result.error;
 
-      const items = ((data || []) as Array<{
-        service_order?: {
-          id: string;
-          code: string;
-          starts_at?: string | null;
-          created_at: string;
-          responsible_name?: string | null;
-          service_name?: string | null;
-          solution?: string | null;
-          client_report?: string | null;
-          diagnosis?: string | null;
-          deleted_at?: string | null;
-        } | null;
-      }>)
+      type HistoryOrder = {
+        id: string;
+        code: string;
+        starts_at?: string | null;
+        created_at: string;
+        responsible_name?: string | null;
+        collaborator_name?: string | null;
+        service_name?: string | null;
+        solution?: string | null;
+        client_report?: string | null;
+        diagnosis?: string | null;
+        execution_summary?: string | null;
+        equipment_conditions?: string | null;
+        is_closed?: boolean | null;
+        deleted_at?: string | null;
+        status?: { name?: string | null; color?: string | null } | null;
+        items?: Array<{
+          item_type?: string | null;
+          name?: string | null;
+          quantity?: number | null;
+          unit?: string | null;
+          notes?: string | null;
+        }> | null;
+      };
+
+      const items = ((result.data || []) as Array<{ service_order?: HistoryOrder | null }>)
         .map((row) => row.service_order)
-        .filter((order): order is NonNullable<typeof order> => Boolean(order) && !order?.deleted_at)
+        .filter((order): order is HistoryOrder => Boolean(order) && !order?.deleted_at)
         .map((order) => ({
           service_order_id: order.id,
           code: order.code,
           starts_at: order.starts_at,
           created_at: order.created_at,
           responsible_name: order.responsible_name,
+          collaborator_name: order.collaborator_name,
           service_name: order.service_name,
           solution: order.solution,
           client_report: order.client_report,
           diagnosis: order.diagnosis,
+          execution_summary: order.execution_summary,
+          equipment_conditions: order.equipment_conditions,
+          is_closed: Boolean(order.is_closed),
+          status_name: order.status?.name || null,
+          status_color: order.status?.color || null,
+          items: (order.items || [])
+            .filter((line) => (line.name || '').trim())
+            .map((line) => ({
+              item_type: line.item_type === 'service' ? 'service' as const : 'product' as const,
+              name: (line.name || '').trim(),
+              quantity: Number(line.quantity) || 1,
+              unit: line.unit,
+              notes: line.notes,
+            })),
         }))
         .sort((a, b) => {
           const da = new Date(a.starts_at || a.created_at).getTime();

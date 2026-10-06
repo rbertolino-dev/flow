@@ -49,6 +49,13 @@ function formatDay(value?: string | null, withTime = false) {
   return format(date, withTime ? "dd/MM/yyyy 'às' HH:mm" : 'dd/MM/yyyy', { locale: ptBR });
 }
 
+function lineQuantity(quantity: number, unit?: string | null) {
+  const amount = Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
+  const shown = Number.isInteger(amount) ? String(amount) : amount.toLocaleString('pt-BR');
+  const measure = (unit || 'un').trim() || 'un';
+  return `${shown} ${measure}`;
+}
+
 function formatBytes(size: number) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
@@ -264,6 +271,117 @@ export function EquipmentDetailDialog({
             </div>
           </DialogHeader>
 
+          <section className="space-y-3" data-testid="equipment-maintenance-history">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-700">Histórico da manutenção</h3>
+              <p className="mt-1 text-xs text-slate-500">O que foi feito neste equipamento, da visita mais recente para a mais antiga.</p>
+            </div>
+            {loading ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : history.length === 0 ? (
+              <p className="rounded-xl bg-slate-50 py-6 text-center text-sm text-muted-foreground">
+                Nenhum atendimento vinculado a este equipamento.
+              </p>
+            ) : (
+              <div className="relative space-y-3 pl-4 before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-gradient-to-b before:from-sky-400 before:via-amber-300 before:to-emerald-400">
+                {history.map((item) => {
+                  const when = item.starts_at || item.created_at;
+                  const parts = item.items.filter((line) => line.item_type === 'product');
+                  const services = item.items.filter((line) => line.item_type === 'service');
+                  const technician = item.collaborator_name?.trim();
+                  const responsible = item.responsible_name?.trim();
+                  const hasWork = Boolean(
+                    parts.length
+                    || services.length
+                    || item.solution
+                    || item.execution_summary
+                    || item.diagnosis
+                    || item.client_report
+                    || item.equipment_conditions,
+                  );
+                  return (
+                    <div
+                      key={item.service_order_id}
+                      className="relative rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-sm"
+                      data-testid={`equipment-history-${item.service_order_id}`}
+                    >
+                      <span className="absolute -left-[13px] top-4 h-2.5 w-2.5 rounded-full border-2 border-white bg-sky-500" />
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        {onOpenOrder ? (
+                          <button
+                            type="button"
+                            className="font-mono text-base font-bold text-sky-700 hover:underline"
+                            onClick={() => onOpenOrder(item.service_order_id)}
+                            data-testid={`equipment-history-open-${item.service_order_id}`}
+                          >
+                            {item.code}
+                          </button>
+                        ) : (
+                          <span className="font-mono text-base font-bold">{item.code}</span>
+                        )}
+                        <span className="text-xs text-slate-500">
+                          {formatDay(when, true)}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-slate-800">{item.service_name || 'Serviço não informado'}</p>
+                        {item.status_name && (
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[11px] font-semibold text-white"
+                            style={{ backgroundColor: item.status_color || '#64748b' }}
+                          >
+                            {item.status_name}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-slate-500">
+                        {technician ? `Técnico: ${technician}` : 'Sem técnico'}
+                        {responsible ? ` · Responsável: ${responsible}` : ''}
+                      </p>
+                      <div className="mt-2 space-y-2 rounded-lg bg-slate-50 px-3 py-2" data-testid={`equipment-history-work-${item.service_order_id}`}>
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">O que foi feito</p>
+                        {parts.length > 0 && (
+                          <ul className="space-y-1 text-slate-700">
+                            {parts.map((line, index) => (
+                              <li key={`${item.service_order_id}-part-${index}`}>
+                                Peça: {line.name} · {lineQuantity(line.quantity, line.unit)}
+                                {line.notes ? ` — ${line.notes}` : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {services.length > 0 && (
+                          <ul className="space-y-1 text-slate-700">
+                            {services.map((line, index) => (
+                              <li key={`${item.service_order_id}-service-${index}`}>
+                                Serviço: {line.name}
+                                {line.quantity > 1 ? ` · ${lineQuantity(line.quantity, line.unit)}` : ''}
+                                {line.notes ? ` — ${line.notes}` : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {item.solution && <p className="text-slate-800"><span className="font-semibold">Solução. </span>{item.solution}</p>}
+                        {item.execution_summary && <p className="text-slate-800"><span className="font-semibold">Execução. </span>{item.execution_summary}</p>}
+                        {(item.client_report || item.diagnosis) && (
+                          <p className="text-slate-600"><span className="font-semibold">Problema. </span>{item.client_report || item.diagnosis}</p>
+                        )}
+                        {item.equipment_conditions && (
+                          <p className="text-slate-600"><span className="font-semibold">Condição. </span>{item.equipment_conditions}</p>
+                        )}
+                        {!hasWork && (
+                          <p className="text-slate-500">Esta visita não registrou o que foi modificado.</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <SpecTile icon={Tag} label="Tipo" value={equipment.equipment_type || '—'} tone="border-sky-200 bg-sky-50 text-sky-950" />
             <SpecTile icon={Wrench} label="Marca" value={equipment.brand || '—'} tone="border-amber-200 bg-amber-50 text-amber-950" />
@@ -317,7 +435,7 @@ export function EquipmentDetailDialog({
               )}
               <p className="mt-2 text-sm font-semibold text-slate-800">Abre este cadastro</p>
               <p className="mt-1 text-[11px] leading-snug text-slate-600">
-                Quem apontar a câmera entra neste equipamento, com cliente, anexos e histórico de ordens.
+                Quem apontar a câmera entra neste equipamento e vê na hora o que foi feito em cada visita.
               </p>
               <Button
                 type="button"
@@ -406,56 +524,6 @@ export function EquipmentDetailDialog({
             )}
           </section>
 
-          <section className="space-y-3 border-t border-slate-100 pt-4">
-            <h3 className="text-sm font-bold uppercase tracking-wide text-slate-700">Histórico de ordens</h3>
-            {loading ? (
-              <div className="flex justify-center py-6">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : history.length === 0 ? (
-              <p className="rounded-xl bg-slate-50 py-6 text-center text-sm text-muted-foreground">
-                Nenhum atendimento vinculado a este equipamento.
-              </p>
-            ) : (
-              <div className="relative space-y-3 pl-4 before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-gradient-to-b before:from-sky-400 before:via-amber-300 before:to-emerald-400">
-                {history.map((item) => {
-                  const when = item.starts_at || item.created_at;
-                  return (
-                    <div
-                      key={item.service_order_id}
-                      className="relative rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-sm"
-                      data-testid={`equipment-history-${item.service_order_id}`}
-                    >
-                      <span className="absolute -left-[13px] top-4 h-2.5 w-2.5 rounded-full border-2 border-white bg-sky-500" />
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        {onOpenOrder ? (
-                          <button
-                            type="button"
-                            className="font-mono text-base font-bold text-sky-700 hover:underline"
-                            onClick={() => onOpenOrder(item.service_order_id)}
-                            data-testid={`equipment-history-open-${item.service_order_id}`}
-                          >
-                            {item.code}
-                          </button>
-                        ) : (
-                          <span className="font-mono text-base font-bold">{item.code}</span>
-                        )}
-                        <span className="text-xs text-slate-500">
-                          {formatDay(when, true)}
-                        </span>
-                      </div>
-                      <p className="mt-1 font-medium text-slate-800">{item.service_name || 'Serviço não informado'}</p>
-                      <p className="text-slate-500">{item.responsible_name || 'Sem técnico'}</p>
-                      {item.solution && <p className="mt-1 text-slate-600">{item.solution}</p>}
-                      {(item.client_report || item.diagnosis) && (
-                        <p className="mt-1 text-slate-500">{item.client_report || item.diagnosis}</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
         </div>
       </DialogContent>
     </Dialog>

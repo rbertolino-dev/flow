@@ -75,16 +75,31 @@ export interface EquipmentFilters {
   search?: string;
 }
 
+export interface EquipmentHistoryLine {
+  item_type: 'product' | 'service';
+  name: string;
+  quantity: number;
+  unit?: string | null;
+  notes?: string | null;
+}
+
 export interface EquipmentServiceHistoryItem {
   service_order_id: string;
   code: string;
   starts_at?: string | null;
   created_at: string;
   responsible_name?: string | null;
+  collaborator_name?: string | null;
   service_name?: string | null;
   solution?: string | null;
   client_report?: string | null;
   diagnosis?: string | null;
+  execution_summary?: string | null;
+  equipment_conditions?: string | null;
+  is_closed?: boolean;
+  status_name?: string | null;
+  status_color?: string | null;
+  items: EquipmentHistoryLine[];
 }
 
 /** Rótulo exibido quando o nome do equipamento está vazio */
