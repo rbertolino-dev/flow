@@ -280,7 +280,7 @@ export function EquipmentDetailDialog({
             </p>
           )}
 
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_168px]">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
             <div className="flex flex-col justify-between gap-3">
               <div className={`rounded-2xl border px-4 py-3 ${warrantyLook?.card || 'border-slate-200 bg-slate-50 text-slate-800'}`}>
                 <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide opacity-70">
@@ -308,13 +308,17 @@ export function EquipmentDetailDialog({
               </div>
             </div>
 
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-3 text-center shadow-sm">
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-sky-100 bg-sky-50/60 p-3 text-center shadow-sm">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-sky-800">Cole no aparelho</p>
               {qrUrl ? (
-                <img src={qrUrl} alt="QR code do equipamento" className="h-28 w-28" />
+                <img src={qrUrl} alt="QR para abrir este equipamento no celular" className="mt-2 h-28 w-28 rounded-lg bg-white p-1" />
               ) : (
-                <QrCode className="h-16 w-16 text-slate-300" />
+                <QrCode className="mt-2 h-16 w-16 text-slate-300" />
               )}
-              <p className="mt-1 text-[11px] font-medium text-slate-500">Abre este equipamento</p>
+              <p className="mt-2 text-sm font-semibold text-slate-800">Abre este cadastro</p>
+              <p className="mt-1 text-[11px] leading-snug text-slate-600">
+                Quem apontar a câmera entra neste equipamento, com cliente, anexos e histórico de ordens.
+              </p>
               <Button
                 type="button"
                 variant="ghost"
@@ -330,7 +334,7 @@ export function EquipmentDetailDialog({
                 }}
               >
                 <Download className="mr-1 h-3.5 w-3.5" />
-                Baixar QR
+                Baixar para imprimir
               </Button>
             </div>
           </div>
