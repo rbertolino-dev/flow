@@ -304,11 +304,11 @@ export const STANDARD_TEMPLATE_FIELDS: Array<{
   include_in_pdf?: boolean;
 }> = [
   { field_key: 'lead_id', label: 'Contato / Cliente', field_type: 'lead', is_required: true, section: 'pessoas', sort_order: 10 },
-  { field_key: 'responsible_name', label: 'Responsável', field_type: 'user', is_required: false, section: 'pessoas', sort_order: 20 },
-  { field_key: 'collaborator_name', label: 'Colaborador', field_type: 'user', is_required: false, section: 'pessoas', sort_order: 30 },
-  { field_key: 'service_name', label: 'Serviço', field_type: 'service', is_required: false, section: 'pessoas', sort_order: 40 },
+  { field_key: 'responsible_name', label: 'Responsável', field_type: 'user', is_required: true, section: 'pessoas', sort_order: 20 },
+  { field_key: 'collaborator_name', label: 'Colaborador', field_type: 'user', is_required: true, section: 'pessoas', sort_order: 30 },
+  { field_key: 'service_name', label: 'Serviço', field_type: 'service', is_required: true, section: 'pessoas', sort_order: 40 },
   { field_key: 'is_single_day', label: 'Um dia só', field_type: 'boolean', is_required: false, section: 'agenda', sort_order: 50 },
-  { field_key: 'starts_at', label: 'Data início', field_type: 'datetime', is_required: false, section: 'agenda', sort_order: 60 },
+  { field_key: 'starts_at', label: 'Previsão da execução', field_type: 'datetime', is_required: true, section: 'agenda', sort_order: 60 },
   { field_key: 'ends_at', label: 'Data fim', field_type: 'datetime', is_required: false, section: 'agenda', sort_order: 70 },
   { field_key: 'address', label: 'Endereço', field_type: 'text', is_required: false, section: 'local', sort_order: 100 },
   { field_key: 'client_report', label: 'Relato do cliente', field_type: 'textarea', is_required: false, section: 'descricao', sort_order: 130 },
@@ -318,6 +318,27 @@ export const STANDARD_TEMPLATE_FIELDS: Array<{
   { field_key: 'add_to_agilize_calendar', label: 'Adicionar à Agenda Agilize', field_type: 'boolean', is_required: false, section: 'integracao', sort_order: 170, include_in_pdf: false },
   { field_key: 'add_to_google_calendar', label: 'Adicionar ao Google Agenda', field_type: 'boolean', is_required: false, section: 'integracao', sort_order: 180, include_in_pdf: false },
 ];
+
+export const REQUIRED_SERVICE_ORDER_FIELDS = new Set([
+  'responsible_name',
+  'collaborator_name',
+  'service_name',
+  'starts_at',
+]);
+
+export function serviceOrderRequiredMessage(form: {
+  responsible_user_id?: string | null;
+  collaborator_user_id?: string | null;
+  service_name?: string | null;
+  service_id?: string | null;
+  starts_at?: string | null;
+}): string | null {
+  if (!(form.responsible_user_id || '').trim()) return 'Selecione o responsável.';
+  if (!(form.collaborator_user_id || '').trim()) return 'Selecione o colaborador.';
+  if (!(form.service_id || '').trim() && !(form.service_name || '').trim()) return 'Selecione o serviço.';
+  if (!(form.starts_at || '').trim()) return 'Informe a previsão da execução.';
+  return null;
+}
 
 const HIDDEN_ON_DEFAULT_TEMPLATE = new Set(['equipment_serial', 'equipment_conditions']);
 const REMOVED_TEMPLATE_FIELDS = new Set(['has_commission', 'commission_value']);

@@ -56,7 +56,7 @@ import { EquipmentsTab } from '@/components/service-orders/EquipmentsTab';
 import { ServiceOrdersAgenda } from '@/components/service-orders/ServiceOrdersAgenda';
 import { ServiceOrderFormData, ServiceOrder, ServiceOrderCloseData } from '@/types/serviceOrder';
 import { maintenanceMarkLabel } from '@/lib/serviceOrderMaintenance';
-import { format } from 'date-fns';
+import { executionDurationLabel, formatServiceOrderMoment } from '@/lib/serviceOrderDuration';
 import { useToast } from '@/hooks/use-toast';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import {
@@ -90,13 +90,6 @@ function MaintenanceMark({ order }: { order: ServiceOrder }) {
       {label}
     </Badge>
   );
-}
-
-function formatDateRange(startsAt?: string | null, endsAt?: string | null) {
-  if (!startsAt && !endsAt) return '—';
-  const s = startsAt ? format(new Date(startsAt), 'dd/MM/yy') : '—';
-  const e = endsAt ? format(new Date(endsAt), 'dd/MM/yy') : s;
-  return s === e ? s : `${s} - ${e}`;
 }
 
 export default function ServiceOrders() {
@@ -791,7 +784,12 @@ export default function ServiceOrders() {
                         {order.client_name || order.lead?.name || 'Sem cliente'}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {order.service_name || 'Serviço'} · {formatDateRange(order.starts_at, order.ends_at)}
+                        {order.service_name || 'Serviço'} · {formatServiceOrderMoment(order.starts_at) || 'Sem previsão'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {order.closed_at
+                          ? `Encerrada ${formatServiceOrderMoment(order.closed_at)} · ${executionDurationLabel(order.starts_at, order.closed_at)}`
+                          : 'Em aberto'}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
                         {order.responsible_name || 'Sem responsável'}
@@ -830,7 +828,7 @@ export default function ServiceOrders() {
                 <TableRow>
                   <TableHead>Código</TableHead>
                   <TableHead>Responsável</TableHead>
-                  <TableHead>Data</TableHead>
+                  <TableHead>Previsão</TableHead>
                   <TableHead>Serviço</TableHead>
                   <TableHead>Diagnóstico</TableHead>
                   <TableHead>Cliente</TableHead>
@@ -854,7 +852,17 @@ export default function ServiceOrders() {
                       </div>
                     </TableCell>
                     <TableCell>{order.responsible_name || '—'}</TableCell>
-                    <TableCell>{formatDateRange(order.starts_at, order.ends_at)}</TableCell>
+                    <TableCell>
+                      <div>{formatServiceOrderMoment(order.starts_at) || '—'}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {order.closed_at
+                          ? `Encerrada ${formatServiceOrderMoment(order.closed_at)}`
+                          : 'Em aberto'}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {executionDurationLabel(order.starts_at, order.closed_at)}
+                      </div>
+                    </TableCell>
                     <TableCell>{order.service_name || '—'}</TableCell>
                     <TableCell className="max-w-[180px] truncate">
                       {order.diagnosis || 'Diagnóstico/Problema'}

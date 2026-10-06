@@ -7,6 +7,7 @@ import {
   ServiceOrderFormData,
   ServiceOrderItem,
   ServiceOrderChecklistItem,
+  serviceOrderRequiredMessage,
 } from '@/types/serviceOrder';
 import {
   addMaintenanceInterval,
@@ -262,6 +263,11 @@ export function useServiceOrders(
     options?: { quiet?: boolean; skipRefetch?: boolean; skipStock?: boolean }
   ): Promise<ServiceOrder | null> => {
     if (!activeOrgId) return null;
+    const requiredMessage = serviceOrderRequiredMessage(form);
+    if (requiredMessage) {
+      toast({ title: 'Campos obrigatórios', description: requiredMessage, variant: 'destructive' });
+      return null;
+    }
 
     try {
       const {
@@ -797,8 +803,11 @@ export function useServiceOrders(
       client_name: source.client_name ? `${source.client_name} (cópia)` : undefined,
       client_phone: source.client_phone || undefined,
       responsible_name: source.responsible_name || undefined,
+      responsible_user_id: source.responsible_user_id || undefined,
       collaborator_name: source.collaborator_name || undefined,
+      collaborator_user_id: source.collaborator_user_id || undefined,
       service_name: source.service_name || undefined,
+      service_id: source.service_id || undefined,
       starts_at: source.starts_at || undefined,
       ends_at: source.ends_at || undefined,
       is_single_day: source.is_single_day,

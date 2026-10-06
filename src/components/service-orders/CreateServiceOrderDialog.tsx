@@ -27,6 +27,9 @@ import {
   ServiceOrderStatus,
   ServiceOrderTemplateField,
   ServiceOrder,
+  STANDARD_TEMPLATE_FIELDS,
+  REQUIRED_SERVICE_ORDER_FIELDS,
+  serviceOrderRequiredMessage,
   normalizeTableConfig,
 } from '@/types/serviceOrder';
 import { ServiceOrderProductsStep } from './ServiceOrderProductsStep';
@@ -146,15 +149,42 @@ export function CreateServiceOrderDialog({
   const [orgUsers, setOrgUsers] = useState<Array<{ id: string; name: string }>>([]);
 
   const template = templates.find((t) => t.id === templateId) || defaultTemplate;
-  const visibleFields = useMemo(
-    () =>
-      (template?.fields || [])
-        .filter((f) => f.is_visible)
-        .filter((f) => !REMOVED_FIELD_KEYS.has(f.field_key))
-        .filter((f) => !(template?.is_default && DEFAULT_HIDDEN_KEYS.has(f.field_key)))
-        .sort((a, b) => a.sort_order - b.sort_order),
-    [template]
-  );
+  const visibleFields = useMemo(() => {
+    const base = [...(template?.fields || [])];
+    const keys = new Set(base.map((field) => field.field_key));
+    for (const standard of STANDARD_TEMPLATE_FIELDS) {
+      if (!REQUIRED_SERVICE_ORDER_FIELDS.has(standard.field_key) || keys.has(standard.field_key)) continue;
+      base.push({
+        id: `required-${standard.field_key}`,
+        template_id: template?.id || '',
+        organization_id: '',
+        field_key: standard.field_key,
+        label: standard.label,
+        field_type: standard.field_type,
+        is_standard: true,
+        is_required: true,
+        is_visible: true,
+        sort_order: standard.sort_order,
+        section: standard.section,
+        created_at: '',
+      });
+    }
+    return base
+      .map((field) =>
+        REQUIRED_SERVICE_ORDER_FIELDS.has(field.field_key)
+          ? {
+              ...field,
+              is_required: true,
+              is_visible: true,
+              label: field.field_key === 'starts_at' ? 'Previsão da execução' : field.label,
+            }
+          : field
+      )
+      .filter((field) => field.is_visible)
+      .filter((field) => !REMOVED_FIELD_KEYS.has(field.field_key))
+      .filter((field) => !(template?.is_default && DEFAULT_HIDDEN_KEYS.has(field.field_key)))
+      .sort((a, b) => a.sort_order - b.sort_order);
+  }, [template]);
 
   useEffect(() => {
     if (!open || !activeOrgId) return;
@@ -730,6 +760,12 @@ export function CreateServiceOrderDialog({
 
   const handleFinalize = async () => {
     setSaving(true);
+    const requiredMessage = serviceOrderRequiredMessage(form);
+    if (requiredMessage) {
+      toast({ title: 'Campos obrigatórios', description: requiredMessage, variant: 'destructive' });
+      setSaving(false);
+      return;
+    }
     const toIso = (v?: string) => {
       if (!v) return undefined;
       const d = new Date(v);

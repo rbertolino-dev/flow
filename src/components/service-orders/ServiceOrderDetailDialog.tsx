@@ -27,6 +27,7 @@ import { ptBR } from 'date-fns/locale';
 import { ServiceOrder, ServiceOrderLog } from '@/types/serviceOrder';
 import { Equipment, equipmentDisplayName } from '@/types/equipment';
 import { maintenanceMarkLabel } from '@/lib/serviceOrderMaintenance';
+import { executionDurationLabel, formatServiceOrderMoment } from '@/lib/serviceOrderDuration';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchEquipmentsForOrder } from '@/hooks/useEquipments';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
@@ -196,9 +197,25 @@ export function ServiceOrderDetailDialog({
               <span>{order.responsible_name || '—'}</span>
             </div>
 
-            <div className="flex items-center gap-2 text-sm">
-              <CalendarClock className="h-4 w-4 text-primary shrink-0" />
-              <span>{formatRange(order.starts_at, order.ends_at)}</span>
+            <div className="flex items-start gap-2 text-sm">
+              <CalendarClock className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <p>
+                  <span className="text-muted-foreground">Previsão da execução: </span>
+                  {formatServiceOrderMoment(order.starts_at) || '—'}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Encerramento: </span>
+                  {order.closed_at ? formatServiceOrderMoment(order.closed_at) : 'Em aberto'}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Tempo: </span>
+                  {executionDurationLabel(order.starts_at, order.closed_at)}
+                </p>
+                {order.ends_at && (
+                  <p className="text-muted-foreground">{formatRange(order.starts_at, order.ends_at)}</p>
+                )}
+              </div>
             </div>
 
             <div className="text-sm">
