@@ -50,12 +50,14 @@ export function PosCreateClientDialog({
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [phoneError, setPhoneError] = useState("");
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
     if (!open) {
       setForm(emptyForm);
       setExpanded(false);
+      setPhoneError("");
     }
   }, [open]);
 
@@ -64,18 +66,19 @@ export function PosCreateClientDialog({
   };
 
   const handleCreate = async () => {
-    if (!form.name.trim() || !form.phone.trim()) {
-      toast({ title: "Informe nome e telefone", variant: "destructive" });
+    if (!form.name.trim()) {
+      toast({ title: "Informe o nome", variant: "destructive" });
+      return;
+    }
+    if (!form.phone.trim()) {
+      setPhoneError("Telefone é obrigatório.");
       return;
     }
     if (!isValidBrazilianPhone(form.phone)) {
-      toast({
-        title: "Telefone inválido",
-        description: "Use DDD + número, com 10 ou 11 dígitos.",
-        variant: "destructive",
-      });
+      setPhoneError("Use DDD + número, com 10 ou 11 dígitos.");
       return;
     }
+    setPhoneError("");
 
     const cpfCnpjClean = form.cpfCnpj.replace(/\D/g, "");
     if (cpfCnpjClean && cpfCnpjClean.length !== 11 && cpfCnpjClean.length !== 14) {
@@ -159,7 +162,7 @@ export function PosCreateClientDialog({
         <DialogHeader className="px-6 pt-6">
           <DialogTitle>Novo cliente</DialogTitle>
           <DialogDescription>
-            Nome e telefone bastam para a venda. Os demais dados podem ser preenchidos agora.
+            O telefone é obrigatório. Os demais dados podem ser preenchidos agora.
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4">
@@ -168,12 +171,21 @@ export function PosCreateClientDialog({
             <Input value={form.name} onChange={(e) => setField("name", e.target.value)} autoFocus />
           </div>
           <div className="space-y-1">
-            <Label>Telefone *</Label>
+            <Label htmlFor="pdv-client-phone">Telefone *</Label>
             <Input
+              id="pdv-client-phone"
               value={form.phone}
-              onChange={(e) => setField("phone", e.target.value)}
+              onChange={(e) => {
+                setField("phone", e.target.value);
+                if (phoneError) setPhoneError("");
+              }}
               placeholder="(11) 98765-4321"
+              required
+              aria-required="true"
+              aria-invalid={phoneError ? true : undefined}
+              autoComplete="tel"
             />
+            {phoneError && <p className="text-sm text-destructive">{phoneError}</p>}
           </div>
           <div className="space-y-1">
             <Label>E-mail</Label>
@@ -285,7 +297,13 @@ export function PosCreateClientDialog({
         </div>
         <DialogFooter className="border-t px-6 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={handleCreate} disabled={saving}>{saving ? "Salvando..." : "Criar cliente"}</Button>
+          <Button
+            type="button"
+            onClick={() => void handleCreate()}
+            disabled={saving || !form.name.trim() || !form.phone.trim()}
+          >
+            {saving ? "Salvando..." : "Criar cliente"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
