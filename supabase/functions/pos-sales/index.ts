@@ -946,6 +946,14 @@ serve(async (req) => {
           AND COALESCE(s.sold_at, s.created_at) <= $3::timestamptz
           ${periodSql}
         `;
+        const budgetWhere = `
+          s.organization_id = $1
+          AND s.status = 'completed'
+          AND s.sale_origin = 'orcamento'
+          AND COALESCE(s.sold_at, s.created_at) >= $2::timestamptz
+          AND COALESCE(s.sold_at, s.created_at) <= $3::timestamptz
+          ${periodSql}
+        `;
         const params = [organizationId, dateFrom, dateTo];
         const asNumber = (value: unknown) => {
           const n = Number(value);
@@ -1035,6 +1043,18 @@ serve(async (req) => {
           rows: categories.rows.filter((row) => row.item_type === "service"),
         };
 
+        const budgetSales = await pg.queryObject<{ amount: string | number }>(
+          `SELECT COALESCE(SUM(sp.amount), 0)::numeric AS amount
+           FROM pos_sale_payments sp
+           JOIN pos_sales s ON s.id = sp.sale_id
+           WHERE ${budgetWhere}`,
+          params
+        );
+        const budgetAmount = asNumber(budgetSales.rows[0]?.amount);
+        const otherEntries = budgetAmount > 0.009
+          ? [{ description: "Orçamento", amount: budgetAmount }]
+          : [];
+
         return json({
           data: {
             payments: payments.rows.map((row) => ({
@@ -1051,7 +1071,7 @@ serve(async (req) => {
               quantity: asNumber(row.quantity),
               amount: asNumber(row.amount),
             })),
-            other_entries: [] as Array<{ description: string; amount: number }>,
+            other_entries: otherEntries,
           },
         });
       }

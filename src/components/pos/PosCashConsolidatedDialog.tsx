@@ -221,8 +221,8 @@ export function PosCashConsolidatedDialog({
           <section className="space-y-2">
             <h3 className="text-base font-medium">Formas de Pagamento</h3>
             <p className="text-sm text-muted-foreground">
-              Valor recebido em cada forma. Venda paga em mais de uma entra dividida, igual ao
-              filtro do histórico.
+              Valor recebido em cada forma no PDV. Venda paga em mais de uma entra dividida, igual
+              ao filtro do histórico. Venda vinda de orçamento fica em Outras entradas.
             </p>
             {report?.payments.length ? (
               report.payments.map((row) => (
@@ -274,6 +274,11 @@ export function PosCashConsolidatedDialog({
               Outras Entradas
               {othersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
+            <p className="text-sm text-muted-foreground">
+              Orçamento entra aqui, com esse nome, e continua na soma desta seção. A ordem de
+              serviço não é uma segunda cobrança: o serviço vendido no balcão permanece em Vendas
+              de serviços.
+            </p>
             {othersOpen ? (
               report?.other_entries.length ? (
                 report.other_entries.map((row) => (
