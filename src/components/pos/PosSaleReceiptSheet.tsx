@@ -889,11 +889,23 @@ export function PosSaleReceiptSheet({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir venda?</AlertDialogTitle>
-            <AlertDialogDescription>
-              A venda #{sale?.sale_number} sai do histórico, o estoque dos
-              produtos volta e o lançamento financeiro é estornado. Ela fica em
-              Vendas excluídas e pode ser reativada. Se houver nota fiscal
-              autorizada, cancele a nota antes.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  A venda #{sale?.sale_number} sai deste histórico e fica em
+                  Vendas excluídas, de onde pode ser reativada.
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">Estoque.</span>{" "}
+                  Volta a quantidade que esta venda tinha retirado, inclusive o
+                  produto entregue numa troca. Venda que não baixou estoque,
+                  como um orçamento sem baixa, permanece sem movimento.
+                </p>
+                <p>
+                  O financeiro desta venda é estornado. Se houver nota fiscal
+                  autorizada, cancele a nota antes de excluir.
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -915,9 +927,19 @@ export function PosSaleReceiptSheet({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Reativar venda?</AlertDialogTitle>
-            <AlertDialogDescription>
-              A venda #{sale?.sale_number} volta para o histórico, o estoque é
-              baixado de novo e o financeiro estornado é reaberto.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>A venda #{sale?.sale_number} volta para o histórico.</p>
+                <p>
+                  <span className="font-medium text-foreground">Estoque.</span>{" "}
+                  Sai de novo só a quantidade que a exclusão devolveu. Uma
+                  devolução ou troca feita antes da exclusão permanece como
+                  estava. Venda que nunca baixou estoque continua sem baixa. Se
+                  faltar produto e o PDV bloquear estoque negativo, a reativação
+                  é recusada.
+                </p>
+                <p>O financeiro estornado é reaberto.</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

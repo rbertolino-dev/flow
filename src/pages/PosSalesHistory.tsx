@@ -743,9 +743,17 @@ export default function PosSalesHistory() {
           <DialogHeader>
             <DialogTitle>Reativar venda #{reactivateTarget?.sale_number}?</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            A venda volta para o histórico, o estoque é baixado de novo e o financeiro estornado é reaberto.
-          </p>
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <p>A venda volta para o histórico.</p>
+            <p>
+              <span className="font-medium text-foreground">Estoque.</span> Sai
+              de novo só a quantidade que a exclusão devolveu. Uma devolução ou
+              troca feita antes da exclusão permanece como estava. Venda que
+              nunca baixou estoque continua sem baixa. Se faltar produto e o PDV
+              bloquear estoque negativo, a reativação é recusada.
+            </p>
+            <p>O financeiro estornado é reaberto.</p>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setReactivateTarget(null)}>
               Cancelar
