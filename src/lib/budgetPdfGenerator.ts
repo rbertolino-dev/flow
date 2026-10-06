@@ -132,7 +132,6 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     item: {
       name?: string;
       description?: string;
-      internal_notes?: string;
       image_url?: string;
       price?: number;
       quantity?: number;
@@ -155,9 +154,7 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     const nameLines = doc.splitTextToSize(item.name || '', textWidth);
-    const savedDescription = (item.description || '').trim();
-    const typedDescription = (item.internal_notes || '').trim();
-    const detail = [savedDescription, typedDescription].filter(Boolean).join('\n');
+    const detail = (item.description || '').trim();
     doc.setFontSize(7);
     const detailLines = detail ? doc.splitTextToSize(detail, textWidth) : [];
 
@@ -564,7 +561,11 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
       if (checkNewPage(lineHeight * 6)) {
         yPosition += lineHeight * 0.4;
       }
-      await drawItemBody(product, showProductSubtotals, rowIndex % 2 === 0);
+      await drawItemBody(
+        { ...product, description: (product as { internal_notes?: string }).internal_notes || '' },
+        showProductSubtotals,
+        rowIndex % 2 === 0
+      );
 
       rowIndex++;
     }

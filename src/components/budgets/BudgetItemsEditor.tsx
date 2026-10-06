@@ -782,20 +782,22 @@ export function BudgetItemsEditor({
                       <Label className="text-[11px] text-muted-foreground">Descrição do cadastro</Label>
                       <Textarea
                         value={product.description || ''}
-                        onChange={(event) => updateProduct(index, { description: event.target.value })}
-                        placeholder="Descrição salva do produto"
+                        readOnly
+                        placeholder="Sem descrição no cadastro"
                         rows={2}
+                        className="bg-slate-50"
                       />
+                      <p className="text-[11px] text-muted-foreground">Esta descrição não sai no PDF.</p>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[11px] text-muted-foreground">Descrição digitada</Label>
+                      <Label className="text-[11px] text-muted-foreground">Descrição do orçamento</Label>
                       <Textarea
                         value={product.internal_notes || ''}
                         onChange={(event) => updateProduct(index, { internal_notes: event.target.value })}
-                        placeholder="Digite aqui a descrição que deve sair no PDF"
+                        placeholder="Digite a descrição que deve sair no PDF"
                         rows={2}
                       />
-                      <p className="text-[11px] text-muted-foreground">Este texto sai no PDF, junto com a descrição do cadastro.</p>
+                      <p className="text-[11px] text-muted-foreground">Só este texto sai no PDF.</p>
                     </div>
                     {product.image_url ? (
                       <img
