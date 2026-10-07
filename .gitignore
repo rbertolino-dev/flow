@@ -61,6 +61,7 @@ scripts/ver-logs-*.sh
 *.md
 !extensions/agilize-crm-sidekick/README.md
 !docs/INCIDENTE-*.md
+!docs/PDV-TESTES-PUBDIGITAL.md
 *.txt
 scripts/diagnosticar-*.sql
 tmp/
