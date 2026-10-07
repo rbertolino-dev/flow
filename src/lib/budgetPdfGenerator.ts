@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { jsPDF } from 'jspdf';
 import { fitImageInBox, loadImageForBudgetPdf } from '@/lib/budgetPdfImage';
 import { organizationNameForDocuments } from '@/lib/organizationDisplayName';
+import { productPdfDescription } from '@/lib/budgetItemDescription';
 
 /** Helvetica do jsPDF só aceita WinAnsi. Marcadores como ● derrubam a geração do PDF. */
 function pdfSafeText(value: string): string {
@@ -562,7 +563,7 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
         yPosition += lineHeight * 0.4;
       }
       await drawItemBody(
-        { ...product, description: (product as { internal_notes?: string }).internal_notes || '' },
+        { ...product, description: productPdfDescription(product) },
         showProductSubtotals,
         rowIndex % 2 === 0
       );

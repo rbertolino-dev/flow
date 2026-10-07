@@ -52,6 +52,60 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
+function ProductDescriptionChoice({
+  product,
+  catalogText,
+  onUseCatalog,
+  onUseCustom,
+  onCustomText,
+}: {
+  product: BudgetProduct;
+  catalogText: string;
+  onUseCatalog: (catalogText: string) => void;
+  onUseCustom: () => void;
+  onCustomText: (value: string) => void;
+}) {
+  const source = product.description_source === 'catalog' ? 'catalog' : 'custom';
+  const optionClass = (active: boolean) =>
+    `rounded-md px-2 py-1 text-[11px] font-medium ${
+      active ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+    }`;
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-[11px] text-muted-foreground">Descrição</Label>
+        {product.isManual ? null : (
+          <div className="flex rounded-md bg-slate-100 p-0.5">
+            <button type="button" className={optionClass(source === 'catalog')} onClick={() => onUseCatalog(catalogText)}>
+              Do estoque
+            </button>
+            <button type="button" className={optionClass(source === 'custom')} onClick={onUseCustom}>
+              Deste orçamento
+            </button>
+          </div>
+        )}
+      </div>
+      {source === 'catalog' ? (
+        <Textarea
+          value={catalogText}
+          readOnly
+          placeholder="Sem descrição no estoque"
+          rows={2}
+          className="bg-slate-50"
+        />
+      ) : (
+        <Textarea
+          value={product.internal_notes || ''}
+          onChange={(event) => onCustomText(event.target.value)}
+          placeholder="Descrição só deste orçamento"
+          rows={2}
+        />
+      )}
+    </div>
+  );
+}
+
 export function BudgetItemsEditor({
   products,
   services,
@@ -160,6 +214,7 @@ export function BudgetItemsEditor({
           image_url: product.image_url,
           line_discount: 0,
           internal_notes: '',
+          description_source: 'custom',
           price: unitPrice,
           quantity: qty,
           subtotal: unitPrice * qty,
@@ -222,6 +277,7 @@ export function BudgetItemsEditor({
         description: '',
         line_discount: 0,
         internal_notes: '',
+        description_source: 'custom',
         price,
         quantity,
         subtotal: price * quantity,
@@ -269,7 +325,7 @@ export function BudgetItemsEditor({
 
   const updateProduct = (
     index: number,
-    patch: Partial<Pick<BudgetProduct, 'quantity' | 'price' | 'line_discount' | 'description' | 'internal_notes'>>
+    patch: Partial<Pick<BudgetProduct, 'quantity' | 'price' | 'line_discount' | 'description' | 'internal_notes' | 'description_source'>>
   ) => {
     const next = [...products];
     const product = { ...next[index], ...patch };
@@ -778,26 +834,24 @@ export function BudgetItemsEditor({
                 </div>
                 {detailedProducts ? (
                   <div className="space-y-2">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <Label className="text-[11px] text-muted-foreground">Descrição</Label>
-                        {product.description ? (
-                          <button
-                            type="button"
-                            className="text-[11px] font-medium text-blue-700 hover:underline"
-                            onClick={() => updateProduct(index, { internal_notes: product.description || '' })}
-                          >
-                            Usar do cadastro
-                          </button>
-                        ) : null}
-                      </div>
-                      <Textarea
-                        value={product.internal_notes || ''}
-                        onChange={(event) => updateProduct(index, { internal_notes: event.target.value })}
-                        placeholder="Digite a descrição ou use a do cadastro"
-                        rows={2}
-                      />
-                    </div>
+                    <ProductDescriptionChoice
+                      product={product}
+                      catalogText={
+                        availableProducts.find((item) => item.id === product.id)?.description ||
+                        (!product.isManual ? product.description : '') ||
+                        ''
+                      }
+                      onUseCatalog={(catalogText) =>
+                        updateProduct(index, {
+                          description_source: 'catalog',
+                          description: catalogText,
+                        })
+                      }
+                      onUseCustom={() => updateProduct(index, { description_source: 'custom' })}
+                      onCustomText={(value) =>
+                        updateProduct(index, { description_source: 'custom', internal_notes: value })
+                      }
+                    />
                     {product.image_url ? (
                       <img
                         src={product.image_url}

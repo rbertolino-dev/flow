@@ -10,8 +10,10 @@ export interface BudgetProduct {
   image_url?: string;
   /** Desconto em reais nesta linha (reduz o subtotal do item). */
   line_discount?: number;
-  /** Descrição deste orçamento. Pode ser digitada ou copiada do cadastro. É o que entra no PDF. */
+  /** Texto só deste orçamento. Não altera a descrição do produto no estoque. */
   internal_notes?: string;
+  /** catalog = PDF usa a descrição do estoque. custom = PDF usa internal_notes. */
+  description_source?: 'catalog' | 'custom';
   // Se foi adicionado manualmente (não do banco)
   isManual?: boolean;
 }

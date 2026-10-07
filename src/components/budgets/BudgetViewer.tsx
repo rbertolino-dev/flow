@@ -1,4 +1,5 @@
 import { Budget } from '@/types/budget-module';
+import { productPdfDescription } from '@/lib/budgetItemDescription';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -168,13 +169,15 @@ export function BudgetViewer({
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {budget.products.map((product, index) => (
+              {budget.products.map((product, index) => {
+                const lineDescription = productPdfDescription(product);
+                return (
                 <div key={index} className="flex justify-between items-center py-2 border-b last:border-b-0">
                   <div>
                     <p className="font-medium">{product.name}</p>
-                    {product.description && (
-                      <p className="text-sm text-muted-foreground">{product.description}</p>
-                    )}
+                    {lineDescription ? (
+                      <p className="text-sm text-muted-foreground">{lineDescription}</p>
+                    ) : null}
                   </div>
                   <div className="text-right">
                     <p className="font-medium">{formatCurrency(product.subtotal)}</p>
@@ -183,7 +186,8 @@ export function BudgetViewer({
                     </p>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
