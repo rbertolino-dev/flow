@@ -87,13 +87,21 @@ test.describe("@human-behavior App dashboard Flow — telefone 21966224051", () 
     if (await orderBtn.isVisible().catch(() => false)) {
       await human.humanClick(orderBtn);
       await human.randomDelay(500, 900);
-      // Serviços em destaque; produtos recolhidos
-      const services = page.locator(".service-focus, h3:has-text('Serviços')").first();
-      await expect(services).toBeVisible({ timeout: 5000 });
-      const productsFold = page.locator("#osProductsFold, details.fold").first();
-      if (await productsFold.isVisible().catch(() => false)) {
-        const open = await productsFold.getAttribute("open");
-        expect(open === null || open === "").toBeTruthy();
+      await expect(page.locator("#order, form#order").first()).toBeVisible({ timeout: 5000 });
+      // Modelo precisa ser escolhido para liberar produtos/serviços
+      const template = page.locator("#osTemplate");
+      if (await template.isVisible().catch(() => false)) {
+        const options = await template.locator("option").count();
+        if (options > 1) {
+          await template.selectOption({ index: 1 });
+          await human.randomDelay(400, 700);
+          const services = page.locator(".service-focus").first();
+          await expect(services).toBeVisible({ timeout: 5000 });
+          const productsFold = page.locator("#osProductsFold").first();
+          if (await productsFold.count()) {
+            expect(await productsFold.getAttribute("open")).toBeFalsy();
+          }
+        }
       }
     }
 
