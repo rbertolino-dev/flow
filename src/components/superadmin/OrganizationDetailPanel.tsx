@@ -103,6 +103,7 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
   const [resetTarget, setResetTarget] = useState<Member | null>(null);
   const [permissionUser, setPermissionUser] = useState<Member | null>(null);
   const [confirm, setConfirm] = useState<null | "deactivate" | "sales" | "receber" | "pagar">(null);
+  const [systemAdminTarget, setSystemAdminTarget] = useState<Member | null>(null);
   const [showLimits, setShowLimits] = useState(false);
   const [moduleUsage, setModuleUsage] = useState<OrgModuleUsage[]>([]);
   const selectedPlanRef = useRef<HTMLButtonElement>(null);
@@ -279,19 +280,61 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
     }
   };
 
-  const toggleAdmin = async (member: Member) => {
-    const isAdmin = member.role === "admin" || member.role === "owner";
-    const nextRole = isAdmin ? "member" : "admin";
+  const isSystemAdminMember = (member: Member) =>
+    (member.user_roles ?? []).some((role) => role.role === "admin");
+
+  const toggleCompanyAdmin = async (member: Member) => {
+    const isCompanyAdmin = member.role === "admin" || member.role === "owner";
+    const nextRole = isCompanyAdmin ? "member" : "admin";
     const { error } = await supabase
       .from("organization_members")
       .update({ role: nextRole })
       .eq("organization_id", organization.id)
       .eq("user_id", member.user_id);
     if (error) {
-      toast({ title: "Erro ao alterar administrador", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao alterar administrador da empresa", description: error.message, variant: "destructive" });
       return;
     }
+    toast({
+      title: isCompanyAdmin ? "Administrador da empresa removido" : "Administrador da empresa definido",
+      description: "Isso não altera o acesso de Super Admin da plataforma.",
+    });
     onUpdate();
+  };
+
+  const toggleSystemAdmin = async (member: Member) => {
+    const hasSystemAdmin = isSystemAdminMember(member);
+    setSaving(true);
+    try {
+      if (hasSystemAdmin) {
+        const { error } = await supabase
+          .from("user_roles")
+          .delete()
+          .eq("user_id", member.user_id)
+          .eq("role", "admin");
+        if (error) throw error;
+        toast({ title: "Super Admin removido", description: "A pessoa deixa de acessar o painel Super Admin." });
+      } else {
+        const { error } = await supabase
+          .from("user_roles")
+          .insert({ user_id: member.user_id, role: "admin" });
+        if (error) throw error;
+        toast({
+          title: "Super Admin concedido",
+          description: "A pessoa passa a acessar o painel Super Admin e ignora o plano da empresa.",
+        });
+      }
+      onUpdate();
+    } catch (error: unknown) {
+      toast({
+        title: "Erro ao alterar Super Admin",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+      setSystemAdminTarget(null);
+    }
   };
 
   const runConfirmed = async () => {
@@ -509,26 +552,50 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
                     <p className="p-6 text-sm text-muted-foreground">Nenhum usuário nesta empresa.</p>
                   )}
                   {organization.organization_members.map((member) => {
-                    const isAdmin = member.role === "admin" || member.role === "owner";
+                    const isCompanyAdmin = member.role === "admin" || member.role === "owner";
+                    const hasSystemAdmin = isSystemAdminMember(member);
                     return (
-                      <div key={member.user_id} className="grid gap-3 p-3 md:grid-cols-[140px_1fr_1.2fr_90px_1.4fr_90px] md:items-center">
-                        <Button
-                          type="button"
-                          size="sm"
-                          className={isAdmin ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}
-                          onClick={() => void toggleAdmin(member)}
-                        >
-                          {isAdmin ? "Tirar ADM" : "Tornar ADM"}
-                        </Button>
-                        <p className="font-medium text-sm">{member.profiles.full_name || "Sem nome"}</p>
-                        <p className="text-sm break-all">{member.profiles.email}</p>
-                        <p className="text-sm">{isAdmin ? "ADM" : "Normal"}</p>
+                      <div key={member.user_id} className="grid gap-3 p-3 md:grid-cols-[1fr_1.2fr_120px_1.4fr_auto] md:items-center">
+                        <div>
+                          <p className="font-medium text-sm">{member.profiles.full_name || "Sem nome"}</p>
+                          <p className="text-sm break-all text-muted-foreground">{member.profiles.email}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          <span className="rounded bg-muted px-2 py-0.5 text-xs">
+                            {isCompanyAdmin ? "Adm. da empresa" : "Usuário da empresa"}
+                          </span>
+                          {hasSystemAdmin && (
+                            <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-800">
+                              Adm. do sistema
+                            </span>
+                          )}
+                        </div>
                         <button type="button" className="text-left text-xs text-muted-foreground" onClick={() => setPermissionUser(member)}>
                           {permissionLabels(permissionsByUser[member.user_id] ?? []) || "Sem módulos liberados"}
                         </button>
-                        <Button type="button" size="sm" className="bg-blue-700 hover:bg-blue-800" onClick={() => setResetTarget(member)}>
-                          Senha
-                        </Button>
+                        <div className="flex flex-wrap gap-2 md:justify-end">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className={isCompanyAdmin ? "border-red-300 text-red-700" : ""}
+                            onClick={() => void toggleCompanyAdmin(member)}
+                          >
+                            {isCompanyAdmin ? "Tirar adm. da empresa" : "Adm. da empresa"}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={hasSystemAdmin ? "destructive" : "secondary"}
+                            disabled={saving}
+                            onClick={() => setSystemAdminTarget(member)}
+                          >
+                            {hasSystemAdmin ? "Tirar Super Admin" : "Super Admin"}
+                          </Button>
+                          <Button type="button" size="sm" className="bg-blue-700 hover:bg-blue-800" onClick={() => setResetTarget(member)}>
+                            Senha
+                          </Button>
+                        </div>
                       </div>
                     );
                   })}
@@ -597,6 +664,34 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={() => void runConfirmed()}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirmar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!systemAdminTarget} onOpenChange={(next) => { if (!next) setSystemAdminTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {systemAdminTarget && isSystemAdminMember(systemAdminTarget)
+                ? "Remover Super Admin?"
+                : "Tornar Super Admin da plataforma?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {systemAdminTarget && isSystemAdminMember(systemAdminTarget)
+                ? `${systemAdminTarget.profiles.email} deixa de acessar o painel Super Admin.`
+                : `${systemAdminTarget?.profiles.email ?? "Este usuário"} passa a acessar todas as empresas e a ignorar o plano. Use só para a equipe da plataforma.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={saving || !systemAdminTarget}
+              onClick={() => {
+                if (systemAdminTarget) void toggleSystemAdmin(systemAdminTarget);
+              }}
+            >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirmar"}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -25,7 +25,8 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedOrg
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [selectedOrgId, setSelectedOrgId] = useState(preselectedOrgId || "");
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isCompanyAdmin, setIsCompanyAdmin] = useState(false);
+  const [isSystemAdmin, setIsSystemAdmin] = useState(false);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -34,11 +35,13 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedOrg
 
   useEffect(() => {
     if (open) {
-      fetchOrganizations();
+      void fetchOrganizations();
       if (preselectedOrgId) {
         setSelectedOrgId(preselectedOrgId);
       }
     }
+    // fetchOrganizations só precisa rodar ao abrir o diálogo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, preselectedOrgId]);
 
   const fetchOrganizations = async () => {
@@ -93,14 +96,17 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedOrg
           email: email.trim(),
           password: password.trim(),
           fullName: fullName.trim() || email.trim(),
-          isAdmin,
+          isAdmin: isCompanyAdmin,
+          makeSystemAdmin: isSystemAdmin,
           organizationId: selectedOrgId,
         },
       });
 
       if (error) {
         let detailedMessage = error.message || 'Erro ao criar usuário';
-        const contextResponse = (error as any)?.context?.response;
+        const contextResponse = (
+          error as { context?: { response?: { text?: () => Promise<string> } } }
+        )?.context?.response;
         if (contextResponse && typeof contextResponse.text === 'function') {
           try {
             const rawText = await contextResponse.text();
@@ -134,14 +140,15 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedOrg
       setPassword("");
       setFullName("");
       setSelectedOrgId(preselectedOrgId || "");
-      setIsAdmin(false);
+      setIsCompanyAdmin(false);
+      setIsSystemAdmin(false);
       onOpenChange(false);
       onSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao criar usuário:", error);
       toast({
         title: "Erro ao criar usuário",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
@@ -213,16 +220,41 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedOrg
               </Select>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="isAdmin"
-                checked={isAdmin}
-                onCheckedChange={(checked) => setIsAdmin(checked as boolean)}
-                disabled={loading}
-              />
-              <Label htmlFor="isAdmin" className="cursor-pointer">
-                Tornar administrador
-              </Label>
+            <div className="space-y-3 rounded-md border p-3">
+              <div className="flex items-start space-x-2">
+                <Checkbox
+                  id="isCompanyAdmin"
+                  checked={isCompanyAdmin}
+                  onCheckedChange={(checked) => setIsCompanyAdmin(checked === true)}
+                  disabled={loading}
+                  className="mt-0.5"
+                />
+                <div>
+                  <Label htmlFor="isCompanyAdmin" className="cursor-pointer">
+                    Administrador desta empresa
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Gerencia usuários e dados da empresa. Continua sujeito ao plano e aos módulos liberados.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-2">
+                <Checkbox
+                  id="isSystemAdmin"
+                  checked={isSystemAdmin}
+                  onCheckedChange={(checked) => setIsSystemAdmin(checked === true)}
+                  disabled={loading}
+                  className="mt-0.5"
+                />
+                <div>
+                  <Label htmlFor="isSystemAdmin" className="cursor-pointer text-destructive">
+                    Administrador do sistema (Super Admin)
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Acessa o painel Super Admin e ignora o plano da empresa. Use só para a equipe da plataforma.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 

@@ -209,6 +209,7 @@ export default function Users() {
           password: newUserData.password,
           fullName: newUserData.fullName,
           isAdmin: newUserData.isAdmin,
+          makeSystemAdmin: false,
           organizationId: activeOrgId,
         },
       });
@@ -320,19 +321,19 @@ export default function Users() {
 
         if (error) throw error;
         toast({
-          title: "Permissão removida",
-          description: "Usuário removido de administradores",
+          title: "Super Admin removido",
+          description: "Usuário deixou de ser administrador do sistema",
         });
       } else {
-        // Adicionar role de admin
+        // Adicionar role de admin do sistema
         const { error } = await supabase
           .from('user_roles')
           .insert({ user_id: userId, role: 'admin' });
 
         if (error) throw error;
         toast({
-          title: "Permissão concedida",
-          description: "Usuário promovido a administrador",
+          title: "Super Admin concedido",
+          description: "Usuário passou a ser administrador do sistema. Use só para a equipe da plataforma.",
         });
       }
 
@@ -446,9 +447,14 @@ export default function Users() {
                           setNewUserData({ ...newUserData, isAdmin: checked as boolean })
                         }
                       />
-                      <Label htmlFor="isAdmin" className="cursor-pointer">
-                        Tornar administrador
-                      </Label>
+                      <div>
+                        <Label htmlFor="isAdmin" className="cursor-pointer">
+                          Administrador desta empresa
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Não concede Super Admin da plataforma.
+                        </p>
+                      </div>
                     </div>
                   </div>
                   <DialogFooter>
@@ -499,7 +505,7 @@ export default function Users() {
                           {role === 'admin' ? (
                             <>
                               <Shield className="h-3 w-3 mr-1" />
-                              Admin
+                              Adm. do sistema
                             </>
                           ) : (
                             'Usuário'
@@ -541,7 +547,7 @@ export default function Users() {
                           onClick={() => handleToggleAdmin(user.id, user.roles)}
                         >
                           <Shield className="h-4 w-4 mr-1" />
-                          {user.roles.includes('admin') ? 'Remover Admin' : 'Tornar Admin'}
+                          {user.roles.includes('admin') ? 'Tirar Super Admin' : 'Super Admin'}
                         </Button>
                         <Button
                           variant="destructive"

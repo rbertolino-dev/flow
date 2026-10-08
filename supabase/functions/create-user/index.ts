@@ -58,7 +58,14 @@ serve(async (req) => {
       throw new Error('Apenas administradores podem criar usuários');
     }
 
-    const { email, password, fullName, isAdmin: makeAdmin, organizationId } = await req.json();
+    const {
+      email,
+      password,
+      fullName,
+      isAdmin: makeAdmin,
+      makeSystemAdmin = false,
+      organizationId,
+    } = await req.json();
 
     if (!email || !password || !organizationId) {
       throw new Error('Email, senha e organização são obrigatórios');
@@ -71,7 +78,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Criando usuário:', { email, fullName, organizationId, makeAdmin });
+    console.log('Criando usuário:', { email, fullName, organizationId, makeAdmin, makeSystemAdmin });
 
     // Verificar se o usuário já existe (pode estar órfão de tentativa anterior)
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
@@ -162,8 +169,20 @@ serve(async (req) => {
       console.error('Erro ao adicionar role de usuário:', userRoleError);
     }
 
-    // Se deve ser admin, adicionar role de admin também
-    if (makeAdmin) {
+    // makeAdmin = administrador DA EMPRESA (organization_members).
+    // Nunca promove a administrador do sistema.
+    // makeSystemAdmin = administrador DO SISTEMA (user_roles.admin), só se quem cria já for super admin/pubdigital.
+    if (makeSystemAdmin) {
+      if (!isAdmin && !isPubdigital) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Apenas administradores do sistema podem conceder acesso de super admin.',
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        );
+      }
+
       const { error: adminRoleError } = await supabaseAdmin
         .from('user_roles')
         .insert({ user_id: userId, role: 'admin' })
@@ -171,7 +190,7 @@ serve(async (req) => {
         .single();
 
       if (adminRoleError && !adminRoleError.message?.includes('duplicate')) {
-        console.error('Erro ao adicionar role de admin:', adminRoleError);
+        console.error('Erro ao adicionar role de admin do sistema:', adminRoleError);
       }
     }
 

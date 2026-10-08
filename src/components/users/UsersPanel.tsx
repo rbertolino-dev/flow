@@ -199,7 +199,8 @@ export function UsersPanel() {
           email: newUserData.email.trim(),
           password: newUserData.password.trim(),
           fullName: newUserData.fullName.trim() || newUserData.email.trim(),
-          isAdmin: newUserData.isAdmin && isAdmin,
+          isAdmin: newUserData.isAdmin,
+          makeSystemAdmin: false,
           organizationId: activeOrgId,
         },
       });
@@ -334,8 +335,8 @@ export function UsersPanel() {
 
         if (error) throw error;
         toast({
-          title: "Permissão removida",
-          description: "Usuário removido de administradores",
+          title: "Super Admin removido",
+          description: "Usuário deixou de ser administrador do sistema",
         });
       } else {
         const { error } = await supabase
@@ -344,8 +345,8 @@ export function UsersPanel() {
 
         if (error) throw error;
         toast({
-          title: "Permissão concedida",
-          description: "Usuário promovido a administrador",
+          title: "Super Admin concedido",
+          description: "Usuário passou a ser administrador do sistema. Use só para a equipe da plataforma.",
         });
       }
 
@@ -442,9 +443,14 @@ export function UsersPanel() {
                           setNewUserData({ ...newUserData, isAdmin: !!checked })
                         }
                       />
-                      <Label htmlFor="isAdmin" className="cursor-pointer">
-                        Tornar administrador
-                      </Label>
+                      <div>
+                        <Label htmlFor="isAdmin" className="cursor-pointer">
+                          Administrador desta empresa
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Não concede Super Admin da plataforma.
+                        </p>
+                      </div>
                     </div>
                   </div>
                   <DialogFooter>
@@ -487,9 +493,9 @@ export function UsersPanel() {
                       <div className="flex items-center gap-2">
                         <p className="font-medium">{user.full_name || user.email}</p>
                         {user.roles.includes('admin') && (
-                          <Badge variant="default">
+                          <Badge variant="destructive">
                             <Shield className="h-3 w-3 mr-1" />
-                            Admin
+                            Adm. do sistema
                           </Badge>
                         )}
                       </div>
@@ -524,6 +530,7 @@ export function UsersPanel() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleToggleAdmin(user.id, user.roles)}
+                            title={user.roles.includes("admin") ? "Tirar Super Admin" : "Conceder Super Admin"}
                           >
                             <Shield className="h-4 w-4" />
                           </Button>

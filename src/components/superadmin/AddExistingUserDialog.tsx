@@ -38,8 +38,9 @@ export function AddExistingUserDialog({ open, onOpenChange, onSuccess, organizat
       setSelectedUserId("");
       setSearchQuery("");
       // Buscar dados atualizados
-      fetchAvailableUsers();
+      void fetchAvailableUsers();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, organizationId]);
 
   useEffect(() => {
@@ -98,7 +99,7 @@ export function AddExistingUserDialog({ open, onOpenChange, onSuccess, organizat
 
       setUsers(availableUsers);
       setFilteredUsers(availableUsers);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao carregar usuários:", error);
       toast({
         title: "Erro",
@@ -146,11 +147,11 @@ export function AddExistingUserDialog({ open, onOpenChange, onSuccess, organizat
       setSearchQuery("");
       onOpenChange(false);
       onSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao adicionar usuário:", error);
       toast({
         title: "Erro ao adicionar usuário",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
@@ -213,16 +214,23 @@ export function AddExistingUserDialog({ open, onOpenChange, onSuccess, organizat
 
             <div className="space-y-2">
               <Label htmlFor="role">Cargo na Organização*</Label>
-              <Select value={role} onValueChange={(value: any) => setRole(value)} disabled={loading}>
+              <Select
+                value={role}
+                onValueChange={(value) => setRole(value as "owner" | "admin" | "member")}
+                disabled={loading}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="member">Membro</SelectItem>
-                  <SelectItem value="admin">Administrador</SelectItem>
-                  <SelectItem value="owner">Proprietário</SelectItem>
+                  <SelectItem value="member">Usuário da empresa</SelectItem>
+                  <SelectItem value="admin">Administrador da empresa</SelectItem>
+                  <SelectItem value="owner">Proprietário da empresa</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Este cargo vale só nesta empresa. Não concede acesso de Super Admin da plataforma.
+              </p>
             </div>
           </div>
 
