@@ -518,20 +518,19 @@ export function CreateServiceOrderDialog({
               ) : (
                 <p className="text-sm text-muted-foreground">Este cliente não tem endereço cadastrado.</p>
               )}
-              {form.client_phone && (
-                <label className="flex items-start gap-2 text-sm text-slate-700">
-                  <Switch
-                    checked={Boolean(form.show_client_phone)}
-                    onCheckedChange={(checked) => setField('show_client_phone', checked, false)}
-                  />
-                  <span>
-                    <span className="font-medium">Mostrar telefone para quem vai executar</span>
-                    <span className="mt-0.5 block text-xs text-muted-foreground">
-                      Opcional. Sem isso, o colaborador não vê o telefone do cliente.
-                    </span>
+              <label className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
+                <Switch
+                  checked={Boolean(form.show_client_phone)}
+                  onCheckedChange={(checked) => setField('show_client_phone', checked, false)}
+                />
+                <span>
+                  <span className="font-medium">Mostrar telefone para quem vai executar</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Opcional. Sem isso, o colaborador não vê o telefone do cliente
+                    {form.client_phone ? '.' : ' (cadastre o telefone do cliente para enviar).'}
                   </span>
-                </label>
-              )}
+                </span>
+              </label>
             </div>
           )}
         </div>

@@ -160,6 +160,7 @@ export interface ServiceOrder {
   client_name?: string | null;
   client_phone?: string | null;
   show_client_phone?: boolean | null;
+  pdf_url?: string | null;
   responsible_name?: string | null;
   responsible_user_id?: string | null;
   collaborator_name?: string | null;
@@ -459,9 +460,8 @@ export const DEFAULT_STATUSES: Array<{
   is_final: boolean;
   is_default: boolean;
 }> = [
-  { name: 'compra de material', color: '#ef4444', sort_order: 10, is_final: false, is_default: true },
-  { name: 'Fabricação', color: '#8b5cf6', sort_order: 20, is_final: false, is_default: false },
-  { name: 'armazenagem', color: '#7f1d1d', sort_order: 30, is_final: false, is_default: false },
-  { name: 'finalização do kit', color: '#1f2937', sort_order: 40, is_final: false, is_default: false },
-  { name: 'Finalizado', color: '#22c55e', sort_order: 50, is_final: true, is_default: false },
+  { name: 'Aguardando', color: '#f59e0b', sort_order: 10, is_final: false, is_default: true },
+  { name: 'Iniciado', color: '#3b82f6', sort_order: 20, is_final: false, is_default: false },
+  { name: 'Em análise', color: '#8b5cf6', sort_order: 30, is_final: false, is_default: false },
+  { name: 'Finalizado', color: '#22c55e', sort_order: 40, is_final: true, is_default: false },
 ];

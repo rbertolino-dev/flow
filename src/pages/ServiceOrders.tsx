@@ -41,6 +41,8 @@ import {
   ChevronUp,
   Wrench,
   Calendar,
+  Package,
+  MessageCircle,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useServiceOrders } from '@/hooks/useServiceOrders';
@@ -54,20 +56,30 @@ import { ServiceOrderDetailDialog } from '@/components/service-orders/ServiceOrd
 import { ServiceOrderCloseDialog } from '@/components/service-orders/ServiceOrderCloseDialog';
 import { EquipmentsTab } from '@/components/service-orders/EquipmentsTab';
 import { ServiceOrdersAgenda } from '@/components/service-orders/ServiceOrdersAgenda';
+import { ServicesCatalogPanel } from '@/components/budgets/ServicesCatalogPanel';
 import { ServiceOrderFormData, ServiceOrder, ServiceOrderCloseData } from '@/types/serviceOrder';
 import { maintenanceMarkLabel } from '@/lib/serviceOrderMaintenance';
 import { executionDurationLabel, formatServiceOrderMoment } from '@/lib/serviceOrderDuration';
 import { useServiceOrderViewer, visibleClientPhone } from '@/lib/serviceOrderPhone';
 import { useToast } from '@/hooks/use-toast';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
+import { useEvolutionConfigs } from '@/hooks/useEvolutionConfigs';
 import {
   generateServiceOrderPDF,
   downloadServiceOrderPDF,
   openServiceOrderPDF,
 } from '@/lib/serviceOrderPdfGenerator';
+import { SupabaseStorageService } from '@/services/contractStorage/SupabaseStorageService';
 import { fetchEquipmentsForOrder } from '@/hooks/useEquipments';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthGuard } from '@/components/auth/AuthGuard';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -122,9 +134,12 @@ export default function ServiceOrders() {
   const [editingOrder, setEditingOrder] = useState<ServiceOrder | null>(null);
   const [nextCode, setNextCode] = useState('-----');
   const [exportingId, setExportingId] = useState<string | null>(null);
+  const [showSendWhatsApp, setShowSendWhatsApp] = useState(false);
+  const [selectedInstanceId, setSelectedInstanceId] = useState('');
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const [searchParams] = useSearchParams();
   const openEquipmentId = searchParams.get('equipment');
-  const [moduleTab, setModuleTab] = useState<'orders' | 'equipments' | 'agenda'>(() =>
+  const [moduleTab, setModuleTab] = useState<'orders' | 'equipments' | 'agenda' | 'services'>(() =>
     openEquipmentId ? 'equipments' : 'orders'
   );
   const [agendaRevision, setAgendaRevision] = useState(0);
@@ -134,6 +149,8 @@ export default function ServiceOrders() {
   const { toast } = useToast();
   const viewer = useServiceOrderViewer();
   const { activeOrganization, activeOrgId } = useActiveOrganization();
+  const { configs: evolutionConfigs, loading: evolutionConfigsLoading } = useEvolutionConfigs();
+  const connectedInstances = evolutionConfigs.filter((config) => config.is_connected);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -321,6 +338,7 @@ export default function ServiceOrders() {
             ? `Ordem ${order.code} (sem valores) exportada.`
             : `Ordem ${order.code} exportada com sucesso.`,
       });
+      return blob;
     } catch (err) {
       console.error('Erro ao exportar PDF da OS:', err);
       toast({
@@ -328,8 +346,147 @@ export default function ServiceOrders() {
         description: err instanceof Error ? err.message : 'Não foi possível gerar o PDF',
         variant: 'destructive',
       });
+      return null;
     } finally {
       setExportingId(null);
+    }
+  };
+
+  const buildOrderPdfBlob = async (order: ServiceOrder): Promise<Blob | null> => {
+    try {
+      let orgData: { name?: string | null; logo_url?: string | null } | null = activeOrganization
+        ? { name: activeOrganization.name }
+        : null;
+      if (activeOrgId) {
+        const { data } = await supabase
+          .from('organizations')
+          .select('name, logo_url')
+          .eq('id', activeOrgId)
+          .maybeSingle();
+        if (data) orgData = data as typeof orgData;
+      }
+
+      const phoneForPdf = order.client_phone || order.lead?.phone || '';
+      let orderForPdf = {
+        ...order,
+        client_phone: phoneForPdf || null,
+        lead: order.lead ? { ...order.lead, phone: phoneForPdf || undefined } : order.lead,
+      };
+      if (activeOrgId) {
+        const equipments = await fetchEquipmentsForOrder(activeOrgId, order.id).catch(() => []);
+        orderForPdf = {
+          ...orderForPdf,
+          equipments,
+          equipment_ids: equipments.map((item) => item.id),
+        };
+      }
+
+      return await generateServiceOrderPDF({
+        order: orderForPdf,
+        mode: 'full',
+        organizationName: orgData?.name || activeOrganization?.name,
+        organizationData: orgData,
+      });
+    } catch (err) {
+      console.error('Erro ao gerar PDF da OS:', err);
+      return null;
+    }
+  };
+
+  const openSendWhatsApp = (order: ServiceOrder) => {
+    const phone = (order.client_phone || order.lead?.phone || '').trim();
+    if (!phone) {
+      toast({
+        title: 'Telefone não encontrado',
+        description: 'Cadastre o telefone do cliente nesta ordem de serviço.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setSelectedOrder(order);
+    setSelectedInstanceId('');
+    setShowSendWhatsApp(true);
+  };
+
+  const handleSendWhatsApp = async () => {
+    if (!selectedOrder || !selectedInstanceId || !activeOrgId) {
+      toast({
+        title: 'Erro',
+        description: 'Selecione uma instância do WhatsApp',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSendingWhatsApp(true);
+    try {
+      toast({
+        title: 'Preparando PDF',
+        description: 'Gerando e enviando a ordem de serviço...',
+      });
+
+      const blob = await buildOrderPdfBlob(selectedOrder);
+      if (!blob) {
+        throw new Error('Não foi possível gerar o PDF da ordem de serviço');
+      }
+
+      const clientName = selectedOrder.client_name || selectedOrder.lead?.name || 'Cliente';
+      const storage = new SupabaseStorageService(activeOrgId);
+      const pdfUrl = await storage.uploadPDF(
+        blob,
+        selectedOrder.id,
+        'service_order',
+        `Ordem de Serviço - ${clientName} - ${selectedOrder.code}.pdf`
+      );
+
+      // @ts-expect-error coluna pdf_url pode ainda não estar tipada
+      await supabase
+        .from('service_orders')
+        .update({ pdf_url: pdfUrl })
+        .eq('id', selectedOrder.id)
+        .eq('organization_id', activeOrgId);
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error('Não autenticado');
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-service-order-whatsapp`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            service_order_id: selectedOrder.id,
+            instance_id: selectedInstanceId,
+            pdf_url: pdfUrl,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
+        throw new Error(errorData.error || 'Erro ao enviar ordem de serviço');
+      }
+
+      toast({
+        title: 'Ordem enviada',
+        description: 'Ordem de serviço enviada via WhatsApp com sucesso',
+      });
+      setShowSendWhatsApp(false);
+      setSelectedInstanceId('');
+    } catch (error: unknown) {
+      console.error('Erro ao enviar OS via WhatsApp:', error);
+      toast({
+        title: 'Erro',
+        description: error instanceof Error ? error.message : 'Erro ao enviar via WhatsApp',
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingWhatsApp(false);
     }
   };
 
@@ -511,6 +668,14 @@ export default function ServiceOrders() {
           </DropdownMenuItem>
         )}
         <DropdownMenuItem
+          onClick={() => openSendWhatsApp(order)}
+          disabled={sendingWhatsApp}
+          data-testid={`os-send-whatsapp-${order.id}${testSuffix}`}
+        >
+          <MessageCircle className="h-4 w-4 mr-2" />
+          Enviar via WhatsApp
+        </DropdownMenuItem>
+        <DropdownMenuItem
           className="text-destructive"
           onClick={() => {
             setSelectedOrder(order);
@@ -555,7 +720,9 @@ export default function ServiceOrders() {
 
         <Tabs
           value={moduleTab}
-          onValueChange={(value) => setModuleTab(value as 'orders' | 'equipments' | 'agenda')}
+          onValueChange={(value) =>
+            setModuleTab(value as 'orders' | 'equipments' | 'agenda' | 'services')
+          }
           className="space-y-4"
         >
           <TabsList className="h-auto w-full justify-start gap-1 rounded-lg bg-slate-100 p-1" data-testid="os-module-tabs">
@@ -571,7 +738,15 @@ export default function ServiceOrders() {
               <Wrench className="h-4 w-4" />
               Equipamentos
             </TabsTrigger>
+            <TabsTrigger value="services" className="gap-1.5" data-testid="os-tab-services">
+              <Package className="h-4 w-4" />
+              Serviços
+            </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="services" className="mt-0">
+            <ServicesCatalogPanel emptyHint="Cadastre serviços para usá-los na criação da ordem de serviço." />
+          </TabsContent>
 
           <TabsContent value="equipments" className="mt-0">
             <EquipmentsTab
@@ -1014,6 +1189,7 @@ export default function ServiceOrders() {
         }}
         onCopy={handleCopyOrder}
         onExportPdf={(order, mode) => exportOrderPdf(order, { open: true, mode })}
+        onSendWhatsApp={openSendWhatsApp}
         onOpenVisit={async (id) => {
           const local = orders.find((item) => item.id === id);
           const next = local || (await getOrder(id));
@@ -1057,6 +1233,80 @@ export default function ServiceOrders() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={showSendWhatsApp} onOpenChange={setShowSendWhatsApp}>
+        <DialogContent aria-describedby="send-os-whatsapp-description">
+          <DialogHeader>
+            <DialogTitle>Enviar Ordem de Serviço via WhatsApp</DialogTitle>
+            <DialogDescription id="send-os-whatsapp-description">
+              O PDF será gerado e enviado para o telefone do cliente
+              {selectedOrder
+                ? ` (${selectedOrder.client_phone || selectedOrder.lead?.phone || 'sem telefone'})`
+                : ''}
+              . Escolha a instância WhatsApp.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="os-whatsapp-instance">Instância WhatsApp *</Label>
+              <Select
+                value={selectedInstanceId}
+                onValueChange={setSelectedInstanceId}
+                disabled={connectedInstances.length === 0 || evolutionConfigsLoading}
+              >
+                <SelectTrigger id="os-whatsapp-instance">
+                  <SelectValue
+                    placeholder={
+                      evolutionConfigsLoading
+                        ? 'Carregando instâncias...'
+                        : connectedInstances.length === 0
+                          ? 'Nenhuma instância conectada'
+                          : 'Selecione uma instância'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {connectedInstances.length === 0 ? (
+                    <div className="px-2 py-1.5 text-center text-sm text-muted-foreground">
+                      {evolutionConfigsLoading
+                        ? 'Carregando instâncias...'
+                        : 'Nenhuma instância conectada. Configure em Configurações → Instâncias WhatsApp.'}
+                    </div>
+                  ) : (
+                    connectedInstances.map((config) => (
+                      <SelectItem key={config.id} value={config.id}>
+                        {config.instance_name} - {config.phone_number || 'Sem número'}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowSendWhatsApp(false)}
+                disabled={sendingWhatsApp}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => void handleSendWhatsApp()}
+                disabled={!selectedInstanceId || sendingWhatsApp}
+              >
+                {sendingWhatsApp ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  'Enviar'
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </CRMLayout>
     </AuthGuard>
   );

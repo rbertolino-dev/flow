@@ -10,7 +10,11 @@ export interface StorageService {
    * @param type - Tipo de arquivo ('contract' ou 'budget')
    * @returns URL pública do arquivo
    */
-  uploadPDF(pdf: Blob, contractId: string, type?: 'contract' | 'budget'): Promise<string>;
+  uploadPDF(
+    pdf: Blob,
+    contractId: string,
+    type?: 'contract' | 'budget' | 'service_order'
+  ): Promise<string>;
 
   /**
    * Obtém a URL pública de um PDF de contrato

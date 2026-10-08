@@ -15,6 +15,7 @@ import {
   FileText,
   Loader2,
   MapPin,
+  MessageCircle,
   Pencil,
   Tag,
   Trash2,
@@ -43,6 +44,7 @@ interface ServiceOrderDetailDialogProps {
   onDelete: (order: ServiceOrder) => void;
   onCopy: (order: ServiceOrder) => void;
   onExportPdf: (order: ServiceOrder, mode: 'full' | 'no_values' | 'three_slips') => void;
+  onSendWhatsApp?: (order: ServiceOrder) => void;
   onOpenVisit?: (orderId: string) => void;
   onCancelFutureVisits?: (order: ServiceOrder) => Promise<void> | void;
   exporting?: boolean;
@@ -73,6 +75,7 @@ export function ServiceOrderDetailDialog({
   onDelete,
   onCopy,
   onExportPdf,
+  onSendWhatsApp,
   onOpenVisit,
   onCancelFutureVisits,
   exporting,
@@ -374,6 +377,16 @@ export function ServiceOrderDetailDialog({
                 >
                   <FileDown className="h-4 w-4 mr-2" />
                   PDF em 3 vias
+                </Button>
+              )}
+              {onSendWhatsApp && (
+                <Button
+                  variant="outline"
+                  onClick={() => onSendWhatsApp(order)}
+                  data-testid="os-detail-send-whatsapp"
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  Enviar via WhatsApp
                 </Button>
               )}
             </div>

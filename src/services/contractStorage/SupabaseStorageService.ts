@@ -16,15 +16,16 @@ export class SupabaseStorageService implements StorageService {
   async uploadPDF(
     pdf: Blob,
     contractId: string,
-    type: 'contract' | 'budget' = 'contract',
+    type: 'contract' | 'budget' | 'service_order' = 'contract',
     displayFileName?: string
   ): Promise<string> {
-    const bucketId = type === 'budget' ? BUCKET_BUDGET_PDFS : BUCKET_CONTRACTS;
+    const bucketId = type === 'budget' || type === 'service_order' ? BUCKET_BUDGET_PDFS : BUCKET_CONTRACTS;
     const fileExt = 'pdf';
     const fileName = displayFileName
       ? storageSafePdfFileName(displayFileName)
       : `${contractId}-${Date.now()}.${fileExt}`;
-    const folder = type === 'budget' ? 'budgets' : 'contracts';
+    const folder =
+      type === 'budget' ? 'budgets' : type === 'service_order' ? 'service-orders' : 'contracts';
     const filePath = displayFileName
       ? `${this.organizationId}/${folder}/${contractId}/${fileName}`
       : `${this.organizationId}/${folder}/${fileName}`;
