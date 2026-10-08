@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { CreateUserDialog } from "./CreateUserDialog";
 import { AddExistingUserDialog } from "./AddExistingUserDialog";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
@@ -551,47 +553,73 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
                   {organization.organization_members.length === 0 && (
                     <p className="p-6 text-sm text-muted-foreground">Nenhum usuário nesta empresa.</p>
                   )}
+                  {organization.organization_members.length > 0 && (
+                    <div className="hidden gap-3 px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:grid md:grid-cols-[minmax(160px,1.4fr)_1fr_1fr_minmax(120px,1.2fr)_auto] md:items-center">
+                      <span>Usuário</span>
+                      <span>Adm. da empresa</span>
+                      <span>Super Admin</span>
+                      <span>Módulos</span>
+                      <span className="text-right">Ações</span>
+                    </div>
+                  )}
                   {organization.organization_members.map((member) => {
                     const isCompanyAdmin = member.role === "admin" || member.role === "owner";
                     const hasSystemAdmin = isSystemAdminMember(member);
                     return (
-                      <div key={member.user_id} className="grid gap-3 p-3 md:grid-cols-[1fr_1.2fr_120px_1.4fr_auto] md:items-center">
-                        <div>
-                          <p className="font-medium text-sm">{member.profiles.full_name || "Sem nome"}</p>
-                          <p className="text-sm break-all text-muted-foreground">{member.profiles.email}</p>
+                      <div
+                        key={member.user_id}
+                        className="grid gap-3 p-3 md:grid-cols-[minmax(160px,1.4fr)_1fr_1fr_minmax(120px,1.2fr)_auto] md:items-center"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{member.profiles.full_name || "Sem nome"}</p>
+                          <p className="text-xs break-all text-muted-foreground">{member.profiles.email}</p>
                         </div>
-                        <div className="flex flex-wrap gap-1">
-                          <span className="rounded bg-muted px-2 py-0.5 text-xs">
-                            {isCompanyAdmin ? "Adm. da empresa" : "Usuário da empresa"}
-                          </span>
-                          {hasSystemAdmin && (
-                            <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-800">
-                              Adm. do sistema
-                            </span>
-                          )}
+
+                        <div className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5">
+                          <Switch
+                            id={`company-admin-${member.user_id}`}
+                            checked={isCompanyAdmin}
+                            disabled={saving || member.role === "owner"}
+                            onCheckedChange={() => void toggleCompanyAdmin(member)}
+                          />
+                          <Label
+                            htmlFor={`company-admin-${member.user_id}`}
+                            className={cn(
+                              "text-xs font-medium cursor-pointer",
+                              isCompanyAdmin ? "text-green-700" : "text-muted-foreground",
+                            )}
+                          >
+                            {isCompanyAdmin ? "Ativo" : "Desligado"}
+                          </Label>
                         </div>
-                        <button type="button" className="text-left text-xs text-muted-foreground" onClick={() => setPermissionUser(member)}>
+
+                        <div className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5">
+                          <Switch
+                            id={`system-admin-${member.user_id}`}
+                            checked={hasSystemAdmin}
+                            disabled={saving}
+                            onCheckedChange={() => setSystemAdminTarget(member)}
+                          />
+                          <Label
+                            htmlFor={`system-admin-${member.user_id}`}
+                            className={cn(
+                              "text-xs font-medium cursor-pointer",
+                              hasSystemAdmin ? "text-red-700" : "text-muted-foreground",
+                            )}
+                          >
+                            {hasSystemAdmin ? "Ativo" : "Desligado"}
+                          </Label>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="text-left text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                          onClick={() => setPermissionUser(member)}
+                        >
                           {permissionLabels(permissionsByUser[member.user_id] ?? []) || "Sem módulos liberados"}
                         </button>
-                        <div className="flex flex-wrap gap-2 md:justify-end">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className={isCompanyAdmin ? "border-red-300 text-red-700" : ""}
-                            onClick={() => void toggleCompanyAdmin(member)}
-                          >
-                            {isCompanyAdmin ? "Tirar adm. da empresa" : "Adm. da empresa"}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant={hasSystemAdmin ? "destructive" : "secondary"}
-                            disabled={saving}
-                            onClick={() => setSystemAdminTarget(member)}
-                          >
-                            {hasSystemAdmin ? "Tirar Super Admin" : "Super Admin"}
-                          </Button>
+
+                        <div className="flex justify-start md:justify-end">
                           <Button type="button" size="sm" className="bg-blue-700 hover:bg-blue-800" onClick={() => setResetTarget(member)}>
                             Senha
                           </Button>

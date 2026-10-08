@@ -220,8 +220,13 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedOrg
               </Select>
             </div>
 
-            <div className="space-y-3 rounded-md border p-3">
-              <div className="flex items-start space-x-2">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label
+                htmlFor="isCompanyAdmin"
+                className={`flex cursor-pointer items-start gap-2 rounded-md border p-3 ${
+                  isCompanyAdmin ? "border-green-500 bg-green-50" : "bg-background"
+                }`}
+              >
                 <Checkbox
                   id="isCompanyAdmin"
                   checked={isCompanyAdmin}
@@ -230,15 +235,18 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedOrg
                   className="mt-0.5"
                 />
                 <div>
-                  <Label htmlFor="isCompanyAdmin" className="cursor-pointer">
-                    Administrador desta empresa
-                  </Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Gerencia usuários e dados da empresa. Continua sujeito ao plano e aos módulos liberados.
+                  <p className="text-sm font-medium">Adm. da empresa</p>
+                  <p className={`text-xs mt-0.5 ${isCompanyAdmin ? "text-green-700" : "text-muted-foreground"}`}>
+                    {isCompanyAdmin ? "Ativo" : "Desligado"} · só nesta empresa
                   </p>
                 </div>
-              </div>
-              <div className="flex items-start space-x-2">
+              </label>
+              <label
+                htmlFor="isSystemAdmin"
+                className={`flex cursor-pointer items-start gap-2 rounded-md border p-3 ${
+                  isSystemAdmin ? "border-red-500 bg-red-50" : "bg-background"
+                }`}
+              >
                 <Checkbox
                   id="isSystemAdmin"
                   checked={isSystemAdmin}
@@ -247,14 +255,12 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedOrg
                   className="mt-0.5"
                 />
                 <div>
-                  <Label htmlFor="isSystemAdmin" className="cursor-pointer text-destructive">
-                    Administrador do sistema (Super Admin)
-                  </Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Acessa o painel Super Admin e ignora o plano da empresa. Use só para a equipe da plataforma.
+                  <p className="text-sm font-medium text-destructive">Super Admin</p>
+                  <p className={`text-xs mt-0.5 ${isSystemAdmin ? "text-red-700" : "text-muted-foreground"}`}>
+                    {isSystemAdmin ? "Ativo" : "Desligado"} · plataforma inteira
                   </p>
                 </div>
-              </div>
+              </label>
             </div>
           </div>
 
