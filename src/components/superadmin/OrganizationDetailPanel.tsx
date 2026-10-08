@@ -483,7 +483,16 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
                       value={vigencia ? vigencia.slice(0, 10) : ""}
                       onChange={(event) => {
                         setVigencia(event.target.value);
-                        void saveMeta({ vigencia: event.target.value || null, setVigencia: true });
+                      }}
+                      onBlur={() => {
+                        const next = vigencia ? vigencia.slice(0, 10) : "";
+                        const current = organization.vigencia_ends_at
+                          ? organization.vigencia_ends_at.slice(0, 10)
+                          : "";
+                        // Só grava data completa (AAAA-MM-DD) ou limpeza, depois de terminar de digitar.
+                        if (next === current) return;
+                        if (next && !/^\d{4}-\d{2}-\d{2}$/.test(next)) return;
+                        void saveMeta({ vigencia: next || null, setVigencia: true });
                       }}
                     />
                     {!vigencia && (
