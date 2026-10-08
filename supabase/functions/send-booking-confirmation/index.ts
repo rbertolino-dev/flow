@@ -151,11 +151,12 @@ serve(async (req) => {
       .replace(/{link_meet}/g, meetLink || '')
       .replace(/{observacoes}/g, bookingRequest.client_notes || '');
 
-    // Normalizar telefone (remover caracteres não numéricos, exceto +)
-    const phone = bookingRequest.client_phone.replace(/[^\d+]/g, '');
-    
-    // Se não começar com +, adicionar código do Brasil (55)
-    const normalizedPhone = phone.startsWith('+') ? phone : `55${phone}`;
+    // Só dígitos (evita @lid / segunda conversa no Chatwoot)
+    let digits = String(bookingRequest.client_phone || '').replace(/\D/g, '');
+    if (!digits.startsWith('55') && digits.length >= 10 && digits.length <= 11) {
+      digits = `55${digits}`;
+    }
+    const normalizedPhone = digits;
 
     // Enviar mensagem via Evolution API
     const evolutionUrl = `${evolutionConfig.api_url}/message/sendText/${evolutionConfig.instance_name}`;
@@ -179,6 +180,25 @@ serve(async (req) => {
         JSON.stringify({ error: 'Erro ao enviar mensagem WhatsApp' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    try {
+      const { keepSingleChatwootConversationAfterSend } = await import("../_shared/chatwoot-keep-conversation.ts");
+      const orgId = bookingRequest.organization_id || evolutionConfig.organization_id;
+      if (orgId) {
+        const evoJson = await evolutionResponse.clone().json().catch(() => ({}));
+        await keepSingleChatwootConversationAfterSend({
+          supabase,
+          organizationId: orgId,
+          phone: normalizedPhone,
+          evolutionPayload: evoJson,
+          evolutionApiUrl: evolutionConfig.api_url,
+          evolutionApiKey: evolutionConfig.api_key || '',
+          evolutionInstanceName: evolutionConfig.instance_name,
+        });
+      }
+    } catch (keepErr) {
+      console.warn('chatwoot-keep booking:', keepErr);
     }
 
     // Atualizar confirmação enviada

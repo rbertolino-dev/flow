@@ -2,7 +2,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { getTestModeConfig, applyTestMode, shouldSendMessage } from "../_shared/test-mode.ts";
 import { InvalidWhatsappPhoneError, normalizeEvolutionSendPhone } from "../_shared/evolution-send-phone.ts";
-import { mergeChatwootLidAfterSend } from "../_shared/chatwoot-merge-lid.ts";
+import {
+  keepSingleChatwootConversationAfterSend,
+  trySendViaExistingChatwootConversation,
+} from "../_shared/chatwoot-keep-conversation.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -390,6 +393,51 @@ serve(async (req) => {
         const mediaUrl = mediaNorm.url;
         const mediaType = mediaNorm.type || 'image';
 
+        // Preferir conversa Chatwoot existente (não cria segunda conversa)
+        const orgId = message.organization_id || config.organization_id;
+        if (orgId) {
+          const viaChatwoot = await trySendViaExistingChatwootConversation({
+            supabase,
+            organizationId: orgId,
+            phone: formattedPhone,
+            content: message.message || '',
+            evolution: {
+              apiUrl: config.api_url,
+              apiKey: config.api_key || '',
+              instanceName: config.instance_name,
+            },
+            mediaUrl: mediaUrl || undefined,
+            mediaType: mediaType || undefined,
+            fileName: mediaUrl ? 'anexo' : undefined,
+          });
+          if (viaChatwoot.ok) {
+            await supabase
+              .from('scheduled_messages')
+              .update({
+                status: 'sent',
+                sent_at: new Date().toISOString(),
+              })
+              .eq('id', message.id);
+            if (message.lead_id) {
+              await supabase.from('activities').insert({
+                lead_id: message.lead_id,
+                type: 'whatsapp',
+                content: message.message,
+                user_name: 'Sistema (Agendado)',
+                direction: 'outgoing',
+              });
+              await supabase
+                .from('leads')
+                .update({ last_contact: new Date().toISOString() })
+                .eq('id', message.lead_id);
+            }
+            console.log(`✅ Mensagem ${message.id} enviada via Chatwoot conversa #${viaChatwoot.conversationId}`);
+            successCount++;
+            continue;
+          }
+          console.log(`ℹ️ [process-scheduled-messages] Fallback Evolution: ${viaChatwoot.reason}`);
+        }
+
         // ✅ CORREÇÃO: Codificar nome da instância na URL para suportar caracteres especiais
         const encodedInstanceName = encodeURIComponent(config.instance_name);
         
@@ -650,7 +698,7 @@ serve(async (req) => {
           .eq('id', message.id);
 
         if (message.organization_id || config.organization_id) {
-          await mergeChatwootLidAfterSend({
+          await keepSingleChatwootConversationAfterSend({
             supabase,
             organizationId: message.organization_id || config.organization_id,
             phone: formattedPhone,

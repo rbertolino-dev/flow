@@ -2,7 +2,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { getTestModeConfig, applyTestMode, shouldSendMessage } from "../_shared/test-mode.ts";
 import { InvalidWhatsappPhoneError, normalizeEvolutionSendPhone } from "../_shared/evolution-send-phone.ts";
-import { mergeChatwootLidAfterSend } from "../_shared/chatwoot-merge-lid.ts";
+import {
+  keepSingleChatwootConversationAfterSend,
+  trySendViaExistingChatwootConversation,
+} from "../_shared/chatwoot-keep-conversation.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -259,6 +262,56 @@ serve(async (req) => {
       );
     }
 
+    // Preferir conversa Chatwoot já aberta (não cria segunda conversa no mesmo número)
+    if (config.organization_id) {
+      const viaChatwoot = await trySendViaExistingChatwootConversation({
+        supabase,
+        organizationId: config.organization_id,
+        phone: formattedPhone,
+        content: message || '',
+        evolution: {
+          apiUrl: config.api_url,
+          apiKey: config.api_key || '',
+          instanceName: config.instance_name,
+        },
+        mediaUrl: mediaUrlTrim || undefined,
+        mediaType: mediaTypeNorm || undefined,
+        fileName: mediaUrlTrim
+          ? (mediaTypeNorm === 'document' ? 'documento.pdf' : 'midia')
+          : undefined,
+      });
+      if (viaChatwoot.ok) {
+        if (leadId) {
+          try {
+            await supabase.from('activities').insert({
+              lead_id: leadId,
+              type: 'whatsapp',
+              content: message,
+              user_name: 'Você',
+              direction: 'outgoing',
+            });
+            await supabase
+              .from('leads')
+              .update({ last_contact: new Date().toISOString() })
+              .eq('id', leadId);
+          } catch (activityErr: any) {
+            console.error('⚠️ [send-whatsapp-message] Atividade (Chatwoot):', activityErr?.message);
+          }
+        }
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: 'Mensagem enviada com sucesso',
+            via: 'chatwoot',
+            conversation_id: viaChatwoot.conversationId,
+            phone: formattedPhone,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      console.log('ℹ️ [send-whatsapp-message] Fallback Evolution:', viaChatwoot.reason);
+    }
+
     // Definir endpoint e payload baseado no tipo de mensagem
     const baseUrl = config.api_url.replace(/\/manager\/?$/, '');
     let evolutionUrl: string;
@@ -484,9 +537,9 @@ serve(async (req) => {
       evolutionData = { message: 'Erro ao processar resposta', error: responseError.message };
     }
 
-    // Unir @lid fantasma no Chatwoot ao telefone real (se houver integração)
+    // Unir @lid + manter só 1 conversa aberta no Chatwoot para este número
     if (config.organization_id) {
-      await mergeChatwootLidAfterSend({
+      await keepSingleChatwootConversationAfterSend({
         supabase,
         organizationId: config.organization_id,
         phone: formattedPhone,

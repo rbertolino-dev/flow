@@ -1,7 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { InvalidWhatsappPhoneError, normalizeEvolutionSendPhone } from "../_shared/evolution-send-phone.ts";
-import { mergeChatwootLidAfterSend } from "../_shared/chatwoot-merge-lid.ts";
+import {
+  keepSingleChatwootConversationAfterSend,
+  trySendViaExistingChatwootConversation,
+} from "../_shared/chatwoot-keep-conversation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -150,9 +153,6 @@ serve(async (req) => {
       });
     }
     const whatsappNumber = normalizedPhone;
-    const evolutionApiUrl = evolutionConfig.api_url.replace(/\/$/, "");
-    const sendMediaUrl = `${evolutionApiUrl}/message/sendMedia/${evolutionConfig.instance_name}`;
-
     const totalFormatted = new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
@@ -167,12 +167,58 @@ Olá ${leadName}, segue a ordem de serviço.${serviceLine}
 
 Para mais informações, entre em contato conosco.`;
 
+    const pdfFileName = serviceOrderPdfFileName(leadName, order.code);
+    const orgId = order.organization_id || evolutionConfig.organization_id;
+
+    if (orgId) {
+      const viaChatwoot = await trySendViaExistingChatwootConversation({
+        supabase,
+        organizationId: orgId,
+        phone: normalizedPhone,
+        content: caption,
+        evolution: {
+          apiUrl: evolutionConfig.api_url,
+          apiKey: evolutionConfig.api_key || "",
+          instanceName: evolutionConfig.instance_name,
+        },
+        mediaUrl: pdfUrl,
+        mediaType: "document",
+        fileName: pdfFileName,
+      });
+      if (viaChatwoot.ok) {
+        if (order.lead_id) {
+          try {
+            await supabase.from("activities").insert({
+              lead_id: order.lead_id,
+              type: "whatsapp",
+              content: `Ordem de serviço ${order.code} enviada via WhatsApp`,
+              user_name: "Sistema",
+              direction: "outgoing",
+            });
+          } catch (_) { /* ignore */ }
+        }
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: "Ordem de serviço enviada com sucesso",
+            service_order_id,
+            via: "chatwoot",
+            conversation_id: viaChatwoot.conversationId,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    const evolutionApiUrl = evolutionConfig.api_url.replace(/\/$/, "");
+    const sendMediaUrl = `${evolutionApiUrl}/message/sendMedia/${evolutionConfig.instance_name}`;
+
     const evolutionPayload = {
       number: whatsappNumber,
       mediatype: "document",
       mimetype: "application/pdf",
       media: pdfUrl,
-      fileName: serviceOrderPdfFileName(leadName, order.code),
+      fileName: pdfFileName,
       caption,
     };
 
@@ -225,7 +271,7 @@ Para mais informações, entre em contato conosco.`;
     const evolutionResult = await evolutionResponse.json().catch(() => ({}));
 
     if (order.organization_id || evolutionConfig.organization_id) {
-      await mergeChatwootLidAfterSend({
+      await keepSingleChatwootConversationAfterSend({
         supabase,
         organizationId: order.organization_id || evolutionConfig.organization_id,
         phone: normalizedPhone,

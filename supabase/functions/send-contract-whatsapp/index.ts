@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { keepSingleChatwootConversationAfterSend } from "../_shared/chatwoot-keep-conversation.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -204,29 +205,29 @@ serve(async (req) => {
       );
     }
 
-    // Remover caracteres não numéricos
     let normalizedPhone = leadPhone.replace(/\D/g, '');
-    
-    if (normalizedPhone.includes('@')) {
-      normalizedPhone = normalizedPhone.split('@')[0];
+    if (/@lid/i.test(leadPhone)) {
+      return new Response(
+        JSON.stringify({ error: 'Telefone inválido (@lid). Use o número com DDD.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
-    
-    if (!normalizedPhone || normalizedPhone.length < 10) {
+    if (leadPhone.includes('@')) {
+      normalizedPhone = leadPhone.split('@')[0].replace(/\D/g, '');
+    }
+    if (!normalizedPhone.startsWith('55') && normalizedPhone.length >= 10 && normalizedPhone.length <= 11) {
+      const ddd = parseInt(normalizedPhone.substring(0, 2));
+      if (ddd >= 11 && ddd <= 99) normalizedPhone = '55' + normalizedPhone;
+    }
+    if (!normalizedPhone || normalizedPhone.length < 12 || normalizedPhone.length > 13) {
       return new Response(
         JSON.stringify({ error: 'Telefone do lead inválido' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (!normalizedPhone.startsWith('55') && normalizedPhone.length >= 10) {
-      const ddd = parseInt(normalizedPhone.substring(0, 2));
-      if (ddd >= 11 && ddd <= 99) {
-        normalizedPhone = '55' + normalizedPhone;
-        console.log('➕ Adicionado código do país 55 ao número');
-      }
-    }
-
-    const whatsappNumber = `${normalizedPhone}@s.whatsapp.net`;
+    // Só dígitos — evita @lid / segunda conversa no Chatwoot
+    const whatsappNumber = normalizedPhone;
     
     console.log('📱 Telefone formatado:', {
       original: leadPhone,
@@ -354,6 +355,18 @@ Ou você pode baixar o PDF anexado e assinar manualmente.`;
 
     const evolutionSendResult = await evolutionResponse.json();
     console.log('✅ Contrato enviado via Evolution:', evolutionSendResult);
+
+    if (contract.organization_id || evolutionConfig.organization_id) {
+      await keepSingleChatwootConversationAfterSend({
+        supabase,
+        organizationId: contract.organization_id || evolutionConfig.organization_id,
+        phone: normalizedPhone,
+        evolutionPayload: evolutionSendResult,
+        evolutionApiUrl: evolutionConfig.api_url,
+        evolutionApiKey: evolutionConfig.api_key || '',
+        evolutionInstanceName: evolutionConfig.instance_name,
+      });
+    }
 
     // Atualizar status + atividade em paralelo após sucesso
     const sentAt = new Date().toISOString();

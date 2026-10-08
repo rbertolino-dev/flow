@@ -1,7 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { InvalidWhatsappPhoneError, normalizeEvolutionSendPhone } from "../_shared/evolution-send-phone.ts";
-import { mergeChatwootLidAfterSend } from "../_shared/chatwoot-merge-lid.ts";
+import {
+  keepSingleChatwootConversationAfterSend,
+  trySendViaExistingChatwootConversation,
+} from "../_shared/chatwoot-keep-conversation.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -178,10 +181,6 @@ serve(async (req) => {
       whatsappNumber,
     });
 
-    // Enviar via Evolution API
-    const evolutionApiUrl = evolutionConfig.api_url.replace(/\/$/, '');
-    const sendMediaUrl = `${evolutionApiUrl}/message/sendMedia/${evolutionConfig.instance_name}`;
-
     // Mensagem com informações do orçamento
     const leadName = lead.name || 'Cliente';
     const totalFormatted = new Intl.NumberFormat('pt-BR', {
@@ -199,6 +198,52 @@ Olá ${leadName}, segue o orçamento para sua análise.
 Para mais informações, entre em contato conosco.`;
 
     const pdfFileName = budgetPdfFileName(lead.name, budget.budget_number);
+    const orgId = budget.organization_id || evolutionConfig.organization_id;
+
+    if (orgId) {
+      const viaChatwoot = await trySendViaExistingChatwootConversation({
+        supabase,
+        organizationId: orgId,
+        phone: normalizedPhone,
+        content: caption,
+        evolution: {
+          apiUrl: evolutionConfig.api_url,
+          apiKey: evolutionConfig.api_key || '',
+          instanceName: evolutionConfig.instance_name,
+        },
+        mediaUrl: pdfUrl,
+        mediaType: 'document',
+        fileName: pdfFileName,
+      });
+      if (viaChatwoot.ok) {
+        if (budget.lead_id) {
+          try {
+            await supabase.from('activities').insert({
+              lead_id: budget.lead_id,
+              type: 'whatsapp',
+              content: `Orçamento ${budget.budget_number} enviado via WhatsApp`,
+              user_name: 'Sistema',
+              direction: 'outgoing',
+            });
+          } catch (_) { /* ignore */ }
+        }
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: 'Orçamento enviado com sucesso',
+            budget_id: budget_id,
+            via: 'chatwoot',
+            conversation_id: viaChatwoot.conversationId,
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // Enviar via Evolution API
+    const evolutionApiUrl = evolutionConfig.api_url.replace(/\/$/, '');
+    const sendMediaUrl = `${evolutionApiUrl}/message/sendMedia/${evolutionConfig.instance_name}`;
+
     const evolutionPayload = {
       number: whatsappNumber,
       mediatype: 'document',
@@ -273,7 +318,7 @@ Para mais informações, entre em contato conosco.`;
     console.log('✅ Orçamento enviado via Evolution:', evolutionResult);
 
     if (budget.organization_id || evolutionConfig.organization_id) {
-      await mergeChatwootLidAfterSend({
+      await keepSingleChatwootConversationAfterSend({
         supabase,
         organizationId: budget.organization_id || evolutionConfig.organization_id,
         phone: normalizedPhone,
