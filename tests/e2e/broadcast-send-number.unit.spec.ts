@@ -14,7 +14,7 @@ test.describe("@unit jid canônico do disparador 2", () => {
     });
     expect(decision.rewritten).toBe(true);
     expect(decision.reason).toBe("canonical_jid");
-    expect(decision.number).toBe("554198495264@s.whatsapp.net");
+    expect(decision.number).toBe("554198495264");
     expect(isNinthDigitCanonical("5541998495264", "554198495264")).toBe(true);
   });
 
@@ -26,11 +26,11 @@ test.describe("@unit jid canônico do disparador 2", () => {
     });
     expect(decision.rewritten).toBe(false);
     expect(decision.reason).toBe("unchanged");
-    expect(decision.number).toBe("5511982726364@s.whatsapp.net");
+    expect(decision.number).toBe("5511982726364");
   });
 
   test("consulta falha, exists false, @lid ou JID de outro número mantêm o telefone da fila", () => {
-    const original = "5541998495264@s.whatsapp.net";
+    const original = "5541998495264";
     expect(decideBroadcastSendNumber("5541998495264", { ok: false }).number).toBe(original);
     expect(
       decideBroadcastSendNumber("5541998495264", { ok: true, exists: false, jid: null }).reason,
@@ -59,8 +59,6 @@ test.describe("@unit jid canônico do disparador 2", () => {
     expect(lookup.ok).toBe(true);
     if (!lookup.ok) return;
     expect(lookup.exists).toBe(true);
-    expect(decideBroadcastSendNumber("5541998495264", lookup).number).toBe(
-      "554198495264@s.whatsapp.net",
-    );
+    expect(decideBroadcastSendNumber("5541998495264", lookup).number).toBe("554198495264");
   });
 });
