@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { getTestModeConfig, applyTestMode, shouldSendMessage } from "../_shared/test-mode.ts";
+import { InvalidWhatsappPhoneError, normalizeEvolutionSendPhone } from "../_shared/evolution-send-phone.ts";
+import { mergeChatwootLidAfterSend } from "../_shared/chatwoot-merge-lid.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -200,27 +202,27 @@ serve(async (req) => {
     // Remover verificação de is_connected para permitir envio mesmo se o status estiver desatualizado
     // A Evolution API retornará erro se realmente não estiver conectada
 
-    // Formatar telefone para Evolution API
-    let formattedPhone = phone.replace(/\D/g, '');
-    
-    // Garantir que números brasileiros tenham código do país (55)
-    if (!formattedPhone.startsWith('55') && formattedPhone.length >= 10) {
-      // Verificar se parece um número brasileiro (DDD válido: 11-99)
-      const ddd = parseInt(formattedPhone.substring(0, 2));
-      if (ddd >= 11 && ddd <= 99) {
-        formattedPhone = '55' + formattedPhone;
-        console.log('➕ [send-whatsapp-message] Adicionado código do país 55');
-      }
+    // Só dígitos: Evolution resolve o JID e evita contato @lid fantasma no Chatwoot
+    let formattedPhone: string;
+    try {
+      formattedPhone = normalizeEvolutionSendPhone(phone);
+    } catch (phoneError) {
+      const msg = phoneError instanceof InvalidWhatsappPhoneError
+        ? phoneError.message
+        : 'Telefone inválido para WhatsApp';
+      return new Response(
+        JSON.stringify({ error: 'Telefone inválido', details: msg }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
     }
-    
-    const remoteJid = formattedPhone.includes('@') ? formattedPhone : `${formattedPhone}@s.whatsapp.net`;
 
-    console.log('📱 [send-whatsapp-message] Telefone formatado:', { original: phone, formatted: formattedPhone, remoteJid });
+    console.log('📱 [send-whatsapp-message] Telefone formatado:', { original: phone, formatted: formattedPhone });
 
     // Aplicar modo de teste se ativo
     const testConfig = getTestModeConfig();
     const finalPhone = applyTestMode(formattedPhone, testConfig);
-    const finalRemoteJid = finalPhone.includes('@') ? finalPhone : `${finalPhone}@s.whatsapp.net`;
+    // Enviar só dígitos (não @s.whatsapp.net / @lid)
+    const finalRemoteJid = String(finalPhone).replace(/\D/g, '') || formattedPhone;
 
     // Verificar se deve realmente enviar
     if (!shouldSendMessage(testConfig)) {
@@ -480,6 +482,19 @@ serve(async (req) => {
       });
       // Continuar mesmo com erro na resposta, pois a mensagem pode ter sido enviada
       evolutionData = { message: 'Erro ao processar resposta', error: responseError.message };
+    }
+
+    // Unir @lid fantasma no Chatwoot ao telefone real (se houver integração)
+    if (config.organization_id) {
+      await mergeChatwootLidAfterSend({
+        supabase,
+        organizationId: config.organization_id,
+        phone: formattedPhone,
+        evolutionPayload: evolutionData,
+        evolutionApiUrl: config.api_url,
+        evolutionApiKey: config.api_key || '',
+        evolutionInstanceName: config.instance_name,
+      });
     }
 
     // Registrar atividade no lead (se leadId foi fornecido)

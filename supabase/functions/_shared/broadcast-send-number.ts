@@ -33,8 +33,9 @@ export function isNinthDigitCanonical(inputDigits: string, jidDigits: string): b
   return inputDigits.slice(0, 4) + inputDigits.slice(5) === jidDigits;
 }
 
+/** Só dígitos: evita que a Evolution grave @lid fantasma no Chatwoot. */
 export function fallbackSendNumber(digits: string): string {
-  return `${digits}@s.whatsapp.net`;
+  return String(digits || "").replace(/\D/g, "");
 }
 
 export function decideBroadcastSendNumber(
@@ -60,7 +61,7 @@ export function decideBroadcastSendNumber(
     return { number: fallback, rewritten: false, reason: "not_ninth_digit" };
   }
   return {
-    number: `${jidDigits}@s.whatsapp.net`,
+    number: jidDigits,
     rewritten: true,
     reason: "canonical_jid",
   };

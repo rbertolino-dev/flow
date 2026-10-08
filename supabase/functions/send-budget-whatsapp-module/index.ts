@@ -124,16 +124,26 @@ serve(async (req) => {
       );
     }
 
-    // Normalizar telefone
-    const normalizedPhone = lead.phone.replace(/\D/g, '');
-    if (!normalizedPhone || normalizedPhone.length < 10) {
+    // Só dígitos — evita @lid fantasma no Chatwoot
+    let normalizedPhone = String(lead.phone || '').replace(/\D/g, '');
+    if (String(lead.phone || '').includes('@lid')) {
+      return new Response(
+        JSON.stringify({ error: 'Telefone inválido (@lid). Use o número com DDD.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    if (!normalizedPhone.startsWith('55') && normalizedPhone.length >= 10 && normalizedPhone.length <= 11) {
+      const ddd = parseInt(normalizedPhone.slice(0, 2), 10);
+      if (ddd >= 11 && ddd <= 99) normalizedPhone = `55${normalizedPhone}`;
+    }
+    if (!normalizedPhone || normalizedPhone.length < 12 || normalizedPhone.length > 13) {
       return new Response(
         JSON.stringify({ error: 'Telefone inválido' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const whatsappNumber = `${normalizedPhone}@s.whatsapp.net`;
+    const whatsappNumber = normalizedPhone;
 
     // Enviar via Evolution API
     const evolutionApiUrl = evolutionConfig.api_url.replace(/\/$/, '');

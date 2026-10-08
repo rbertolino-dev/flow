@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { getTestModeConfig, applyTestMode, shouldSendMessage } from "../_shared/test-mode.ts";
+import { InvalidWhatsappPhoneError, normalizeEvolutionSendPhone } from "../_shared/evolution-send-phone.ts";
+import { mergeChatwootLidAfterSend } from "../_shared/chatwoot-merge-lid.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -321,80 +323,26 @@ serve(async (req) => {
           throw new Error('Instância não está conectada');
         }
 
-        // ✅ CORREÇÃO: Normalização de telefone igual ao send-whatsapp-message (que funciona)
+        // Só dígitos: evita @lid fantasma no Chatwoot
         console.log('📞 [process-scheduled-messages] Telefone original:', message.phone);
-        
-        // Remover caracteres não numéricos
-        let formattedPhone = message.phone.replace(/\D/g, '');
-        
-        // Se já tem @, remover o sufixo antes de normalizar
-        if (message.phone.includes('@')) {
-          formattedPhone = message.phone.split('@')[0].replace(/\D/g, '');
-          console.log('🔧 [process-scheduled-messages] Removido sufixo @ do telefone:', formattedPhone);
-        }
-        
-        console.log('🔧 [process-scheduled-messages] Telefone após limpeza:', formattedPhone);
-        
-        // Aplicar modo de teste se ativo (definir antes de usar)
         const testConfig = getTestModeConfig();
-        
-        // ✅ CORREÇÃO: Garantir que números brasileiros tenham código do país (55)
-        // Lógica igual ao send-whatsapp-message e send-budget-whatsapp
-        const phoneBeforeCountryCode = formattedPhone;
-        
-        // ✅ FORÇAR: Se número tem 11 dígitos e não começa com 55, é brasileiro
-        if (!formattedPhone.startsWith('55')) {
-          if (formattedPhone.length === 11) {
-            // Número brasileiro com DDD (11 dígitos = DDD + 9 dígitos)
-            const ddd = parseInt(formattedPhone.substring(0, 2));
-            console.log('🔍 [process-scheduled-messages] Verificando DDD:', { ddd, phoneLength: formattedPhone.length });
-            
-            if (ddd >= 11 && ddd <= 99) {
-              formattedPhone = '55' + formattedPhone;
-              console.log('➕ [process-scheduled-messages] Adicionado código do país 55 ao número brasileiro:', {
-                antes: phoneBeforeCountryCode,
-                depois: formattedPhone
-              });
-            } else {
-              console.log('⚠️ [process-scheduled-messages] DDD inválido ou não brasileiro:', ddd);
-            }
-          } else if (formattedPhone.length >= 10 && formattedPhone.length <= 12) {
-            // Pode ser número brasileiro sem DDD ou com formato diferente
-            const ddd = parseInt(formattedPhone.substring(0, 2));
-            if (ddd >= 11 && ddd <= 99) {
-              formattedPhone = '55' + formattedPhone;
-              console.log('➕ [process-scheduled-messages] Adicionado código do país 55 (formato alternativo):', {
-                antes: phoneBeforeCountryCode,
-                depois: formattedPhone
-              });
-            }
-          }
-        } else {
-          console.log('ℹ️ [process-scheduled-messages] Número já tem código do país:', {
-            startsWith55: formattedPhone.startsWith('55'),
-            length: formattedPhone.length
-          });
+        let formattedPhone: string;
+        try {
+          formattedPhone = normalizeEvolutionSendPhone(message.phone);
+        } catch (phoneError) {
+          const msg = phoneError instanceof InvalidWhatsappPhoneError
+            ? phoneError.message
+            : 'Telefone inválido para WhatsApp';
+          throw new Error(msg);
         }
-        
-        // ✅ GARANTIR: Se ainda não tem código do país e tem 11 dígitos, adicionar forçadamente
-        if (!formattedPhone.startsWith('55') && formattedPhone.length === 11) {
-          formattedPhone = '55' + formattedPhone;
-          console.log('🔧 [process-scheduled-messages] FORÇADO: Adicionado código do país 55 (fallback):', {
-            antes: phoneBeforeCountryCode,
-            depois: formattedPhone
-          });
-        }
-        
-        // Aplicar modo de teste se ativo
         const finalPhone = applyTestMode(formattedPhone, testConfig);
-        const remoteJid = finalPhone.includes('@') ? finalPhone : `${finalPhone}@s.whatsapp.net`;
-        
-        console.log('📱 [process-scheduled-messages] Telefone formatado final:', { 
-          original: message.phone, 
-          afterCleanup: phoneBeforeCountryCode,
+        const remoteJid = String(finalPhone).replace(/\D/g, '') || formattedPhone;
+
+        console.log('📱 [process-scheduled-messages] Telefone formatado final:', {
+          original: message.phone,
           formatted: formattedPhone,
           finalPhone,
-          remoteJid 
+          remoteJid,
         });
 
         // Verificar se deve realmente enviar
@@ -700,6 +648,18 @@ serve(async (req) => {
             sent_at: new Date().toISOString(),
           })
           .eq('id', message.id);
+
+        if (message.organization_id || config.organization_id) {
+          await mergeChatwootLidAfterSend({
+            supabase,
+            organizationId: message.organization_id || config.organization_id,
+            phone: formattedPhone,
+            evolutionPayload: evolutionData,
+            evolutionApiUrl: config.api_url,
+            evolutionApiKey: config.api_key || '',
+            evolutionInstanceName: config.instance_name,
+          });
+        }
 
         // Registrar atividade no lead
         await supabase.from('activities').insert({

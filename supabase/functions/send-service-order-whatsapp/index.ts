@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { InvalidWhatsappPhoneError, normalizeEvolutionSendPhone } from "../_shared/evolution-send-phone.ts";
+import { mergeChatwootLidAfterSend } from "../_shared/chatwoot-merge-lid.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -135,24 +137,19 @@ serve(async (req) => {
         .eq("organization_id", order.organization_id);
     }
 
-    let normalizedPhone = leadPhone.replace(/\D/g, "");
-    if (normalizedPhone.includes("@")) {
-      normalizedPhone = normalizedPhone.split("@")[0];
-    }
-    if (!normalizedPhone || normalizedPhone.length < 10) {
-      return new Response(JSON.stringify({ error: "Telefone do cliente inválido" }), {
+    let normalizedPhone: string;
+    try {
+      normalizedPhone = normalizeEvolutionSendPhone(leadPhone);
+    } catch (phoneError) {
+      const msg = phoneError instanceof InvalidWhatsappPhoneError
+        ? phoneError.message
+        : "Telefone do cliente inválido";
+      return new Response(JSON.stringify({ error: msg }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (!normalizedPhone.startsWith("55") && normalizedPhone.length >= 10) {
-      const ddd = parseInt(normalizedPhone.substring(0, 2), 10);
-      if (ddd >= 11 && ddd <= 99) {
-        normalizedPhone = "55" + normalizedPhone;
-      }
-    }
-
-    const whatsappNumber = `${normalizedPhone}@s.whatsapp.net`;
+    const whatsappNumber = normalizedPhone;
     const evolutionApiUrl = evolutionConfig.api_url.replace(/\/$/, "");
     const sendMediaUrl = `${evolutionApiUrl}/message/sendMedia/${evolutionConfig.instance_name}`;
 
@@ -223,6 +220,20 @@ Para mais informações, entre em contato conosco.`;
         }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    const evolutionResult = await evolutionResponse.json().catch(() => ({}));
+
+    if (order.organization_id || evolutionConfig.organization_id) {
+      await mergeChatwootLidAfterSend({
+        supabase,
+        organizationId: order.organization_id || evolutionConfig.organization_id,
+        phone: normalizedPhone,
+        evolutionPayload: evolutionResult,
+        evolutionApiUrl: evolutionConfig.api_url,
+        evolutionApiKey: evolutionConfig.api_key || "",
+        evolutionInstanceName: evolutionConfig.instance_name,
+      });
     }
 
     if (order.lead_id) {

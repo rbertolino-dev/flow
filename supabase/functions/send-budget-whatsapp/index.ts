@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { InvalidWhatsappPhoneError, normalizeEvolutionSendPhone } from "../_shared/evolution-send-phone.ts";
+import { mergeChatwootLidAfterSend } from "../_shared/chatwoot-merge-lid.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -155,36 +157,25 @@ serve(async (req) => {
       );
     }
 
-    // Remover caracteres não numéricos
-    let normalizedPhone = leadPhone.replace(/\D/g, '');
-    
-    // Se já tem @, remover o sufixo antes de normalizar
-    if (normalizedPhone.includes('@')) {
-      normalizedPhone = normalizedPhone.split('@')[0];
-    }
-    
-    if (!normalizedPhone || normalizedPhone.length < 10) {
+    let normalizedPhone: string;
+    try {
+      normalizedPhone = normalizeEvolutionSendPhone(leadPhone);
+    } catch (phoneError) {
+      const msg = phoneError instanceof InvalidWhatsappPhoneError
+        ? phoneError.message
+        : 'Telefone do lead inválido';
       return new Response(
-        JSON.stringify({ error: 'Telefone do lead inválido' }),
+        JSON.stringify({ error: msg }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    // Só dígitos — evita @lid fantasma no Chatwoot
+    const whatsappNumber = normalizedPhone;
 
-    // Garantir que números brasileiros tenham código do país (55)
-    if (!normalizedPhone.startsWith('55') && normalizedPhone.length >= 10) {
-      const ddd = parseInt(normalizedPhone.substring(0, 2));
-      if (ddd >= 11 && ddd <= 99) {
-        normalizedPhone = '55' + normalizedPhone;
-        console.log('➕ Adicionado código do país 55 ao número');
-      }
-    }
-
-    const whatsappNumber = `${normalizedPhone}@s.whatsapp.net`;
-    
     console.log('📱 Telefone formatado:', {
       original: leadPhone,
       normalized: normalizedPhone,
-      whatsappNumber: whatsappNumber
+      whatsappNumber,
     });
 
     // Enviar via Evolution API
@@ -280,6 +271,18 @@ Para mais informações, entre em contato conosco.`;
 
     const evolutionResult = await evolutionResponse.json();
     console.log('✅ Orçamento enviado via Evolution:', evolutionResult);
+
+    if (budget.organization_id || evolutionConfig.organization_id) {
+      await mergeChatwootLidAfterSend({
+        supabase,
+        organizationId: budget.organization_id || evolutionConfig.organization_id,
+        phone: normalizedPhone,
+        evolutionPayload: evolutionResult,
+        evolutionApiUrl: evolutionConfig.api_url,
+        evolutionApiKey: evolutionConfig.api_key || '',
+        evolutionInstanceName: evolutionConfig.instance_name,
+      });
+    }
 
     // Registrar atividade no lead (se lead_id existir)
     if (budget.lead_id) {
