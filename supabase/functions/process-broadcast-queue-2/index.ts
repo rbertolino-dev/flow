@@ -413,11 +413,11 @@ serve(async (req) => {
           console.log(`🌎 Número LATAM detectado (${formattedPhone.substring(0, 3)}), preservando código do país original`);
         }
         
-        // Destino padrão. O JID canônico (sem nono dígito) só substitui isto depois
-        // que a instância estiver pronta e a Evolution devolver esse JID.
-        let whatsappNumber = formattedPhone.includes('@') 
-          ? formattedPhone 
-          : `${formattedPhone}@s.whatsapp.net`;
+        // Destino padrão só com dígitos (evita @lid fantasma no Chatwoot).
+        // O JID canônico (sem nono dígito) só substitui isto depois da consulta.
+        let whatsappNumber = formattedPhone.includes('@')
+          ? formattedPhone.split('@')[0].replace(/\D/g, '')
+          : formattedPhone.replace(/\D/g, '');
 
         // Limpar api_url e construir endpoint correto usando a instância do item
         let baseUrl = instance.api_url.replace(/\/+$/, ''); // Remove trailing slashes
