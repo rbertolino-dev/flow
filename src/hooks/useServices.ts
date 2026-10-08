@@ -1,86 +1,84 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { Service } from "@/types/budget-module";
 import { useToast } from "@/hooks/use-toast";
+
+function servicesFunctionUrl(pathQuery = "") {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  return `${supabaseUrl}/functions/v1/get-services${pathQuery}`;
+}
+
+function orgScopedHeaders(accessToken: string, organizationId: string): HeadersInit {
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "",
+    "Content-Type": "application/json",
+    "x-organization-id": organizationId,
+  };
+}
+
+function onlyOrgServices(rows: Service[] | undefined, organizationId: string): Service[] {
+  return (rows || []).filter(
+    (service) =>
+      !!service?.id &&
+      !!service?.name &&
+      service.organization_id === organizationId
+  );
+}
 
 export function useServices() {
   const { activeOrgId } = useActiveOrganization();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Buscar serviços via edge function
-  const { data: services = [], isLoading, error } = useQuery({
-    queryKey: ['services', activeOrgId],
+  const { data: servicesRaw = [], isLoading, error } = useQuery({
+    queryKey: ["services", activeOrgId],
     queryFn: async () => {
       if (!activeOrgId) return [];
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Não autenticado');
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("Não autenticado");
 
-      // Usar fetch diretamente para poder passar query params (active_only=false)
-      // Isso garante que TODOS os serviços sejam retornados, não apenas os ativos
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      const functionUrl = `${supabaseUrl}/functions/v1/get-services?active_only=false`;
-      
+      const functionUrl = `${servicesFunctionUrl(
+        `?active_only=false&organization_id=${encodeURIComponent(activeOrgId)}`
+      )}`;
+
       const fetchResponse = await fetch(functionUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'apikey': supabaseKey || '',
-          'Content-Type': 'application/json',
-        },
+        method: "GET",
+        headers: orgScopedHeaders(session.access_token, activeOrgId),
       });
-      
+
       if (!fetchResponse.ok) {
         const errorText = await fetchResponse.text();
-        let errorData;
+        let errorData: { error?: string };
         try {
           errorData = JSON.parse(errorText);
         } catch {
           errorData = { error: errorText || `Erro ${fetchResponse.status}` };
         }
-        console.error('Erro ao buscar serviços:', errorData);
+        console.error("Erro ao buscar serviços:", errorData);
         throw new Error(errorData.error || `Erro ${fetchResponse.status}`);
       }
-      
-      const responseData = await fetchResponse.json();
 
-      // Garantir que retornamos um array mesmo se data for undefined
-      const servicesData = responseData?.data || [];
-      console.log('✅ Serviços carregados do servidor:', servicesData.length);
-      if (servicesData.length > 0) {
-        console.log('📋 IDs dos serviços:', servicesData.map((s: Service) => s.id));
-        console.log('📋 Nomes dos serviços:', servicesData.map((s: Service) => s.name));
-      }
-      
-      // Garantir que todos os serviços têm os campos obrigatórios
-      const validServices = servicesData.filter((s: any) => {
-        if (!s || !s.id || !s.name) {
-          console.warn('⚠️ Serviço inválido filtrado:', s);
-          return false;
-        }
-        return true;
-      });
-      
-      if (validServices.length !== servicesData.length) {
-        console.warn(`⚠️ ${servicesData.length - validServices.length} serviço(s) foram filtrados por falta de dados obrigatórios`);
-      }
-      
-      return validServices as Service[];
+      const responseData = await fetchResponse.json();
+      const servicesData = (responseData?.data || []) as Service[];
+      return onlyOrgServices(servicesData, activeOrgId);
     },
     enabled: !!activeOrgId,
-    // Refetch quando a janela ganha foco (desabilitado para melhorar performance)
     refetchOnWindowFocus: false,
-    // Cache por 2 minutos (aumentado para reduzir queries)
     staleTime: 2 * 60 * 1000,
-    // Refetch a cada 3 minutos em background (reduzido de 1 minuto)
     refetchInterval: 3 * 60 * 1000,
   });
 
-  // Criar serviço
+  const services = useMemo(
+    () => (activeOrgId ? onlyOrgServices(servicesRaw, activeOrgId) : []),
+    [servicesRaw, activeOrgId]
+  );
+
   const createService = useMutation({
     mutationFn: async (serviceData: {
       name: string;
@@ -91,104 +89,101 @@ export function useServices() {
       tax_class_ref?: string | null;
       is_active?: boolean;
     }) => {
-      if (!activeOrgId) throw new Error('Organização não encontrada');
+      if (!activeOrgId) throw new Error("Organização não encontrada");
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Não autenticado');
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("Não autenticado");
 
-      const response = await supabase.functions.invoke('get-services', {
-        method: 'POST',
-        body: serviceData,
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
+      const fetchResponse = await fetch(servicesFunctionUrl(), {
+        method: "POST",
+        headers: orgScopedHeaders(session.access_token, activeOrgId),
+        body: JSON.stringify({ ...serviceData, organization_id: activeOrgId }),
       });
 
-      if (response.error) {
-        console.error('❌ Erro ao criar serviço:', response.error);
-        throw response.error;
+      if (!fetchResponse.ok) {
+        const errorData = await fetchResponse.json().catch(() => ({ error: "Erro ao criar serviço" }));
+        throw new Error(errorData.error || "Erro ao criar serviço");
       }
 
-      // Verificar se a resposta tem o formato correto
-      const createdService = response.data?.data;
-      if (!createdService) {
-        console.error('❌ Resposta inválida da edge function:', response.data);
-        throw new Error('Resposta inválida do servidor');
+      const responseData = await fetchResponse.json();
+      const createdService = responseData?.data as Service | undefined;
+      if (!createdService?.id || createdService.organization_id !== activeOrgId) {
+        throw new Error("Resposta inválida do servidor (organização)");
       }
 
-      console.log('✅ Serviço criado com sucesso:', createdService);
-      return createdService as Service;
+      return createdService;
     },
-    onSuccess: (newService, variables, context) => {
-      console.log('🔄 Atualizando cache com novo serviço:', newService);
-      
-      // Atualizar cache diretamente para aparecer imediatamente na lista
-      queryClient.setQueryData<Service[]>(['services', activeOrgId], (oldData = []) => {
-        // Verificar se o serviço já existe (evitar duplicatas)
-        const exists = oldData.some(s => s.id === newService.id);
+    onSuccess: (newService) => {
+      queryClient.setQueryData<Service[]>(["services", activeOrgId], (oldData = []) => {
+        const scoped = onlyOrgServices(oldData, activeOrgId!);
+        const exists = scoped.some((s) => s.id === newService.id);
         if (exists) {
-          console.log('⚠️ Serviço já existe no cache, atualizando...');
-          return oldData.map(s => s.id === newService.id ? newService : s);
+          return scoped.map((s) => (s.id === newService.id ? newService : s));
         }
-        console.log('✅ Adicionando novo serviço ao cache');
-        return [...oldData, newService];
+        return [...scoped, newService];
       });
-      
-      // Refetch em background após um pequeno delay para garantir sincronização
+
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['services', activeOrgId] });
+        queryClient.invalidateQueries({ queryKey: ["services", activeOrgId] });
       }, 500);
-      
+
       toast({
         title: "Serviço criado",
-        description: "O serviço foi criado com sucesso.",
+        description: "O serviço foi criado com sucesso nesta organização.",
       });
     },
-    onError: (error: any) => {
-      console.error('❌ Erro ao criar serviço:', error);
+    onError: (error: Error) => {
+      console.error("Erro ao criar serviço:", error);
       toast({
         title: "Erro ao criar serviço",
-        description: error.message || 'Erro desconhecido',
+        description: error.message || "Erro desconhecido",
         variant: "destructive",
       });
     },
   });
 
-  // Atualizar serviço
   const updateService = useMutation({
     mutationFn: async ({ id, ...serviceData }: Partial<Service> & { id: string }) => {
-      if (!activeOrgId) throw new Error('Organização não encontrada');
+      if (!activeOrgId) throw new Error("Organização não encontrada");
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Não autenticado');
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("Não autenticado");
 
-      const response = await supabase.functions.invoke('get-services', {
-        method: 'POST',
-        body: { id, ...serviceData },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
+      const fetchResponse = await fetch(servicesFunctionUrl(), {
+        method: "POST",
+        headers: orgScopedHeaders(session.access_token, activeOrgId),
+        body: JSON.stringify({ id, ...serviceData, organization_id: activeOrgId }),
       });
 
-      if (response.error) throw response.error;
+      if (!fetchResponse.ok) {
+        const errorData = await fetchResponse.json().catch(() => ({ error: "Erro ao atualizar serviço" }));
+        throw new Error(errorData.error || "Erro ao atualizar serviço");
+      }
 
-      return response.data?.data as Service;
+      const responseData = await fetchResponse.json();
+      const updated = responseData?.data as Service | undefined;
+      if (!updated?.id || updated.organization_id !== activeOrgId) {
+        throw new Error("Resposta inválida do servidor (organização)");
+      }
+      return updated;
     },
     onSuccess: (updatedService) => {
-      // Atualizar cache diretamente para aparecer imediatamente na lista
-      queryClient.setQueryData<Service[]>(['services', activeOrgId], (oldData = []) => {
-        return oldData.map(s => s.id === updatedService.id ? updatedService : s);
-      });
-      
-      // Refetch em background para garantir sincronização
-      queryClient.invalidateQueries({ queryKey: ['services', activeOrgId] });
-      
+      queryClient.setQueryData<Service[]>(["services", activeOrgId], (oldData = []) =>
+        onlyOrgServices(oldData, activeOrgId!).map((s) =>
+          s.id === updatedService.id ? updatedService : s
+        )
+      );
+      queryClient.invalidateQueries({ queryKey: ["services", activeOrgId] });
       toast({
         title: "Serviço atualizado",
         description: "O serviço foi atualizado com sucesso.",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao atualizar serviço",
         description: error.message,
@@ -197,31 +192,27 @@ export function useServices() {
     },
   });
 
-  // Deletar serviço
   const deleteService = useMutation({
     mutationFn: async (serviceId: string) => {
-      if (!activeOrgId) throw new Error('Organização não encontrada');
+      if (!activeOrgId) throw new Error("Organização não encontrada");
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Não autenticado');
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("Não autenticado");
 
-      // Usar fetch diretamente para fazer DELETE
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      const functionUrl = `${supabaseUrl}/functions/v1/get-services?id=${serviceId}`;
-      
+      const functionUrl = servicesFunctionUrl(
+        `?id=${encodeURIComponent(serviceId)}&organization_id=${encodeURIComponent(activeOrgId)}`
+      );
+
       const fetchResponse = await fetch(functionUrl, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'apikey': supabaseKey || '',
-          'Content-Type': 'application/json',
-        },
+        method: "DELETE",
+        headers: orgScopedHeaders(session.access_token, activeOrgId),
       });
-      
+
       if (!fetchResponse.ok) {
         const errorText = await fetchResponse.text();
-        let errorData;
+        let errorData: { error?: string };
         try {
           errorData = JSON.parse(errorText);
         } catch {
@@ -233,20 +224,16 @@ export function useServices() {
       return serviceId;
     },
     onSuccess: (deletedServiceId) => {
-      // Remover do cache diretamente
-      queryClient.setQueryData<Service[]>(['services', activeOrgId], (oldData = []) => {
-        return oldData.filter(s => s.id !== deletedServiceId);
-      });
-      
-      // Refetch em background para garantir sincronização
-      queryClient.invalidateQueries({ queryKey: ['services', activeOrgId] });
-      
+      queryClient.setQueryData<Service[]>(["services", activeOrgId], (oldData = []) =>
+        onlyOrgServices(oldData, activeOrgId!).filter((s) => s.id !== deletedServiceId)
+      );
+      queryClient.invalidateQueries({ queryKey: ["services", activeOrgId] });
       toast({
         title: "Serviço excluído",
-        description: "O serviço foi excluído com sucesso.",
+        description: "O serviço foi excluído com sucesso desta organização.",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao excluir serviço",
         description: error.message,
@@ -255,72 +242,91 @@ export function useServices() {
     },
   });
 
-  // Criar múltiplos serviços (para importação em massa)
   const createServicesBulk = useMutation({
-    mutationFn: async (servicesData: Array<{
-      name: string;
-      description?: string;
-      price: number;
-      category?: string;
-      is_active?: boolean;
-    }>) => {
-      if (!activeOrgId) throw new Error('Organização não encontrada');
+    mutationFn: async (
+      servicesData: Array<{
+        name: string;
+        description?: string;
+        price: number;
+        category?: string;
+        is_active?: boolean;
+      }>
+    ) => {
+      if (!activeOrgId) throw new Error("Organização não encontrada");
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Não autenticado');
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("Não autenticado");
 
-      // Limitar a 100 serviços por vez
       if (servicesData.length > 100) {
-        throw new Error('Limite de 100 serviços por importação. Por favor, divida em múltiplas planilhas.');
+        throw new Error(
+          "Limite de 100 serviços por importação. Por favor, divida em múltiplas planilhas."
+        );
       }
 
-      // Criar serviços em lote
-      const results = [];
-      const errors = [];
+      const results: Service[] = [];
+      const errors: Array<{ service: string; error: string }> = [];
 
       for (const serviceData of servicesData) {
         try {
-          const response = await supabase.functions.invoke('get-services', {
-            method: 'POST',
-            body: serviceData,
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-            },
+          const fetchResponse = await fetch(servicesFunctionUrl(), {
+            method: "POST",
+            headers: orgScopedHeaders(session.access_token, activeOrgId),
+            body: JSON.stringify({ ...serviceData, organization_id: activeOrgId }),
           });
 
-          if (response.error) {
-            errors.push({ service: serviceData.name, error: response.error.message });
-          } else {
-            results.push(response.data?.data as Service);
+          if (!fetchResponse.ok) {
+            const errorData = await fetchResponse
+              .json()
+              .catch(() => ({ error: "Erro ao criar serviço" }));
+            errors.push({
+              service: serviceData.name,
+              error: errorData.error || "Erro ao criar",
+            });
+            continue;
           }
-        } catch (error: any) {
-          errors.push({ service: serviceData.name, error: error.message });
+
+          const responseData = await fetchResponse.json();
+          const created = responseData?.data as Service | undefined;
+          if (!created?.id || created.organization_id !== activeOrgId) {
+            errors.push({
+              service: serviceData.name,
+              error: "Organização inválida na resposta",
+            });
+            continue;
+          }
+          results.push(created);
+        } catch (error: unknown) {
+          errors.push({
+            service: serviceData.name,
+            error: error instanceof Error ? error.message : "Erro desconhecido",
+          });
         }
       }
 
       if (errors.length > 0) {
-        throw new Error(`${errors.length} serviço(s) falharam: ${errors.map(e => e.service).join(', ')}`);
+        throw new Error(
+          `${errors.length} serviço(s) falharam: ${errors.map((e) => e.service).join(", ")}`
+        );
       }
 
       return results;
     },
     onSuccess: (newServices) => {
-      // Atualizar cache diretamente
-      queryClient.setQueryData<Service[]>(['services', activeOrgId], (oldData = []) => {
-        const existingIds = new Set(oldData.map(s => s.id));
-        const newServicesToAdd = newServices.filter(s => !existingIds.has(s.id));
-        return [...oldData, ...newServicesToAdd];
+      queryClient.setQueryData<Service[]>(["services", activeOrgId], (oldData = []) => {
+        const scoped = onlyOrgServices(oldData, activeOrgId!);
+        const existingIds = new Set(scoped.map((s) => s.id));
+        const newServicesToAdd = newServices.filter((s) => !existingIds.has(s.id));
+        return [...scoped, ...newServicesToAdd];
       });
-      
-      // Refetch em background
-      queryClient.invalidateQueries({ queryKey: ['services', activeOrgId] });
-      
+      queryClient.invalidateQueries({ queryKey: ["services", activeOrgId] });
       toast({
         title: "Serviços importados",
-        description: `${newServices.length} serviço(s) foram importados com sucesso.`,
+        description: `${newServices.length} serviço(s) foram importados nesta organização.`,
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao importar serviços",
         description: error.message,
@@ -329,48 +335,44 @@ export function useServices() {
     },
   });
 
-  // Serviços ativos
-  const activeServices = services.filter(s => s.is_active);
-
-  // Obter categorias únicas dos serviços
-  // IMPORTANTE: Incluir categorias que foram criadas mas ainda não estão em uso
+  const activeServices = services.filter((s) => s.is_active);
   const [categories, setCategories] = useState<string[]>([]);
-  
+
   useEffect(() => {
     if (!activeOrgId) {
       setCategories([]);
       return;
     }
-    
-    // Buscar categorias do localStorage (onde ServiceCategoriesManager salva)
+
     const serviceCategoriesFromStorage = (() => {
       try {
         const stored = localStorage.getItem(`service_categories_${activeOrgId}`);
         if (stored) {
           return JSON.parse(stored) as string[];
         }
-      } catch (e) {
-        // Ignorar erros de parse
+      } catch {
+        // ignore
       }
       return [];
     })();
-    
-    // Categorias dos serviços existentes (garantir que services é array)
+
     const categoriesFromServices = Array.from(
-      new Set((services || []).map(s => s.category).filter(Boolean) as string[])
+      new Set((services || []).map((s) => s.category).filter(Boolean) as string[])
     );
-    
-    // Combinar e ordenar
-    const allCategories = Array.from(new Set([...categoriesFromServices, ...serviceCategoriesFromStorage])).sort();
+
+    const allCategories = Array.from(
+      new Set([...categoriesFromServices, ...serviceCategoriesFromStorage])
+    ).sort();
     setCategories(allCategories);
-    
-    // Salvar no localStorage para persistência
+
     if (allCategories.length > 0) {
-      localStorage.setItem(`service_categories_${activeOrgId}`, JSON.stringify(allCategories));
+      localStorage.setItem(
+        `service_categories_${activeOrgId}`,
+        JSON.stringify(allCategories)
+      );
     }
   }, [activeOrgId, services]);
-  
-  // Escutar eventos de criação/renomeação de categoria
+
   useEffect(() => {
     const handleCategoryCreated = (event: CustomEvent) => {
       const newCategory = event.detail as string;
@@ -388,12 +390,24 @@ export function useServices() {
         Array.from(new Set(prev.map((c) => (c === from ? to : c)))).sort()
       );
     };
-    
-    window.addEventListener('service-category-created', handleCategoryCreated as EventListener);
-    window.addEventListener('service-category-renamed', handleCategoryRenamed as EventListener);
+
+    window.addEventListener(
+      "service-category-created",
+      handleCategoryCreated as EventListener
+    );
+    window.addEventListener(
+      "service-category-renamed",
+      handleCategoryRenamed as EventListener
+    );
     return () => {
-      window.removeEventListener('service-category-created', handleCategoryCreated as EventListener);
-      window.removeEventListener('service-category-renamed', handleCategoryRenamed as EventListener);
+      window.removeEventListener(
+        "service-category-created",
+        handleCategoryCreated as EventListener
+      );
+      window.removeEventListener(
+        "service-category-renamed",
+        handleCategoryRenamed as EventListener
+      );
     };
   }, []);
 
@@ -403,13 +417,13 @@ export function useServices() {
     categories,
     loading: isLoading,
     error,
-    createService, // Retornar objeto completo da mutation
-    updateService, // Retornar objeto completo da mutation
-    deleteService, // Retornar objeto completo da mutation
-    createServicesBulk, // Retornar objeto completo da mutation
+    createService,
+    updateService,
+    deleteService,
+    createServicesBulk,
     refetch: () => {
-      queryClient.invalidateQueries({ queryKey: ['services', activeOrgId] });
-      return queryClient.refetchQueries({ queryKey: ['services', activeOrgId] });
+      queryClient.invalidateQueries({ queryKey: ["services", activeOrgId] });
+      return queryClient.refetchQueries({ queryKey: ["services", activeOrgId] });
     },
   };
 }

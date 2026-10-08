@@ -96,16 +96,19 @@ export function PosReturnExchangeDialog({
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
       if (!token) return;
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-services?active_only=true`;
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-services?active_only=true&organization_id=${encodeURIComponent(activeOrgId)}`;
       const response = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "",
+          "x-organization-id": activeOrgId,
         },
       });
       if (!response.ok) return;
       const body = await response.json();
-      setServices((body?.data || []) as Service[]);
+      setServices(
+        ((body?.data || []) as Service[]).filter((s) => s.organization_id === activeOrgId)
+      );
     };
     void load();
   }, [open, activeOrgId]);

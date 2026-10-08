@@ -3,10 +3,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS, PATCH',
-  'Access-Control-Max-Age': '86400',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-organization-id",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS, PATCH",
+  "Access-Control-Max-Age": "86400",
 };
 
 interface Service {
@@ -23,86 +24,150 @@ interface Service {
   updated_at: string;
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function extractOrganizationId(
+  req: Request,
+  url: URL,
+  body?: Record<string, unknown> | null
+): string {
+  const fromHeader = (req.headers.get("x-organization-id") || "").trim();
+  const fromQuery = (url.searchParams.get("organization_id") || "").trim();
+  const fromBody =
+    body && typeof body.organization_id === "string"
+      ? body.organization_id.trim()
+      : "";
+  return fromHeader || fromQuery || fromBody;
+}
+
+async function assertOrgAccess(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  organizationId: string
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  if (!UUID_RE.test(organizationId)) {
+    return { ok: false, status: 400, error: "organization_id inválido" };
+  }
+
+  const { data: membership, error: memberError } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", userId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (memberError) {
+    console.error("Erro ao validar membership:", memberError);
+    return { ok: false, status: 500, error: "Erro ao validar organização" };
+  }
+
+  if (membership?.organization_id) {
+    return { ok: true };
+  }
+
+  // Super admin da plataforma pode operar na org ativa escolhida no CRM
+  const { data: roleRow, error: roleError } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("role", "admin")
+    .maybeSingle();
+
+  if (roleError) {
+    console.error("Erro ao validar role admin:", roleError);
+    return { ok: false, status: 500, error: "Erro ao validar permissões" };
+  }
+
+  if (roleRow?.role === "admin") {
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    status: 403,
+    error: "Sem acesso a esta organização",
+  };
+}
+
 serve(async (req) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { 
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
       status: 204,
       headers: {
         ...corsHeaders,
-        'Content-Length': '0',
-      }
+        "Content-Length": "0",
+      },
     });
   }
 
+  let client: Client | null = null;
+
   try {
-    // Verificar autenticação
-    const authHeader = req.headers.get('Authorization');
+    const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Não autenticado' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ error: "Não autenticado" }, 401);
     }
 
-    // Criar cliente Supabase para validar token
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Validar token
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const token = authHeader.replace("Bearer ", "");
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Token inválido' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      return jsonResponse({ error: "Token inválido" }, 401);
+    }
+
+    const url = new URL(req.url);
+    let body: Record<string, unknown> | null = null;
+    if (req.method === "POST" || req.method === "PATCH") {
+      try {
+        body = await req.json();
+      } catch {
+        body = null;
+      }
+    }
+
+    const organizationId = extractOrganizationId(req, url, body);
+    if (!organizationId) {
+      return jsonResponse(
+        {
+          error:
+            "organization_id é obrigatório. Cada empresa só vê e gerencia a própria lista de serviços.",
+        },
+        400
       );
     }
 
-    // Obter organization_id do usuário
-    const { data: orgMembers, error: orgError } = await supabase
-      .from('organization_members')
-      .select('organization_id')
-      .eq('user_id', user.id)
-      .limit(1);
-
-    if (orgError) {
-      console.error('❌ Erro ao buscar organização:', orgError);
-      return new Response(
-        JSON.stringify({ error: 'Erro ao buscar organização', data: [] }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    const access = await assertOrgAccess(supabase, user.id, organizationId);
+    if (!access.ok) {
+      return jsonResponse({ error: access.error, data: [] }, access.status);
     }
 
-    if (!orgMembers || orgMembers.length === 0) {
-      console.log('⚠️ Usuário não pertence a nenhuma organização');
-      return new Response(
-        JSON.stringify({ data: [] }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const organizationId = orgMembers[0].organization_id;
-
-    // Conectar ao PostgreSQL
-    const postgresHost = Deno.env.get('POSTGRES_HOST') || 'localhost';
-    const postgresPort = parseInt(Deno.env.get('POSTGRES_PORT') || '5432');
-    const postgresDb = Deno.env.get('POSTGRES_DB') || 'budget_services';
-    const postgresUser = Deno.env.get('POSTGRES_USER') || 'budget_user';
-    const postgresPassword = Deno.env.get('POSTGRES_PASSWORD');
+    const postgresHost = Deno.env.get("POSTGRES_HOST") || "localhost";
+    const postgresPort = parseInt(Deno.env.get("POSTGRES_PORT") || "5432");
+    const postgresDb = Deno.env.get("POSTGRES_DB") || "budget_services";
+    const postgresUser = Deno.env.get("POSTGRES_USER") || "budget_user";
+    const postgresPassword = Deno.env.get("POSTGRES_PASSWORD");
 
     if (!postgresPassword) {
-      console.error('❌ POSTGRES_PASSWORD não configurada');
-      return new Response(
-        JSON.stringify({ error: 'Configuração do PostgreSQL não encontrada' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.error("POSTGRES_PASSWORD não configurada");
+      return jsonResponse({ error: "Configuração do PostgreSQL não encontrada" }, 500);
     }
 
-    // Criar cliente PostgreSQL
-    const client = new Client({
+    client = new Client({
       hostname: postgresHost,
       port: postgresPort,
       database: postgresDb,
@@ -113,15 +178,13 @@ serve(async (req) => {
     await client.connect();
     await client.queryArray(`ALTER TABLE services ADD COLUMN IF NOT EXISTS tax_class_ref TEXT`);
 
-    // Verificar método HTTP
-    const url = new URL(req.url);
-    const serviceId = url.searchParams.get('id');
-    const category = url.searchParams.get('category');
-    const activeOnly = url.searchParams.get('active_only') !== 'false';
+    const serviceId = url.searchParams.get("id");
+    const category = url.searchParams.get("category");
+    const activeOnly = url.searchParams.get("active_only") !== "false";
 
-    if (req.method === 'GET') {
+    if (req.method === "GET") {
       let query = `
-        SELECT 
+        SELECT
           id,
           organization_id,
           name,
@@ -136,94 +199,84 @@ serve(async (req) => {
         FROM services
         WHERE organization_id = $1
       `;
-      const params: any[] = [organizationId];
+      const params: unknown[] = [organizationId];
 
       if (serviceId) {
-        // Buscar serviço específico
-        query += ' AND id = $2';
+        query += " AND id = $2";
         params.push(serviceId);
       } else {
-        // Filtrar por categoria se fornecido
         if (category) {
-          query += ' AND category = $2';
+          query += " AND category = $2";
           params.push(category);
         }
-
-        // Filtrar apenas ativos se solicitado
         if (activeOnly) {
-          query += ` AND is_active = true`;
+          query += " AND is_active = true";
         }
       }
 
-      query += ' ORDER BY name ASC';
+      query += " ORDER BY name ASC";
 
       const result = await client.queryObject<Service>(query, params);
-      await client.end();
+      // Blindagem: nunca devolver linha de outra organização
+      const rows = result.rows.filter((row) => row.organization_id === organizationId);
 
-      return new Response(
-        JSON.stringify({ data: result.rows }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ data: rows });
     }
 
-    // DELETE para excluir serviço
-    if (req.method === 'DELETE') {
-      const serviceId = url.searchParams.get('id');
-      
-      if (!serviceId) {
-        return new Response(
-          JSON.stringify({ error: 'ID do serviço é obrigatório' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+    if (req.method === "DELETE") {
+      const deleteId = url.searchParams.get("id");
+
+      if (!deleteId) {
+        return jsonResponse({ error: "ID do serviço é obrigatório" }, 400);
       }
 
-      // Verificar se serviço existe e pertence à organização
       const checkQuery = `
         SELECT id FROM services
         WHERE id = $1 AND organization_id = $2
       `;
-      const checkResult = await client.queryObject(checkQuery, [serviceId, organizationId]);
-      
+      const checkResult = await client.queryObject(checkQuery, [deleteId, organizationId]);
+
       if (checkResult.rows.length === 0) {
-        await client.end();
-        return new Response(
-          JSON.stringify({ error: 'Serviço não encontrado' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return jsonResponse({ error: "Serviço não encontrado nesta organização" }, 404);
       }
 
-      // Excluir serviço
       const deleteQuery = `
         DELETE FROM services
         WHERE id = $1 AND organization_id = $2
         RETURNING id
       `;
-      const result = await client.queryObject(deleteQuery, [serviceId, organizationId]);
-      await client.end();
+      const result = await client.queryObject<{ id: string }>(deleteQuery, [
+        deleteId,
+        organizationId,
+      ]);
 
-      return new Response(
-        JSON.stringify({ data: { id: result.rows[0].id, deleted: true } }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ data: { id: result.rows[0].id, deleted: true } });
     }
 
-    // POST para criar/atualizar serviço
-    if (req.method === 'POST') {
-      const body = await req.json();
-      const { id, name, description, price, category, is_active, image_url, tax_class_ref } = body;
+    if (req.method === "POST") {
+      if (!body) {
+        return jsonResponse({ error: "Corpo da requisição inválido" }, 400);
+      }
+
+      const {
+        id,
+        name,
+        description,
+        price,
+        category,
+        is_active,
+        image_url,
+        tax_class_ref,
+      } = body;
 
       if (!name || price === undefined) {
-        return new Response(
-          JSON.stringify({ error: 'Nome e preço são obrigatórios' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return jsonResponse({ error: "Nome e preço são obrigatórios" }, 400);
       }
 
       if (id) {
-        // Atualizar serviço existente
         const updateQuery = `
           UPDATE services
-          SET 
+          SET
             name = $1,
             description = $2,
             price = $3,
@@ -235,72 +288,87 @@ serve(async (req) => {
           WHERE id = $8 AND organization_id = $9
           RETURNING *
         `;
-        const result = await client.queryObject<Service>(
-          updateQuery,
-          [name, description || null, price, category || null, is_active !== false, image_url ?? null, tax_class_ref || null, id, organizationId]
-        );
-        await client.end();
+        const result = await client.queryObject<Service>(updateQuery, [
+          name,
+          description || null,
+          price,
+          category || null,
+          is_active !== false,
+          image_url ?? null,
+          tax_class_ref || null,
+          id,
+          organizationId,
+        ]);
 
         if (result.rows.length === 0) {
-          return new Response(
-            JSON.stringify({ error: 'Serviço não encontrado' }),
-            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          return jsonResponse(
+            { error: "Serviço não encontrado nesta organização" },
+            404
           );
         }
 
-        return new Response(
-          JSON.stringify({ data: result.rows[0] }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      } else {
-        // Criar novo serviço
-        const insertQuery = `
-          INSERT INTO services (organization_id, name, description, price, category, is_active, image_url, tax_class_ref)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-          RETURNING *
-        `;
-        const result = await client.queryObject<Service>(
-          insertQuery,
-          [organizationId, name, description || null, price, category || null, is_active !== false, image_url ?? null, tax_class_ref || null]
-        );
-        
-        if (result.rows.length === 0) {
-          await client.end();
-          console.error('❌ Nenhum serviço foi retornado após inserção');
-          return new Response(
-            JSON.stringify({ error: 'Erro ao criar serviço' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+        const updated = result.rows[0];
+        if (updated.organization_id !== organizationId) {
+          return jsonResponse({ error: "Violação de isolamento por organização" }, 403);
         }
 
-        const createdService = result.rows[0];
-        console.log('✅ Serviço criado com sucesso:', createdService.id, createdService.name);
-        
-        await client.end();
-
-        return new Response(
-          JSON.stringify({ data: createdService }),
-          { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return jsonResponse({ data: updated });
       }
+
+      const insertQuery = `
+        INSERT INTO services (organization_id, name, description, price, category, is_active, image_url, tax_class_ref)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING *
+      `;
+      const result = await client.queryObject<Service>(insertQuery, [
+        organizationId,
+        name,
+        description || null,
+        price,
+        category || null,
+        is_active !== false,
+        image_url ?? null,
+        tax_class_ref || null,
+      ]);
+
+      if (result.rows.length === 0) {
+        return jsonResponse({ error: "Erro ao criar serviço" }, 500);
+      }
+
+      const createdService = result.rows[0];
+      if (createdService.organization_id !== organizationId) {
+        return jsonResponse({ error: "Violação de isolamento por organização" }, 500);
+      }
+
+      console.log(
+        "Serviço criado:",
+        createdService.id,
+        createdService.name,
+        "org:",
+        organizationId
+      );
+
+      return jsonResponse({ data: createdService }, 201);
     }
 
-    await client.end();
-
-    return new Response(
-      JSON.stringify({ error: 'Método não permitido' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    return jsonResponse({ error: "Método não permitido" }, 405);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Erro desconhecido";
+    console.error("Erro no get-services:", error);
+    return jsonResponse(
+      {
+        error: "Erro interno do servidor",
+        details: message,
+      },
+      500
     );
-  } catch (error: any) {
-    console.error('❌ Erro no get-services:', error);
-    return new Response(
-      JSON.stringify({
-        error: 'Erro interno do servidor',
-        details: error.message || 'Erro desconhecido',
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  } finally {
+    if (client) {
+      try {
+        await client.end();
+      } catch {
+        // ignore close errors
+      }
+    }
   }
 });
-
-
