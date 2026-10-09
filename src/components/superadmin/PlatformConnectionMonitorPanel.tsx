@@ -29,6 +29,8 @@ type SnapshotRow = {
   open_alert_id: string | null;
   open_alert_detected_at: string | null;
   open_alert_acknowledged_at: string | null;
+  open_alert_last_auto_reconnect_at?: string | null;
+  open_alert_auto_reconnect_result?: string | null;
 };
 
 type MonitorResult = {
@@ -40,6 +42,10 @@ type MonitorResult = {
   stillOpen?: number;
   alertsCreated?: number;
   alertsResolved?: number;
+  autoReconnectAttempted?: number;
+  autoReconnectRestored?: number;
+  autoReconnectFailed?: number;
+  autoReconnectSkippedCooldown?: number;
   error?: string;
 };
 
@@ -58,6 +64,19 @@ function hostFromUrl(url: string | null | undefined): string {
     return new URL(url.replace(/^http:\/\//i, "https://")).host;
   } catch {
     return url;
+  }
+}
+
+function reconnectResultLabel(result: string | null | undefined): string {
+  switch (result) {
+    case "restored":
+      return "Restaurada";
+    case "needs_scan":
+      return "Precisa escanear";
+    case "error":
+      return "Erro na tentativa";
+    default:
+      return "—";
   }
 }
 
@@ -123,7 +142,9 @@ export function PlatformConnectionMonitorPanel() {
       setLastSync(result);
       toast({
         title: "Monitor executado",
-        description: `Verificadas ${result.checked ?? 0} · atualizadas ${result.updated ?? 0} · novos alertas ${result.alertsCreated ?? 0}`,
+        description:
+          `Verificadas ${result.checked ?? 0} · auto-reconnect ok ${result.autoReconnectRestored ?? 0}` +
+          ` · falhou ${result.autoReconnectFailed ?? 0}`,
       });
       await loadSnapshot();
     } catch (e: unknown) {
@@ -166,7 +187,7 @@ export function PlatformConnectionMonitorPanel() {
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">Monitor de conexões WhatsApp</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Todas as empresas · apenas alerta e status · sem QR Code
+            Todas as empresas · auto-reconnect silencioso · sem QR Code
           </p>
         </div>
         <div className="flex gap-2">
@@ -184,8 +205,9 @@ export function PlatformConnectionMonitorPanel() {
       <Alert>
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
-          O cron roda a cada 10 minutos e consulta o <code>connectionState</code> na Evolution.
-          Este painel não gera QR nem chama reconnect.
+          A cada 10 minutos o monitor consulta o <code>connectionState</code> e tenta
+          auto-reconnect silencioso (<code>/instance/connect</code>) sem gerar/exibir QR.
+          Se a sessão precisar de scan, o alerta permanece aberto (cooldown 30 min entre tentativas).
         </AlertDescription>
       </Alert>
 
@@ -218,16 +240,19 @@ export function PlatformConnectionMonitorPanel() {
 
       {lastSync && (
         <p className="text-xs text-muted-foreground">
-          Última execução manual: checked={lastSync.checked ?? 0}, updated={lastSync.updated ?? 0},
-          newlyDisconnected={lastSync.newlyDisconnected ?? 0}, stillOpen={lastSync.stillOpen ?? 0},
-          alertsCreated={lastSync.alertsCreated ?? 0}, alertsResolved={lastSync.alertsResolved ?? 0}
+          Última execução: checked={lastSync.checked ?? 0}, updated={lastSync.updated ?? 0},
+          stillOpen={lastSync.stillOpen ?? 0}, autoReconnectAttempted={lastSync.autoReconnectAttempted ?? 0},
+          restored={lastSync.autoReconnectRestored ?? 0}, failed={lastSync.autoReconnectFailed ?? 0},
+          cooldownSkip={lastSync.autoReconnectSkippedCooldown ?? 0}
         </p>
       )}
 
       <Card>
         <CardHeader>
           <CardTitle>Alertas abertos</CardTitle>
-          <CardDescription>Transições conectado → desconectado detectadas pelo monitor</CardDescription>
+          <CardDescription>
+            Quedas que o auto-reconnect não restaurou (ou ainda não tentou)
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -244,6 +269,7 @@ export function PlatformConnectionMonitorPanel() {
                   <TableHead>Instância</TableHead>
                   <TableHead>Servidor</TableHead>
                   <TableHead>Detectado em</TableHead>
+                  <TableHead>Auto-reconnect</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ação</TableHead>
                 </TableRow>
@@ -255,6 +281,14 @@ export function PlatformConnectionMonitorPanel() {
                     <TableCell className="font-medium">{r.instance_name}</TableCell>
                     <TableCell>{hostFromUrl(r.api_url)}</TableCell>
                     <TableCell>{formatDt(r.open_alert_detected_at)}</TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        <div>{reconnectResultLabel(r.open_alert_auto_reconnect_result)}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatDt(r.open_alert_last_auto_reconnect_at)}
+                        </div>
+                      </div>
+                    </TableCell>
                     <TableCell>
                       {r.open_alert_acknowledged_at ? (
                         <Badge variant="secondary">Lido</Badge>
@@ -301,7 +335,7 @@ export function PlatformConnectionMonitorPanel() {
                   <TableHead>Servidor</TableHead>
                   <TableHead>Telefone</TableHead>
                   <TableHead>Última desconexão</TableHead>
-                  <TableHead>Alerta</TableHead>
+                  <TableHead>Alerta / auto-reconnect</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -319,11 +353,18 @@ export function PlatformConnectionMonitorPanel() {
                     <TableCell>{formatDt(r.last_disconnect_at ?? r.updated_at)}</TableCell>
                     <TableCell>
                       {r.open_alert_id ? (
-                        r.open_alert_acknowledged_at ? (
-                          <Badge variant="secondary">Aberto (lido)</Badge>
-                        ) : (
-                          <Badge variant="destructive">Aberto</Badge>
-                        )
+                        <div className="space-y-1">
+                          {r.open_alert_acknowledged_at ? (
+                            <Badge variant="secondary">Aberto (lido)</Badge>
+                          ) : (
+                            <Badge variant="destructive">Aberto</Badge>
+                          )}
+                          {r.open_alert_auto_reconnect_result && (
+                            <div className="text-xs text-muted-foreground">
+                              {reconnectResultLabel(r.open_alert_auto_reconnect_result)}
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <Badge variant="outline">Sem alerta novo</Badge>
                       )}
