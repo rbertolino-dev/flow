@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { CreateUserDialog } from "./CreateUserDialog";
 import { AddExistingUserDialog } from "./AddExistingUserDialog";
+import { UnlinkUserDialog } from "./UnlinkUserDialog";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { OrganizationModulesPanel } from "./OrganizationModulesPanel";
 import { OrganizationLimitsPanel } from "./OrganizationLimitsPanel";
@@ -18,7 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { differenceInCalendarDays, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Check, Loader2, UserPlus } from "lucide-react";
+import { Check, Loader2, UserMinus, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -103,6 +104,7 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
   const [createUserOpen, setCreateUserOpen] = useState(false);
   const [addExistingUserOpen, setAddExistingUserOpen] = useState(false);
   const [resetTarget, setResetTarget] = useState<Member | null>(null);
+  const [unlinkTarget, setUnlinkTarget] = useState<Member | null>(null);
   const [permissionUser, setPermissionUser] = useState<Member | null>(null);
   const [confirm, setConfirm] = useState<null | "deactivate" | "sales" | "receber" | "pagar">(null);
   const [systemAdminTarget, setSystemAdminTarget] = useState<Member | null>(null);
@@ -628,9 +630,19 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
                           {permissionLabels(permissionsByUser[member.user_id] ?? []) || "Sem módulos liberados"}
                         </button>
 
-                        <div className="flex justify-start md:justify-end">
+                        <div className="flex flex-wrap justify-start gap-2 md:justify-end">
                           <Button type="button" size="sm" className="bg-blue-700 hover:bg-blue-800" onClick={() => setResetTarget(member)}>
                             Senha
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                            onClick={() => setUnlinkTarget(member)}
+                          >
+                            <UserMinus className="h-3.5 w-3.5 mr-1" />
+                            Desvincular
                           </Button>
                         </div>
                       </div>
@@ -666,6 +678,18 @@ export function OrganizationDetailPanel({ organization, open, onClose, onUpdate 
           userId={resetTarget.user_id}
           userEmail={resetTarget.profiles.email}
           userName={resetTarget.profiles.full_name}
+        />
+      )}
+      {unlinkTarget && (
+        <UnlinkUserDialog
+          open={!!unlinkTarget}
+          onOpenChange={(next) => { if (!next) setUnlinkTarget(null); }}
+          onSuccess={onUpdate}
+          userId={unlinkTarget.user_id}
+          userName={unlinkTarget.profiles.full_name || unlinkTarget.profiles.email}
+          userEmail={unlinkTarget.profiles.email}
+          organizationId={organization.id}
+          organizationName={organization.name}
         />
       )}
       {permissionUser && (
