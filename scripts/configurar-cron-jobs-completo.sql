@@ -45,7 +45,8 @@ DECLARE
     'sync-google-calendar-events',
     'process-google-business-posts',
     'process-scheduled-campaigns',
-    'process-broadcast-queue-2'
+    'process-broadcast-queue-2',
+    'monitor-evolution-connections'
   ];
 BEGIN
   FOREACH j IN ARRAY names LOOP
@@ -201,6 +202,23 @@ SELECT cron.schedule(
   $$
   SELECT net.http_post(
     url := 'https://ogeljmbhqxpfjbpnbwog.supabase.co/functions/v1/process-broadcast-queue-2',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true),
+      'apikey', current_setting('app.settings.service_role_key', true)
+    ),
+    body := '{}'::jsonb
+  );
+  $$
+);
+
+-- 10. Monitor global de conexões WhatsApp (todas as orgs, sem QR) — a cada 10 min
+SELECT cron.schedule(
+  'monitor-evolution-connections',
+  '*/10 * * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://ogeljmbhqxpfjbpnbwog.supabase.co/functions/v1/monitor-evolution-connections-cron',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true),

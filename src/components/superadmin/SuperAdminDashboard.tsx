@@ -29,6 +29,9 @@ const AssistantConfigPanel = lazy(() =>
 const EvolutionProvidersPanel = lazy(() =>
   import("./EvolutionProvidersPanel").then((m) => ({ default: m.EvolutionProvidersPanel }))
 );
+const PlatformConnectionMonitorPanel = lazy(() =>
+  import("./PlatformConnectionMonitorPanel").then((m) => ({ default: m.PlatformConnectionMonitorPanel }))
+);
 const ContractStorageConfig = lazy(() =>
   import("./ContractStorageConfig").then((m) => ({ default: m.ContractStorageConfig }))
 );
@@ -106,6 +109,7 @@ export function SuperAdminDashboard() {
   const [showPlansManagement, setShowPlansManagement] = useState(false);
   const [showAssistantConfig, setShowAssistantConfig] = useState(false);
   const [showEvolutionProviders, setShowEvolutionProviders] = useState(false);
+  const [showConnectionMonitor, setShowConnectionMonitor] = useState(false);
   const [showContractStorage, setShowContractStorage] = useState(false);
   const [showLogoUploader, setShowLogoUploader] = useState(false);
   const [newUsersCount, setNewUsersCount] = useState(0);
@@ -370,6 +374,21 @@ export function SuperAdminDashboard() {
     );
   }
 
+  if (showConnectionMonitor) {
+    return (
+      <div className="h-full overflow-auto bg-background p-6">
+        <div className="mb-6">
+          <Button variant="ghost" onClick={() => setShowConnectionMonitor(false)}>
+            ← Voltar para Organizações
+          </Button>
+        </div>
+        <Suspense fallback={<PanelSpinner />}>
+          <PlatformConnectionMonitorPanel />
+        </Suspense>
+      </div>
+    );
+  }
+
   if (showContractStorage) {
     return (
       <div className="h-full overflow-auto bg-background p-6">
@@ -525,6 +544,14 @@ export function SuperAdminDashboard() {
               >
                 <MessageSquare className="h-4 w-4 mr-2 shrink-0" />
                 <span className="truncate">Providers Evolution</span>
+              </Button>
+              <Button 
+                onClick={() => setShowConnectionMonitor(true)} 
+                variant="secondary" 
+                className="w-full justify-start"
+              >
+                <AlertTriangle className="h-4 w-4 mr-2 shrink-0" />
+                <span className="truncate">Monitor Conexões WhatsApp</span>
               </Button>
               <Button 
                 onClick={() => setShowContractStorage(!showContractStorage)} 

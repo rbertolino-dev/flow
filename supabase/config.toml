@@ -365,3 +365,7 @@ verify_jwt = true
 
 [functions.fiscal-webhook]
 verify_jwt = false
+
+# ========== Monitor global conexões WhatsApp (ops, sem QR) ==========
+[functions.monitor-evolution-connections-cron]
+verify_jwt = false
