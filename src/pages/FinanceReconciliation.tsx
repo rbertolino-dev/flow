@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { CheckSquare, CreditCard, Landmark, Loader2, Upload } from 'lucide-react';
 import { CRMLayout } from '@/components/crm/CRMLayout';
 import { FinanceSubnav } from '@/components/finance/FinanceSubnav';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
@@ -104,18 +106,44 @@ export default function FinanceReconciliation() {
           <p className="mb-3 text-sm font-medium text-slate-600">2º Passo - Selecione o banco que deseja fazer a conciliação</p>
           {ledgerLoading ? (
             <div className="flex items-center gap-2 text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />Carregando contas</div>
+          ) : accounts.length === 0 ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+              <p className="mb-3">Nenhuma conta encontrada na carteira desta empresa. Cadastre em Bancos para poder conciliar.</p>
+              <Button asChild className="bg-slate-800 hover:bg-slate-900">
+                <Link to="/financeiro/bancos">Ir para Bancos</Link>
+              </Button>
+            </div>
           ) : (
-            <div className="flex flex-wrap gap-3">
-              {accounts.map((account) => (
-                <AccountChip
-                  key={account.id}
-                  account={account}
-                  active={account.id === accountId}
-                  onSelect={() => setAccountId(account.id)}
-                />
-              ))}
-              {accounts.length === 0 && (
-                <p className="text-sm text-slate-500">Cadastre uma conta em Bancos antes de conciliar.</p>
+            <div className="space-y-3">
+              <div className="max-w-md">
+                <Label className="mb-1 block">Conta / banco</Label>
+                <Select value={accountId} onValueChange={setAccountId}>
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Selecione a conta" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accounts.map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {accountLabel(account)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {accounts.map((account) => (
+                  <AccountChip
+                    key={account.id}
+                    account={account}
+                    active={account.id === accountId}
+                    onSelect={() => setAccountId(account.id)}
+                  />
+                ))}
+              </div>
+              {selectedAccount && (
+                <p className="text-sm text-slate-600">
+                  Conta selecionada: <strong>{accountLabel(selectedAccount)}</strong>
+                </p>
               )}
             </div>
           )}
@@ -181,14 +209,19 @@ export default function FinanceReconciliation() {
   );
 }
 
+function accountLabel(account: FinancialAccount): string {
+  const parts = [account.name, account.bank_name, account.account_type].filter(Boolean);
+  return parts.join(' · ');
+}
+
 function AccountChip({ account, active, onSelect }: { account: FinancialAccount; active: boolean; onSelect: () => void }) {
   return (
     <button
       type="button"
       onClick={onSelect}
       className={cn(
-        'rounded-md border px-4 py-3 text-left text-sm transition-colors',
-        active ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+        'min-w-[140px] rounded-md border px-4 py-3 text-left text-sm transition-colors',
+        active ? 'border-slate-800 bg-slate-800 text-white shadow' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50',
       )}
     >
       <p className="font-semibold">{account.name}</p>

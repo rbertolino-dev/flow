@@ -106,13 +106,15 @@ export function useFinancialLedger() {
           .order('name'),
       ]);
 
-      if (entryRes.error) throw entryRes.error;
       if (accountRes.error) throw accountRes.error;
       if (categoryRes.error) throw categoryRes.error;
-
-      setEntries((entryRes.data || []) as FinancialEntry[]);
+      // Contas e categorias sobem mesmo se a lista de lançamentos falhar
+      // (evita a conciliação ficar sem seletor de banco).
       setAccounts((accountRes.data || []) as FinancialAccount[]);
       setCategories((categoryRes.data || []) as FinancialCategory[]);
+
+      if (entryRes.error) throw entryRes.error;
+      setEntries((entryRes.data || []) as FinancialEntry[]);
     } catch (error) {
       console.error('Erro ao carregar financeiro:', error);
       toast({
