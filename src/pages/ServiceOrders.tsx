@@ -65,6 +65,10 @@ import { useToast } from '@/hooks/use-toast';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { useEvolutionConfigs } from '@/hooks/useEvolutionConfigs';
 import {
+  useIsActiveOrgAdmin,
+  useOrgUserPermissions,
+} from '@/hooks/useOrgUserPermissions';
+import {
   generateServiceOrderPDF,
   downloadServiceOrderPDF,
   openServiceOrderPDF,
@@ -233,12 +237,19 @@ export default function ServiceOrders() {
     cancelFutureMaintenanceVisits,
     getOrder,
     updateOrder,
+    updateChecklistItem,
     deleteOrder,
     peekNextCode,
     refetch,
     closeOrder,
     duplicateOrder,
   } = useServiceOrders(filters);
+
+  const { isOrgAdmin } = useIsActiveOrgAdmin();
+  const { canViewFeature, canEditFeature, canDeleteFeature } = useOrgUserPermissions();
+  const canEditOs = viewer.seesAll || isOrgAdmin || canEditFeature('service_orders');
+  const canDeleteOs = viewer.seesAll || isOrgAdmin || canDeleteFeature('service_orders');
+  const canViewOs = viewer.seesAll || isOrgAdmin || canViewFeature('service_orders');
 
   // Mantém o modal de detalhe sincronizado com a lista após refetch
   const selectedOrderId = selectedOrder?.id;
@@ -496,6 +507,14 @@ export default function ServiceOrders() {
   };
 
   const handleStatusChange = (order: ServiceOrder, statusId: string) => {
+    if (!canEditOs) {
+      toast({
+        title: 'Sem permissão',
+        description: 'Você não pode alterar a etapa desta ordem de serviço.',
+        variant: 'destructive',
+      });
+      return;
+    }
     if (statusId === order.status_id) return;
     const next = statuses.find((status) => status.id === statusId);
     if (next?.is_final) {
@@ -667,26 +686,42 @@ export default function ServiceOrders() {
             PDF em 3 vias
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem
-          onClick={() => openSendWhatsApp(order)}
-          disabled={sendingWhatsApp}
-          data-testid={`os-send-whatsapp-${order.id}${testSuffix}`}
-        >
-          <MessageCircle className="h-4 w-4 mr-2" />
-          Enviar via WhatsApp
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className="text-destructive"
-          onClick={() => {
-            setSelectedOrder(order);
-            setShowDeleteConfirm(true);
-          }}
-        >
-          Excluir
-        </DropdownMenuItem>
+        {canEditOs && (
+          <DropdownMenuItem
+            onClick={() => openSendWhatsApp(order)}
+            disabled={sendingWhatsApp}
+            data-testid={`os-send-whatsapp-${order.id}${testSuffix}`}
+          >
+            <MessageCircle className="h-4 w-4 mr-2" />
+            Enviar via WhatsApp
+          </DropdownMenuItem>
+        )}
+        {canDeleteOs && (
+          <DropdownMenuItem
+            className="text-destructive"
+            onClick={() => {
+              setSelectedOrder(order);
+              setShowDeleteConfirm(true);
+            }}
+          >
+            Excluir
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
+
+  if (!canViewOs) {
+    return (
+      <AuthGuard>
+        <CRMLayout activeView="service-orders" onViewChange={() => {}}>
+          <div className="p-6">
+            <p className="text-muted-foreground">Você não tem permissão para ver ordens de serviço.</p>
+          </div>
+        </CRMLayout>
+      </AuthGuard>
+    );
+  }
 
   return (
     <AuthGuard>
@@ -816,31 +851,37 @@ export default function ServiceOrders() {
             {orders.length} {orders.length === 1 ? 'Ordem' : 'Ordens'}
           </p>
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-            <Button variant="secondary" className="flex-1 sm:flex-none min-h-11" onClick={() => setShowTemplates(true)} data-testid="os-modelos-btn">
-              <LayoutTemplate className="h-4 w-4 mr-1" />
-              MODELOS
-            </Button>
-            <Button
-              onClick={() => {
-                setEditingOrder(null);
-                setOrderDraft(null);
-                setShowCreate(true);
-              }}
-              className="bg-slate-800 hover:bg-slate-900 flex-1 sm:flex-none min-h-11"
-              data-testid="os-criar-btn"
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              CRIAR ORDEM
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setShowStatuses(true)}
-              title="Criar e editar etapas (status)"
-              data-testid="os-etapas-gear-btn"
-            >
-              <Settings2 className="h-4 w-4" />
-            </Button>
+            {canEditOs && (
+              <Button variant="secondary" className="flex-1 sm:flex-none min-h-11" onClick={() => setShowTemplates(true)} data-testid="os-modelos-btn">
+                <LayoutTemplate className="h-4 w-4 mr-1" />
+                MODELOS
+              </Button>
+            )}
+            {canEditOs && (
+              <Button
+                onClick={() => {
+                  setEditingOrder(null);
+                  setOrderDraft(null);
+                  setShowCreate(true);
+                }}
+                className="bg-slate-800 hover:bg-slate-900 flex-1 sm:flex-none min-h-11"
+                data-testid="os-criar-btn"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                CRIAR ORDEM
+              </Button>
+            )}
+            {canEditOs && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setShowStatuses(true)}
+                title="Criar e editar etapas (status)"
+                data-testid="os-etapas-gear-btn"
+              >
+                <Settings2 className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
 
@@ -989,6 +1030,7 @@ export default function ServiceOrders() {
                       <Select
                         value={order.status_id || undefined}
                         onValueChange={(statusId) => handleStatusChange(order, statusId)}
+                        disabled={!canEditOs}
                       >
                         <SelectTrigger
                           className="flex-1 h-10 border-0 text-white font-medium"
@@ -1072,6 +1114,7 @@ export default function ServiceOrders() {
                       <Select
                         value={order.status_id || undefined}
                         onValueChange={(statusId) => handleStatusChange(order, statusId)}
+                        disabled={!canEditOs}
                       >
                         <SelectTrigger
                           className="w-[160px] h-8 border-0 text-white font-medium"
@@ -1173,6 +1216,8 @@ export default function ServiceOrders() {
         onOpenChange={setShowDetail}
         order={selectedOrder}
         exporting={!!selectedOrder && exportingId === selectedOrder.id}
+        canEdit={canEditOs}
+        canDelete={canDeleteOs}
         onEdit={(order) => {
           setOrderDraft(null);
           setEditingOrder(order);
@@ -1189,7 +1234,16 @@ export default function ServiceOrders() {
         }}
         onCopy={handleCopyOrder}
         onExportPdf={(order, mode) => exportOrderPdf(order, { open: true, mode })}
-        onSendWhatsApp={openSendWhatsApp}
+        onSendWhatsApp={canEditOs ? openSendWhatsApp : undefined}
+        onChecklistItemChange={async (orderId, item) => {
+          const ok = await updateChecklistItem(orderId, item);
+          if (ok) {
+            const fresh = await getOrder(orderId);
+            if (fresh) setSelectedOrder(fresh);
+            void refetch();
+          }
+          return ok;
+        }}
         onOpenVisit={async (id) => {
           const local = orders.find((item) => item.id === id);
           const next = local || (await getOrder(id));

@@ -112,5 +112,21 @@ export function useOrgUserPermissions() {
     return hasPermissionAction(permissions, feature, "view");
   };
 
-  return { loading, hasSavedPermissions, canViewFeature };
+  const canEditFeature = (feature: FeatureKey) => {
+    if (!hasSavedPermissions) return true;
+    return hasPermissionAction(permissions, feature, "edit");
+  };
+
+  const canDeleteFeature = (feature: FeatureKey) => {
+    if (!hasSavedPermissions) return true;
+    return hasPermissionAction(permissions, feature, "delete");
+  };
+
+  return {
+    loading,
+    hasSavedPermissions,
+    canViewFeature,
+    canEditFeature,
+    canDeleteFeature,
+  };
 }

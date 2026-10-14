@@ -60,6 +60,191 @@ function calcTotals(items: ServiceOrderItem[]) {
   return { subtotal, discount: 0, total: subtotal };
 }
 
+function toGoogleStartDateTime(value?: string | null): string | null {
+  if (!value) return null;
+  const match = value.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+  if (match) return `${match[1]}:00`;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
+}
+
+function googleEventDurationMinutes(startsAt?: string | null, endsAt?: string | null): number {
+  if (!startsAt || !endsAt) return 60;
+  const start = new Date(startsAt).getTime();
+  const end = new Date(endsAt).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 60;
+  return Math.max(15, Math.round((end - start) / 60000));
+}
+
+type GoogleSyncOrder = {
+  id: string;
+  code?: string | null;
+  client_name?: string | null;
+  service_name?: string | null;
+  address?: string | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  add_to_google_calendar?: boolean | null;
+  google_calendar_config_id?: string | null;
+  google_calendar_event_id?: string | null;
+};
+
+async function clearGoogleCalendarIds(activeOrgId: string, orderId: string) {
+  // @ts-expect-error tabela ainda nao tipada no client gerado
+  await supabase
+    .from('service_orders')
+    .update({
+      google_calendar_config_id: null,
+      google_calendar_event_id: null,
+    })
+    .eq('id', orderId)
+    .eq('organization_id', activeOrgId);
+}
+
+async function deleteGoogleCalendarEventForOrder(
+  order: Pick<GoogleSyncOrder, 'google_calendar_config_id' | 'google_calendar_event_id'>
+) {
+  if (!order.google_calendar_config_id || !order.google_calendar_event_id) return;
+  const { data, error } = await supabase.functions.invoke('delete-google-calendar-event', {
+    body: {
+      google_calendar_config_id: order.google_calendar_config_id,
+      google_event_id: order.google_calendar_event_id,
+    },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+}
+
+async function syncServiceOrderGoogleCalendar(
+  activeOrgId: string,
+  order: GoogleSyncOrder,
+  notify: (opts: { title: string; description?: string; variant?: 'destructive' | 'default' }) => void
+) {
+  try {
+    if (!order.add_to_google_calendar) {
+      if (order.google_calendar_event_id && order.google_calendar_config_id) {
+        try {
+          await deleteGoogleCalendarEventForOrder(order);
+        } catch (err) {
+          console.error('Erro ao remover evento Google da OS:', err);
+        }
+        await clearGoogleCalendarIds(activeOrgId, order.id);
+      }
+      return;
+    }
+
+    const { data: configs, error: configsError } = await supabase
+      .from('google_calendar_configs')
+      .select('id, is_active')
+      .eq('organization_id', activeOrgId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+
+    if (configsError) throw configsError;
+
+    const activeConfigs = (configs || []) as Array<{ id: string; is_active: boolean }>;
+    const preferred =
+      activeConfigs.find((c) => c.id === order.google_calendar_config_id) || activeConfigs[0];
+
+    if (!preferred) {
+      notify({
+        title: 'Google Agenda não conectado',
+        description: 'A OS foi salva, mas o evento não foi sincronizado. Conecte o Google Agenda em Integrações.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const startDateTime = toGoogleStartDateTime(order.starts_at);
+    if (!startDateTime) {
+      notify({
+        title: 'Sem horário para o Google Agenda',
+        description: 'Defina a previsão da execução para sincronizar o evento.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const summary = [
+      `OS ${order.code || ''}`.trim(),
+      order.client_name || 'Cliente',
+      order.service_name || 'Serviço',
+    ].join(' — ');
+    const durationMinutes = googleEventDurationMinutes(order.starts_at, order.ends_at);
+    const description = [
+      order.service_name ? `Serviço: ${order.service_name}` : null,
+      order.client_name ? `Cliente: ${order.client_name}` : null,
+      `Código: ${order.code || order.id}`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    let eventId = order.google_calendar_event_id || null;
+    let configId = preferred.id;
+
+    if (eventId && order.google_calendar_config_id) {
+      const { data, error } = await supabase.functions.invoke('update-google-calendar-event', {
+        body: {
+          google_calendar_config_id: order.google_calendar_config_id,
+          google_event_id: eventId,
+          summary,
+          startDateTime,
+          durationMinutes,
+          description,
+          location: order.address || undefined,
+        },
+      });
+      if (error || data?.error) {
+        // Evento pode ter sido apagado no Google — cria de novo
+        console.warn('Falha ao atualizar evento Google; tentando criar:', error || data?.error);
+        eventId = null;
+      } else {
+        configId = order.google_calendar_config_id;
+      }
+    }
+
+    if (!eventId) {
+      const { data, error } = await supabase.functions.invoke('create-google-calendar-event', {
+        body: {
+          google_calendar_config_id: preferred.id,
+          summary,
+          startDateTime,
+          durationMinutes,
+          description,
+          location: order.address || undefined,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      eventId = data?.eventId || null;
+      configId = preferred.id;
+    }
+
+    if (!eventId) {
+      throw new Error('Google Agenda não retornou o ID do evento');
+    }
+
+    // @ts-expect-error tabela ainda nao tipada no client gerado
+    await supabase
+      .from('service_orders')
+      .update({
+        google_calendar_config_id: configId,
+        google_calendar_event_id: eventId,
+      })
+      .eq('id', order.id)
+      .eq('organization_id', activeOrgId);
+  } catch (err) {
+    console.error('Erro ao sincronizar OS com Google Agenda:', err);
+    notify({
+      title: 'Falha ao sincronizar Google Agenda',
+      description: err instanceof Error ? err.message : 'Não foi possível sincronizar o evento.',
+      variant: 'destructive',
+    });
+  }
+}
+
 async function loadSupplyIds(activeOrgId: string) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Usuário não autenticado');
@@ -314,8 +499,8 @@ export function useServiceOrders(
         label_tag: form.label_tag || null,
         maintenance_plan_id: form.maintenance_plan_id || null,
         maintenance_index: form.maintenance_index || null,
-        add_to_agilize_calendar: form.add_to_agilize_calendar || false,
-        add_to_google_calendar: form.add_to_google_calendar || false,
+        add_to_agilize_calendar: form.add_to_agilize_calendar ?? true,
+        add_to_google_calendar: Boolean(form.add_to_google_calendar),
         reference_images: form.reference_images || [],
         created_by: user?.id || null,
         creator_name: null as string | null,
@@ -400,6 +585,23 @@ export function useServiceOrders(
         await syncServiceOrderEquipments(activeOrgId, order.id, form.equipment_ids);
       }
 
+      await syncServiceOrderGoogleCalendar(
+        activeOrgId,
+        {
+          id: order.id,
+          code: order.code,
+          client_name: order.client_name,
+          service_name: order.service_name,
+          address: order.address,
+          starts_at: order.starts_at,
+          ends_at: order.ends_at,
+          add_to_google_calendar: Boolean(form.add_to_google_calendar),
+          google_calendar_config_id: order.google_calendar_config_id,
+          google_calendar_event_id: order.google_calendar_event_id,
+        },
+        toast
+      );
+
       if (!options?.quiet) {
         toast({ title: 'Ordem criada', description: `OS ${order.code} criada com sucesso.` });
       }
@@ -421,6 +623,21 @@ export function useServiceOrders(
     patch: Partial<ServiceOrderFormData> & { status_id?: string; label_tag?: string; is_closed?: boolean }
   ) => {
     if (!activeOrgId) return false;
+
+    const looksLikeFullForm =
+      patch.lead_id !== undefined ||
+      patch.responsible_user_id !== undefined ||
+      patch.collaborator_user_id !== undefined ||
+      patch.service_name !== undefined ||
+      patch.service_id !== undefined ||
+      patch.starts_at !== undefined;
+    if (looksLikeFullForm) {
+      const requiredMessage = serviceOrderRequiredMessage(patch);
+      if (requiredMessage) {
+        toast({ title: 'Campos obrigatórios', description: requiredMessage, variant: 'destructive' });
+        return false;
+      }
+    }
 
     try {
       const updatePayload: Record<string, unknown> = {};
@@ -590,6 +807,30 @@ export function useServiceOrders(
         await syncServiceOrderEquipments(activeOrgId, id, patch.equipment_ids);
       }
 
+      const shouldSyncGoogle =
+        looksLikeFullForm ||
+        patch.add_to_google_calendar !== undefined ||
+        patch.starts_at !== undefined ||
+        patch.ends_at !== undefined ||
+        patch.address !== undefined ||
+        patch.client_name !== undefined ||
+        patch.service_name !== undefined;
+
+      if (shouldSyncGoogle) {
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        const { data: refreshed } = await supabase
+          .from('service_orders')
+          .select(
+            'id, code, client_name, service_name, address, starts_at, ends_at, add_to_google_calendar, google_calendar_config_id, google_calendar_event_id'
+          )
+          .eq('id', id)
+          .eq('organization_id', activeOrgId)
+          .maybeSingle();
+        if (refreshed) {
+          await syncServiceOrderGoogleCalendar(activeOrgId, refreshed as GoogleSyncOrder, toast);
+        }
+      }
+
       toast({ title: 'OS atualizada' });
       await fetchOrders();
       return true;
@@ -610,11 +851,15 @@ export function useServiceOrders(
       // @ts-expect-error tabela ainda nao tipada no client gerado
       const { data: existing } = await supabase
         .from('service_orders')
-        .select('code')
+        .select('code, google_calendar_config_id, google_calendar_event_id')
         .eq('id', id)
         .eq('organization_id', activeOrgId)
         .maybeSingle();
       const orderCode = String((existing as { code?: string } | null)?.code || '');
+      const googleMeta = existing as {
+        google_calendar_config_id?: string | null;
+        google_calendar_event_id?: string | null;
+      } | null;
       // @ts-expect-error tabela ainda nao tipada no client gerado
       const { data: prev } = await supabase
         .from('service_order_items')
@@ -622,6 +867,16 @@ export function useServiceOrders(
         .eq('service_order_id', id)
         .eq('organization_id', activeOrgId);
       await syncServiceOrderStock(activeOrgId, id, orderCode, []);
+
+      if (googleMeta?.google_calendar_event_id && googleMeta?.google_calendar_config_id) {
+        try {
+          await deleteGoogleCalendarEventForOrder(googleMeta);
+          await clearGoogleCalendarIds(activeOrgId, id);
+        } catch (gcalErr) {
+          console.error('Erro ao remover evento Google ao excluir OS:', gcalErr);
+        }
+      }
+
       // @ts-expect-error tabela ainda nao tipada no client gerado
       const { error } = await supabase
         .from('service_orders')
@@ -1028,6 +1283,37 @@ export function useServiceOrders(
     return { ...(data as ServiceOrder), equipment_ids };
   };
 
+  const updateChecklistItem = async (
+    orderId: string,
+    item: { id: string; is_done?: boolean; answer?: string | null }
+  ): Promise<boolean> => {
+    if (!activeOrgId || !item.id) return false;
+    try {
+      const patch: Record<string, unknown> = {};
+      if (item.is_done !== undefined) patch.is_done = item.is_done;
+      if (item.answer !== undefined) patch.answer = item.answer;
+      if (Object.keys(patch).length === 0) return true;
+
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { error } = await supabase
+        .from('service_order_checklist_items')
+        .update(patch)
+        .eq('id', item.id)
+        .eq('service_order_id', orderId)
+        .eq('organization_id', activeOrgId);
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.error('Erro ao atualizar checklist:', err);
+      toast({
+        title: 'Erro',
+        description: err instanceof Error ? err.message : 'Não foi possível atualizar o checklist',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
   return {
     orders,
     loading,
@@ -1038,6 +1324,7 @@ export function useServiceOrders(
     cancelFutureMaintenanceVisits,
     getOrder,
     updateOrder,
+    updateChecklistItem,
     deleteOrder,
     peekNextCode,
     closeOrder,

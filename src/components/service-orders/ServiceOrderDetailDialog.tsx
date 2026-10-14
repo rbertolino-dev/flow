@@ -6,10 +6,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import {
   CalendarClock,
+  ClipboardCheck,
   Copy,
   FileDown,
   FileText,
@@ -25,7 +28,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ServiceOrder, ServiceOrderLog } from '@/types/serviceOrder';
+import { ServiceOrder, ServiceOrderChecklistItem, ServiceOrderLog } from '@/types/serviceOrder';
 import { Equipment, equipmentDisplayName } from '@/types/equipment';
 import { maintenanceMarkLabel } from '@/lib/serviceOrderMaintenance';
 import { executionDurationLabel, formatServiceOrderMoment } from '@/lib/serviceOrderDuration';
@@ -47,6 +50,12 @@ interface ServiceOrderDetailDialogProps {
   onSendWhatsApp?: (order: ServiceOrder) => void;
   onOpenVisit?: (orderId: string) => void;
   onCancelFutureVisits?: (order: ServiceOrder) => Promise<void> | void;
+  onChecklistItemChange?: (
+    orderId: string,
+    item: { id: string; is_done?: boolean; answer?: string | null }
+  ) => Promise<boolean>;
+  canEdit?: boolean;
+  canDelete?: boolean;
   exporting?: boolean;
 }
 
@@ -78,6 +87,9 @@ export function ServiceOrderDetailDialog({
   onSendWhatsApp,
   onOpenVisit,
   onCancelFutureVisits,
+  onChecklistItemChange,
+  canEdit = true,
+  canDelete = true,
   exporting,
 }: ServiceOrderDetailDialogProps) {
   const viewer = useServiceOrderViewer();
@@ -87,6 +99,8 @@ export function ServiceOrderDetailDialog({
   const [visits, setVisits] = useState<MaintenanceVisitRow[]>([]);
   const [cancelingVisits, setCancelingVisits] = useState(false);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
+  const [checklist, setChecklist] = useState<ServiceOrderChecklistItem[]>([]);
+  const [savingChecklistId, setSavingChecklistId] = useState<string | null>(null);
   const { activeOrgId } = useActiveOrganization();
 
   useEffect(() => {
@@ -95,8 +109,12 @@ export function ServiceOrderDetailDialog({
       setShowLogs(false);
       setVisits([]);
       setEquipments([]);
+      setChecklist([]);
       return;
     }
+    setChecklist(
+      [...(order.checklist || [])].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    );
     if (activeOrgId) {
       void fetchEquipmentsForOrder(activeOrgId, order.id)
         .then(setEquipments)
@@ -187,8 +205,12 @@ export function ServiceOrderDetailDialog({
         </DialogHeader>
 
         <Tabs defaultValue="geral" className="px-5">
-          <TabsList className="w-full grid grid-cols-3">
+          <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4 h-auto gap-1">
             <TabsTrigger value="geral">Geral</TabsTrigger>
+            <TabsTrigger value="checklist" className="gap-1">
+              <ClipboardCheck className="h-3.5 w-3.5" />
+              Checklist
+            </TabsTrigger>
             <TabsTrigger value="vendas">Vendas</TabsTrigger>
             <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
           </TabsList>
@@ -392,6 +414,72 @@ export function ServiceOrderDetailDialog({
             </div>
           </TabsContent>
 
+          <TabsContent value="checklist" className="pt-4 pb-2 space-y-3">
+            {checklist.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                Nenhum item de checklist nesta ordem.
+              </p>
+            ) : (
+              checklist.map((item) => {
+                const itemId = item.id || '';
+                const saving = savingChecklistId === itemId;
+                return (
+                  <div
+                    key={itemId || item.title}
+                    className="rounded-lg border px-3 py-2.5 space-y-2"
+                  >
+                    <label className="flex items-start gap-2 text-sm">
+                      <Checkbox
+                        checked={Boolean(item.is_done)}
+                        disabled={!canEdit || !!order.is_closed || !itemId || saving || !onChecklistItemChange}
+                        onCheckedChange={(checked) => {
+                          if (!itemId || !onChecklistItemChange) return;
+                          const nextDone = checked === true;
+                          setChecklist((prev) =>
+                            prev.map((row) =>
+                              row.id === itemId ? { ...row, is_done: nextDone } : row
+                            )
+                          );
+                          setSavingChecklistId(itemId);
+                          void onChecklistItemChange(order.id, {
+                            id: itemId,
+                            is_done: nextDone,
+                          }).finally(() => setSavingChecklistId(null));
+                        }}
+                      />
+                      <span className={item.is_done ? 'line-through text-muted-foreground' : ''}>
+                        {item.title}
+                      </span>
+                    </label>
+                    {item.response_type === 'text' && (
+                      <Input
+                        value={item.answer || ''}
+                        placeholder="Resposta"
+                        disabled={!canEdit || !!order.is_closed || !itemId || saving || !onChecklistItemChange}
+                        onChange={(e) => {
+                          const answer = e.target.value;
+                          setChecklist((prev) =>
+                            prev.map((row) =>
+                              row.id === itemId ? { ...row, answer } : row
+                            )
+                          );
+                        }}
+                        onBlur={(e) => {
+                          if (!itemId || !onChecklistItemChange) return;
+                          setSavingChecklistId(itemId);
+                          void onChecklistItemChange(order.id, {
+                            id: itemId,
+                            answer: e.target.value,
+                          }).finally(() => setSavingChecklistId(null));
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </TabsContent>
+
           <TabsContent value="vendas" className="pt-4 pb-2 space-y-2">
             {(order.items || []).length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-6">
@@ -499,33 +587,39 @@ export function ServiceOrderDetailDialog({
         )}
 
         <div className="grid grid-cols-2 gap-2 p-3 sm:p-4 border-t bg-muted/20 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <Button
-            className="bg-sky-500 hover:bg-sky-600 text-white min-h-11 text-sm"
-            onClick={() => onEdit(order)}
-            disabled={!!order.is_closed}
-          >
-            <Pencil className="h-4 w-4 mr-1" />
-            Editar
-          </Button>
-          <Button
-            className="bg-emerald-600 hover:bg-emerald-700 text-white min-h-11 text-sm"
-            onClick={() => onCloseOrder(order)}
-            disabled={!!order.is_closed}
-            data-testid="os-detail-close-btn"
-          >
-            <XCircle className="h-4 w-4 mr-1" />
-            Fechar OS
-          </Button>
+          {canEdit && (
+            <Button
+              className="bg-sky-500 hover:bg-sky-600 text-white min-h-11 text-sm"
+              onClick={() => onEdit(order)}
+              disabled={!!order.is_closed}
+            >
+              <Pencil className="h-4 w-4 mr-1" />
+              Editar
+            </Button>
+          )}
+          {canEdit && (
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 text-white min-h-11 text-sm"
+              onClick={() => onCloseOrder(order)}
+              disabled={!!order.is_closed}
+              data-testid="os-detail-close-btn"
+            >
+              <XCircle className="h-4 w-4 mr-1" />
+              Fechar OS
+            </Button>
+          )}
           <Button className="bg-violet-600 hover:bg-violet-700 text-white min-h-11 text-sm" onClick={loadLogs}>
             Logs da O.S.
           </Button>
-          <Button
-            className="bg-red-600 hover:bg-red-700 text-white min-h-11 text-sm"
-            onClick={() => onDelete(order)}
-          >
-            <Trash2 className="h-4 w-4 mr-1" />
-            Excluir
-          </Button>
+          {canDelete && (
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white min-h-11 text-sm"
+              onClick={() => onDelete(order)}
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Excluir
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

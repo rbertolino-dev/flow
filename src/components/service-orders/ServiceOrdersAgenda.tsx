@@ -63,6 +63,7 @@ type AgendaOrder = {
   is_single_day: boolean;
   is_closed: boolean;
   maintenance_plan_id: string | null;
+  add_to_agilize_calendar?: boolean | null;
   status: AgendaStatus | null;
 };
 
@@ -79,14 +80,14 @@ type AgendaFilters = {
 const AGENDA_SELECT = `
   id, code, client_name, client_phone, address, service_name,
   responsible_name, collaborator_name, starts_at, ends_at,
-  is_single_day, is_closed, maintenance_plan_id,
+  is_single_day, is_closed, maintenance_plan_id, add_to_agilize_calendar,
   status:service_order_statuses(id, name, color, is_final)
 `;
 
 const AGENDA_SELECT_PLAIN = `
   id, code, client_name, client_phone, address, service_name,
   responsible_name, collaborator_name, starts_at, ends_at,
-  is_single_day, is_closed,
+  is_single_day, is_closed, add_to_agilize_calendar,
   status:service_order_statuses(id, name, color, is_final)
 `;
 
@@ -114,6 +115,11 @@ function asStatus(value: unknown): AgendaStatus | null {
   return status;
 }
 
+function isOnAgilizeAgenda(order: Pick<AgendaOrder, 'add_to_agilize_calendar'>): boolean {
+  // Legado sem flag continua visível; só some quando explicitamente false
+  return order.add_to_agilize_calendar !== false;
+}
+
 function normalize(row: Record<string, unknown>): AgendaOrder {
   return {
     id: String(row.id),
@@ -129,6 +135,10 @@ function normalize(row: Record<string, unknown>): AgendaOrder {
     is_single_day: row.is_single_day === true,
     is_closed: row.is_closed === true,
     maintenance_plan_id: (row.maintenance_plan_id as string | null) ?? null,
+    add_to_agilize_calendar:
+      row.add_to_agilize_calendar === undefined
+        ? null
+        : (row.add_to_agilize_calendar as boolean | null),
     status: asStatus(row.status),
   };
 }
@@ -254,7 +264,9 @@ async function runSelect(build: (columns: string) => Promise<{ data: unknown; er
     result = await build(AGENDA_SELECT_PLAIN);
   }
   if (result.error) throw new Error(result.error.message || 'Não foi possível ler a agenda');
-  return ((result.data || []) as Record<string, unknown>[]).map(normalize);
+  return ((result.data || []) as Record<string, unknown>[])
+    .map(normalize)
+    .filter(isOnAgilizeAgenda);
 }
 
 function clockOf(order: AgendaOrder, day?: Date) {

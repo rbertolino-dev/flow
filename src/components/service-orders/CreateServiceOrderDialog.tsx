@@ -38,6 +38,7 @@ import { osDialogContentClass } from './osResponsive';
 import { useServiceOrderChecklists } from '@/hooks/useServiceOrderChecklists';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { useServices } from '@/hooks/useServices';
+import { useGoogleCalendarConfigs } from '@/hooks/useGoogleCalendarConfigs';
 import { supabase } from '@/integrations/supabase/client';
 import { Product } from '@/types/product';
 import { Lead } from '@/types/lead';
@@ -162,6 +163,8 @@ export function CreateServiceOrderDialog({
   const appliedChecklistKey = useRef<string | null>(null);
   const { activeOrgId } = useActiveOrganization();
   const { activeServices } = useServices();
+  const { configs: googleCalendarConfigs } = useGoogleCalendarConfigs();
+  const hasActiveGoogleCalendar = googleCalendarConfigs.some((c) => c.is_active);
   const [orgUsers, setOrgUsers] = useState<Array<{ id: string; name: string }>>([]);
 
   const template = templates.find((t) => t.id === templateId) || defaultTemplate;
@@ -274,6 +277,10 @@ export function CreateServiceOrderDialog({
         custom_fields: editingOrder.custom_fields || {},
         label_tag: editingOrder.label_tag || undefined,
         equipment_ids: editingOrder.equipment_ids || [],
+        add_to_agilize_calendar: editingOrder.add_to_agilize_calendar !== false,
+        add_to_google_calendar: Boolean(editingOrder.add_to_google_calendar),
+        google_calendar_config_id: editingOrder.google_calendar_config_id || undefined,
+        google_calendar_event_id: editingOrder.google_calendar_event_id || undefined,
       });
       setItems(editingOrder.items || []);
       setChecklist(editingOrder.checklist || []);
@@ -291,6 +298,7 @@ export function CreateServiceOrderDialog({
       is_single_day: true,
       has_commission: false,
       custom_fields: {},
+      add_to_google_calendar: false,
       ...initialDraft,
       starts_at: initialDraft?.starts_at
         ? format(new Date(initialDraft.starts_at), "yyyy-MM-dd'T'HH:mm")
@@ -298,6 +306,10 @@ export function CreateServiceOrderDialog({
       ends_at: initialDraft?.ends_at
         ? format(new Date(initialDraft.ends_at), "yyyy-MM-dd'T'HH:mm")
         : undefined,
+      add_to_agilize_calendar:
+        initialDraft?.add_to_agilize_calendar !== undefined
+          ? Boolean(initialDraft.add_to_agilize_calendar)
+          : true,
       items: undefined,
       checklist: undefined,
       maintenance_plan: undefined,
@@ -695,12 +707,30 @@ export function CreateServiceOrderDialog({
     }
 
     if (field.field_type === 'boolean') {
+      const isAgilize = field.field_key === 'add_to_agilize_calendar';
+      const isGoogle = field.field_key === 'add_to_google_calendar';
+      const googleDisabled = isGoogle && !hasActiveGoogleCalendar;
+      const helper = googleDisabled
+        ? 'Conecte o Google Agenda em Integrações'
+        : field.placeholder ||
+          (isAgilize
+            ? 'Aparece na aba Agenda deste módulo'
+            : isGoogle
+              ? 'Sincroniza com a conta Google conectada em Integrações'
+              : '');
       return (
-        <div key={field.id} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 md:col-span-2">
-          <Label>{field.label}</Label>
+        <div key={field.id} className="flex items-start justify-between gap-3 rounded-md border px-3 py-2 md:col-span-2">
+          <div className="space-y-0.5">
+            <Label className={googleDisabled ? 'text-muted-foreground' : undefined}>{field.label}</Label>
+            {helper ? <p className="text-xs text-muted-foreground">{helper}</p> : null}
+          </div>
           <Switch
-            checked={Boolean(value)}
-            onCheckedChange={(checked) => setField(field.field_key, checked, isCustom)}
+            checked={googleDisabled ? false : Boolean(value)}
+            disabled={googleDisabled}
+            onCheckedChange={(checked) => {
+              if (googleDisabled) return;
+              setField(field.field_key, checked, isCustom);
+            }}
           />
         </div>
       );
@@ -856,6 +886,8 @@ export function CreateServiceOrderDialog({
       template_id: templateId,
       status_id: statusId || undefined,
       label_tag: labelTag || undefined,
+      add_to_agilize_calendar: form.add_to_agilize_calendar !== false,
+      add_to_google_calendar: hasActiveGoogleCalendar && Boolean(form.add_to_google_calendar),
       items,
       checklist,
       equipment_ids: form.equipment_ids || [],

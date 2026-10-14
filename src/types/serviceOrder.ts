@@ -194,6 +194,8 @@ export interface ServiceOrder {
   total: number;
   add_to_agilize_calendar: boolean;
   add_to_google_calendar: boolean;
+  google_calendar_config_id?: string | null;
+  google_calendar_event_id?: string | null;
   reference_images: string[];
   is_closed?: boolean;
   closed_at?: string | null;
@@ -289,6 +291,8 @@ export interface ServiceOrderFormData {
   };
   add_to_agilize_calendar?: boolean;
   add_to_google_calendar?: boolean;
+  google_calendar_config_id?: string | null;
+  google_calendar_event_id?: string | null;
   reference_images?: string[];
   items?: ServiceOrderItem[];
   checklist?: ServiceOrderChecklistItem[];
@@ -318,11 +322,30 @@ export const STANDARD_TEMPLATE_FIELDS: Array<{
   { field_key: 'diagnosis', label: 'Diagnóstico/Problema', field_type: 'textarea', is_required: false, section: 'descricao', sort_order: 140 },
   { field_key: 'solution', label: 'Solução/Instrução', field_type: 'textarea', is_required: false, section: 'descricao', sort_order: 150 },
   { field_key: 'warranty_terms', label: 'Termo de garantia (opcional)', field_type: 'textarea', is_required: false, section: 'garantia', sort_order: 160 },
-  { field_key: 'add_to_agilize_calendar', label: 'Adicionar à Agenda Agilize', field_type: 'boolean', is_required: false, section: 'integracao', sort_order: 170, include_in_pdf: false },
-  { field_key: 'add_to_google_calendar', label: 'Adicionar ao Google Agenda', field_type: 'boolean', is_required: false, section: 'integracao', sort_order: 180, include_in_pdf: false },
+  {
+    field_key: 'add_to_agilize_calendar',
+    label: 'Adicionar à Agenda Agilize',
+    field_type: 'boolean',
+    is_required: false,
+    section: 'integracao',
+    sort_order: 170,
+    include_in_pdf: false,
+    placeholder: 'Aparece na aba Agenda deste módulo',
+  },
+  {
+    field_key: 'add_to_google_calendar',
+    label: 'Adicionar ao Google Agenda',
+    field_type: 'boolean',
+    is_required: false,
+    section: 'integracao',
+    sort_order: 180,
+    include_in_pdf: false,
+    placeholder: 'Sincroniza com a conta Google conectada em Integrações',
+  },
 ];
 
 export const REQUIRED_SERVICE_ORDER_FIELDS = new Set([
+  'lead_id',
   'responsible_name',
   'collaborator_name',
   'service_name',
@@ -330,12 +353,17 @@ export const REQUIRED_SERVICE_ORDER_FIELDS = new Set([
 ]);
 
 export function serviceOrderRequiredMessage(form: {
+  lead_id?: string | null;
+  client_name?: string | null;
   responsible_user_id?: string | null;
   collaborator_user_id?: string | null;
   service_name?: string | null;
   service_id?: string | null;
   starts_at?: string | null;
 }): string | null {
+  if (!(form.lead_id || '').trim() && !(form.client_name || '').trim()) {
+    return 'Selecione o cliente.';
+  }
   if (!(form.responsible_user_id || '').trim()) return 'Selecione o responsável.';
   if (!(form.collaborator_user_id || '').trim()) return 'Selecione o colaborador.';
   if (!(form.service_id || '').trim() && !(form.service_name || '').trim()) return 'Selecione o serviço.';
