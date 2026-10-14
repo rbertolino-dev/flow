@@ -18,6 +18,7 @@ import {
   aggregateStageTimes,
   isServiceOrderOverdue,
   type StageChangeLog,
+  type StageStatusCatalogItem,
 } from "@/lib/serviceOrderManagement";
 
 const ORDER_SELECT = `
@@ -50,6 +51,7 @@ export function useServiceOrdersReport() {
 
   const [rawOrders, setRawOrders] = useState<OsReportOrder[]>([]);
   const [stageLogs, setStageLogs] = useState<StageChangeLog[]>([]);
+  const [statusCatalog, setStatusCatalog] = useState<StageStatusCatalogItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -105,8 +107,17 @@ export function useServiceOrdersReport() {
         if (logFrom > 50000) break;
       }
 
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { data: statusRows, error: statusError } = await supabase
+        .from("service_order_statuses")
+        .select("id, name, color, is_final, sort_order")
+        .eq("organization_id", activeOrgId)
+        .order("sort_order", { ascending: true });
+      if (statusError) throw statusError;
+
       setRawOrders(all);
       setStageLogs(logs);
+      setStatusCatalog((statusRows || []) as StageStatusCatalogItem[]);
       setLoaded(true);
     } catch (error) {
       console.error("Erro ao carregar relatório de OS:", error);
@@ -117,6 +128,7 @@ export function useServiceOrdersReport() {
       });
       setRawOrders([]);
       setStageLogs([]);
+      setStatusCatalog([]);
     } finally {
       setLoading(false);
     }
@@ -180,38 +192,44 @@ export function useServiceOrdersReport() {
           id: o.statusId || undefined,
           name: o.statusName,
           color: o.statusColor,
+          is_final: o.statusIsFinal,
         },
       })),
       relevantLogs,
+      Date.now(),
+      statusCatalog,
     );
-  }, [filteredOrders, stageLogs]);
+  }, [filteredOrders, stageLogs, statusCatalog]);
 
-  const productivityRows = useMemo(
-    () =>
-      aggregateCollaboratorProductivity(
-        filteredOrders.map((o) => ({
-          id: o.id,
-          is_closed: o.isClosed,
-          starts_at: o.startsAt,
-          ends_at: o.endsAt,
-          created_at: o.createdAt,
-          closed_at: o.closedAt,
-          total: o.total,
-          collaborator_user_id: o.collaboratorKey.startsWith("id:")
-            ? o.collaboratorKey.slice(3)
-            : null,
-          collaborator_name: o.collaboratorName,
-          status: {
-            id: o.statusId || undefined,
-            name: o.statusName,
-            color: o.statusColor,
-            is_final: o.statusIsFinal,
-          },
-          status_id: o.statusId,
-        })),
-      ),
-    [filteredOrders],
-  );
+  const productivityRows = useMemo(() => {
+    const orderIds = new Set(filteredOrders.map((o) => o.id));
+    const relevantLogs = stageLogs.filter((l) => orderIds.has(l.service_order_id));
+    return aggregateCollaboratorProductivity(
+      filteredOrders.map((o) => ({
+        id: o.id,
+        is_closed: o.isClosed,
+        starts_at: o.startsAt,
+        ends_at: o.endsAt,
+        created_at: o.createdAt,
+        closed_at: o.closedAt,
+        total: o.total,
+        collaborator_user_id: o.collaboratorKey.startsWith("id:")
+          ? o.collaboratorKey.slice(3)
+          : null,
+        collaborator_name: o.collaboratorName,
+        status: {
+          id: o.statusId || undefined,
+          name: o.statusName,
+          color: o.statusColor,
+          is_final: o.statusIsFinal,
+        },
+        status_id: o.statusId,
+      })),
+      Date.now(),
+      relevantLogs,
+      statusCatalog,
+    );
+  }, [filteredOrders, stageLogs, statusCatalog]);
 
   const overdueInPeriod = useMemo(
     () => filteredOrders.filter((o) => isServiceOrderOverdue({

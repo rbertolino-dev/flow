@@ -101,9 +101,107 @@ function personLabel(id: string | null | undefined, name: string | null | undefi
   return "Sem colaborador";
 }
 
+export type StageStatusCatalogItem = {
+  id: string;
+  name?: string;
+  color?: string;
+  is_final?: boolean;
+  sort_order?: number;
+};
+
+type StagePoint = {
+  at: number;
+  statusId: string;
+  name: string;
+  color: string;
+  isFinal: boolean;
+  isInitial: boolean;
+};
+
+function resolveInitialStatusId(catalog: StageStatusCatalogItem[]): string | null {
+  const open = catalog
+    .filter((s) => s.id && !s.is_final)
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  return open[0]?.id || null;
+}
+
+function buildFinalStatusIds(catalog: StageStatusCatalogItem[]): Set<string> {
+  return new Set(catalog.filter((s) => s.is_final && s.id).map((s) => s.id));
+}
+
+function catalogById(catalog: StageStatusCatalogItem[]): Map<string, StageStatusCatalogItem> {
+  return new Map(catalog.filter((s) => s.id).map((s) => [s.id, s]));
+}
+
+function pointsFromLogs(
+  orderLogs: StageChangeLog[],
+  catalogMap: Map<string, StageStatusCatalogItem>,
+  initialStatusId: string | null,
+  finalIds: Set<string>
+): StagePoint[] {
+  const points: StagePoint[] = [];
+  for (const log of orderLogs) {
+    const meta = log.metadata || {};
+    const sid = meta.to_status_id || "";
+    if (!sid) continue;
+    const cat = catalogMap.get(sid);
+    const isFinal = Boolean(cat?.is_final) || finalIds.has(sid);
+    const isInitial =
+      (initialStatusId ? sid === initialStatusId : points.length === 0) && !isFinal;
+    points.push({
+      at: new Date(log.created_at).getTime(),
+      statusId: sid,
+      name: meta.to_name || cat?.name || "Etapa",
+      color: cat?.color || "#64748b",
+      isFinal,
+      isInitial,
+    });
+  }
+  return points;
+}
+
 /**
- * Tempo acumulado por etapa a partir de logs status_change.
- * Cada log marca a entrada na etapa `to_status_id` em `created_at`.
+ * Ciclo de atendimento: começa ao sair da 1ª etapa (aguardando início)
+ * e termina ao entrar na etapa final. Não conta tempo na 1ª nem na final.
+ */
+export function attendanceCycleBoundsMs(
+  orderLogs: StageChangeLog[],
+  catalog: StageStatusCatalogItem[] = []
+): { startMs: number; endMs: number } | null {
+  const initialStatusId = resolveInitialStatusId(catalog);
+  const finalIds = buildFinalStatusIds(catalog);
+  const catalogMap = catalogById(catalog);
+  const sorted = orderLogs
+    .slice()
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  const points = pointsFromLogs(sorted, catalogMap, initialStatusId, finalIds);
+  if (points.length < 2) return null;
+
+  let sawWaiting = false;
+  let startMs: number | null = null;
+  for (const point of points) {
+    if (point.isInitial) {
+      sawWaiting = true;
+      continue;
+    }
+    if (!sawWaiting) continue;
+    if (point.isFinal) {
+      if (startMs != null && point.at > startMs) {
+        return { startMs, endMs: point.at };
+      }
+      return null;
+    }
+    if (startMs == null) startMs = point.at;
+  }
+  return null;
+}
+
+/**
+ * Tempo por etapa do ciclo de atendimento.
+ * - 1ª etapa (menor sort_order aberta) = aguardando início → não conta
+ * - Etapa final (is_final) → não conta
+ * - Conta só o intervalo entre sair da 1ª e entrar na final
  */
 export function aggregateStageTimes(
   orders: Array<{
@@ -112,10 +210,11 @@ export function aggregateStageTimes(
     closed_at?: string | null;
     is_closed?: boolean | null;
     status_id?: string | null;
-    status?: { id?: string; name?: string; color?: string } | null;
+    status?: { id?: string; name?: string; color?: string; is_final?: boolean } | null;
   }>,
   logs: StageChangeLog[],
-  now = Date.now()
+  now = Date.now(),
+  catalog: StageStatusCatalogItem[] = []
 ): StageTimeRow[] {
   const byOrder = new Map<string, StageChangeLog[]>();
   for (const log of logs) {
@@ -123,6 +222,10 @@ export function aggregateStageTimes(
     list.push(log);
     byOrder.set(log.service_order_id, list);
   }
+
+  const initialStatusId = resolveInitialStatusId(catalog);
+  const finalIds = buildFinalStatusIds(catalog);
+  const catalogMap = catalogById(catalog);
 
   const acc = new Map<string, { name: string; color: string; totalMs: number; samples: number }>();
 
@@ -142,45 +245,37 @@ export function aggregateStageTimes(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
 
-    type Point = { at: number; statusId: string; name: string; color: string };
-    const points: Point[] = [];
+    // Sem histórico de troca de etapa não há ciclo de atendimento mensurável
+    if (orderLogs.length === 0) continue;
 
-    if (orderLogs.length === 0) {
-      const sid = order.status?.id || order.status_id || "";
-      if (sid) {
-        points.push({
-          at: new Date(order.created_at || 0).getTime(),
-          statusId: sid,
-          name: order.status?.name || "Etapa",
-          color: order.status?.color || "#64748b",
-        });
-      }
-    } else {
-      for (const log of orderLogs) {
-        const meta = log.metadata || {};
-        const sid = meta.to_status_id || "";
-        if (!sid) continue;
-        points.push({
-          at: new Date(log.created_at).getTime(),
-          statusId: sid,
-          name: meta.to_name || "Etapa",
-          color: "#64748b",
-        });
-      }
-    }
-
+    const points = pointsFromLogs(orderLogs, catalogMap, initialStatusId, finalIds);
     if (points.length === 0) continue;
 
-    const endAt =
-      order.is_closed && order.closed_at
-        ? new Date(order.closed_at).getTime()
-        : now;
-
+    let leftWaiting = false;
     for (let i = 0; i < points.length; i++) {
-      const start = points[i].at;
-      const end = i + 1 < points.length ? points[i + 1].at : endAt;
+      const point = points[i];
+
+      // 1ª etapa = aguardando início → não conta; marca que o ciclo pode começar na próxima
+      if (point.isInitial) {
+        leftWaiting = true;
+        continue;
+      }
+
+      // Entrou no final → ciclo acaba; não conta tempo em Finalizado
+      if (point.isFinal) break;
+
+      // Só conta depois de ter saído da etapa de aguardando
+      if (!leftWaiting) continue;
+
+      const start = point.at;
+      const end =
+        i + 1 < points.length
+          ? points[i + 1].at
+          : order.is_closed && order.closed_at
+            ? new Date(order.closed_at).getTime()
+            : now;
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-      bump(points[i].statusId, points[i].name, points[i].color, end - start);
+      bump(point.statusId, point.name, point.color, end - start);
     }
   }
 
@@ -198,8 +293,17 @@ export function aggregateStageTimes(
 
 export function aggregateCollaboratorProductivity(
   orders: ManagementOrderLike[],
-  now = Date.now()
+  now = Date.now(),
+  logs: StageChangeLog[] = [],
+  catalog: StageStatusCatalogItem[] = []
 ): ProductivityRow[] {
+  const byOrder = new Map<string, StageChangeLog[]>();
+  for (const log of logs) {
+    const list = byOrder.get(log.service_order_id) || [];
+    list.push(log);
+    byOrder.set(log.service_order_id, list);
+  }
+
   const map = new Map<
     string,
     {
@@ -229,10 +333,9 @@ export function aggregateCollaboratorProductivity(
     existing.totalValue += Number(order.total) || 0;
     if (order.is_closed) {
       existing.closedCount += 1;
-      const start = new Date(order.starts_at || order.created_at || 0).getTime();
-      const end = new Date(order.closed_at || 0).getTime();
-      if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
-        existing.cycleSum += end - start;
+      const bounds = attendanceCycleBoundsMs(byOrder.get(order.id) || [], catalog);
+      if (bounds) {
+        existing.cycleSum += bounds.endMs - bounds.startMs;
         existing.cycleSamples += 1;
       }
     }
