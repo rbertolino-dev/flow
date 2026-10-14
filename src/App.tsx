@@ -212,6 +212,7 @@ const App = () => {
                 <Route path="/pdv/historico" element={<PosSalesHistory />} />
                 <Route path="/pdv/configuracoes" element={<PosSettings />} />
                 <Route path="/service-orders" element={<ServiceOrders />} />
+                <Route path="/service-orders/campo" element={<ServiceOrders />} />
                 <Route path="/financeiro" element={<FinanceDashboard />} />
                 <Route path="/financeiro/receber" element={<FinanceReceivables />} />
                 <Route path="/financeiro/pagar" element={<FinancePayables />} />

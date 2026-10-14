@@ -197,6 +197,7 @@ export interface ServiceOrder {
   google_calendar_config_id?: string | null;
   google_calendar_event_id?: string | null;
   reference_images: string[];
+  field_checkins?: ServiceOrderFieldCheckin[];
   is_closed?: boolean;
   closed_at?: string | null;
   closed_by?: string | null;
@@ -246,13 +247,22 @@ export interface ServiceOrderLog {
   created_at: string;
 }
 
+export interface ServiceOrderFieldCheckin {
+  at: string;
+  lat: number;
+  lng: number;
+  accuracy?: number;
+  event: string;
+}
+
 export interface ServiceOrderCloseData {
   execution_summary: string;
   execution_starts_at?: string;
   execution_ends_at?: string;
   close_attachments: string[];
   signature_url: string;
-  account: string;
+  /** Opcional: se vazio, não lança financeiro no fechamento */
+  account?: string;
 }
 
 export interface ServiceOrderFormData {

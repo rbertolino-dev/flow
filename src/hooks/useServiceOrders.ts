@@ -7,8 +7,10 @@ import {
   ServiceOrderFormData,
   ServiceOrderItem,
   ServiceOrderChecklistItem,
+  ServiceOrderFieldCheckin,
   serviceOrderRequiredMessage,
 } from '@/types/serviceOrder';
+import { captureGeolocation } from '@/lib/serviceOrderMedia';
 import {
   addMaintenanceInterval,
   clampMaintenanceVisitCount,
@@ -948,6 +950,49 @@ export function useServiceOrders(
     }
   };
 
+  const appendFieldCheckin = async (
+    orderId: string,
+    event: string,
+    coords?: { lat: number; lng: number; accuracy?: number } | null
+  ): Promise<boolean> => {
+    if (!activeOrgId) return false;
+    try {
+      const position = coords === undefined ? await captureGeolocation() : coords;
+      if (!position) return false;
+
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { data: existing } = await supabase
+        .from('service_orders')
+        .select('field_checkins')
+        .eq('id', orderId)
+        .eq('organization_id', activeOrgId)
+        .maybeSingle();
+
+      const previous = Array.isArray((existing as { field_checkins?: unknown } | null)?.field_checkins)
+        ? ((existing as { field_checkins: ServiceOrderFieldCheckin[] }).field_checkins || [])
+        : [];
+      const entry: ServiceOrderFieldCheckin = {
+        at: new Date().toISOString(),
+        lat: position.lat,
+        lng: position.lng,
+        accuracy: position.accuracy,
+        event,
+      };
+
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { error } = await supabase
+        .from('service_orders')
+        .update({ field_checkins: [...previous, entry] })
+        .eq('id', orderId)
+        .eq('organization_id', activeOrgId);
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.error('Erro ao registrar check-in GPS:', err);
+      return false;
+    }
+  };
+
   const closeOrder = async (
     orderId: string,
     data: {
@@ -956,7 +1001,7 @@ export function useServiceOrders(
       execution_ends_at?: string;
       close_attachments: string[];
       signature_url: string;
-      account: string;
+      account?: string;
     }
   ) => {
     if (!activeOrgId) return false;
@@ -1005,22 +1050,32 @@ export function useServiceOrders(
 
       if (error) throw error;
 
-      const { error: financeError } = await (supabase as unknown as {
-        rpc: (fn: string, args: Record<string, string>) => Promise<{ error: { message: string } | null }>;
-      }).rpc('sync_service_order_finance', {
-        p_organization_id: activeOrgId,
-        p_order_id: orderId,
-        p_account: data.account,
-      });
-      if (financeError) {
-        console.error('Erro ao lançar OS no financeiro:', financeError);
+      void appendFieldCheckin(orderId, 'close');
+
+      const account = (data.account || '').trim();
+      if (account) {
+        const { error: financeError } = await (supabase as unknown as {
+          rpc: (fn: string, args: Record<string, string>) => Promise<{ error: { message: string } | null }>;
+        }).rpc('sync_service_order_finance', {
+          p_organization_id: activeOrgId,
+          p_order_id: orderId,
+          p_account: account,
+        });
+        if (financeError) {
+          console.error('Erro ao lançar OS no financeiro:', financeError);
+          toast({
+            title: 'OS encerrada',
+            description: 'A OS foi encerrada, mas o lançamento financeiro não foi criado.',
+            variant: 'destructive',
+          });
+        } else {
+          toast({ title: 'OS encerrada', description: 'Dados de fechamento salvos com sucesso.' });
+        }
+      } else {
         toast({
           title: 'OS encerrada',
-          description: 'A OS foi encerrada, mas o lançamento financeiro não foi criado.',
-          variant: 'destructive',
+          description: 'Fechamento salvo. Financeiro pode ser lançado depois pelo escritório.',
         });
-      } else {
-        toast({ title: 'OS encerrada', description: 'Dados de fechamento salvos com sucesso.' });
       }
 
       await addLog(orderId, 'Ordem de serviço encerrada', 'closed');
@@ -1328,6 +1383,7 @@ export function useServiceOrders(
     deleteOrder,
     peekNextCode,
     closeOrder,
+    appendFieldCheckin,
     duplicateOrder,
     addLog,
   };

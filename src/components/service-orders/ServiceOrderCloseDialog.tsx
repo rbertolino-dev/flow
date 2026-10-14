@@ -22,14 +22,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import {
-  formatLeadAttachmentUploadError,
-  resolveLeadAttachmentContentType,
-  sanitizeAttachmentFilename,
-} from '@/lib/leadAttachments';
+  compressServiceOrderImage,
+  isChecklistIncomplete,
+  uploadServiceOrderMedia,
+} from '@/lib/serviceOrderMedia';
 import { osDialogContentClass } from './osResponsive';
-
-const BUCKET = 'whatsapp-workflow-media';
-const MAX_BYTES = 8 * 1024 * 1024;
 
 interface ServiceOrderCloseDialogProps {
   open: boolean;
@@ -46,84 +43,6 @@ function guessExt(mime: string, fallback: string): string {
   if (mime.includes('jpeg') || mime.includes('jpg')) return 'jpg';
   return fallback;
 }
-
-async function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('Falha ao ler arquivo'));
-    reader.readAsDataURL(blob);
-  });
-}
-
-/** Comprime imagem para JPEG (reduz falhas de tamanho no storage). */
-async function compressImageBlob(blob: Blob, maxSide = 1600, quality = 0.82): Promise<Blob> {
-  if (!blob.type.startsWith('image/') || blob.type === 'image/gif') {
-    return blob;
-  }
-  if (typeof createImageBitmap === 'undefined' && typeof Image === 'undefined') {
-    return blob;
-  }
-
-  try {
-    const bitmap = await createImageBitmap(blob);
-    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-    const w = Math.max(1, Math.round(bitmap.width * scale));
-    const h = Math.max(1, Math.round(bitmap.height * scale));
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return blob;
-    ctx.drawImage(bitmap, 0, 0, w, h);
-    bitmap.close();
-    const compressed = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, 'image/jpeg', quality)
-    );
-    return compressed || blob;
-  } catch {
-    return blob;
-  }
-}
-
-async function uploadOrDataUrl(
-  orgId: string,
-  orderId: string,
-  blob: Blob,
-  filename: string
-): Promise<string> {
-  if (!orgId) throw new Error('Organização não encontrada. Recarregue a página.');
-  if (blob.size > MAX_BYTES) {
-    throw new Error('Arquivo muito grande. Máximo 8 MB.');
-  }
-
-  const safeName = sanitizeAttachmentFilename(filename);
-  const contentType =
-    blob.type ||
-    resolveLeadAttachmentContentType(
-      new File([blob], safeName, { type: blob.type || '' })
-    );
-  const path = `${orgId}/service-orders/${orderId}/${Date.now()}-${safeName}`;
-
-  const { error } = await supabase.storage.from(BUCKET).upload(path, blob, {
-    upsert: false,
-    cacheControl: '3600',
-    contentType,
-  });
-
-  if (!error) {
-    const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-    return data.publicUrl;
-  }
-
-  console.warn('Upload storage falhou, usando data URL:', error);
-  // Fallback: embute no banco/PDF (assinaturas e fotos pequenas)
-  if (blob.size <= 1.5 * 1024 * 1024 && contentType.startsWith('image/')) {
-    return blobToDataUrl(blob);
-  }
-  throw new Error(formatLeadAttachmentUploadError(error));
-}
-
 
 function toDateTimeLocal(value?: string | null): string {
   if (!value) return '';
@@ -188,11 +107,6 @@ export function ServiceOrderCloseDialog({
       .then(({ data }) => {
         const names = (data || []).map((row) => row.name).filter(Boolean);
         setWalletAccounts(names);
-        setAccount((current) => {
-          if (current && names.includes(current)) return current;
-          const caixa = names.find((name) => name.toLowerCase() === 'caixa');
-          return caixa || names[0] || '';
-        });
       });
   }, [open, organizationId]);
 
@@ -227,10 +141,10 @@ export function ServiceOrderCloseDialog({
   };
 
   const attachBlob = async (blob: Blob, filename: string) => {
-    const prepared = await compressImageBlob(blob);
+    const prepared = await compressServiceOrderImage(blob);
     const ext = guessExt(prepared.type || blob.type, 'jpg');
     const name = filename.includes('.') ? filename : `${filename}.${ext}`;
-    return uploadOrDataUrl(organizationId, order.id, prepared, name);
+    return uploadServiceOrderMedia(organizationId, order.id, prepared, name);
   };
 
   const capturePhoto = async () => {
@@ -277,10 +191,7 @@ export function ServiceOrderCloseDialog({
     try {
       const urls: string[] = [];
       for (const file of Array.from(files)) {
-        const typed = new File([file], file.name, {
-          type: resolveLeadAttachmentContentType(file),
-        });
-        const url = await attachBlob(typed, typed.name.replace(/\s+/g, '_'));
+        const url = await attachBlob(file, file.name.replace(/\s+/g, '_'));
         urls.push(url);
       }
       setAttachments((prev) => [...prev, ...urls]);
@@ -288,7 +199,7 @@ export function ServiceOrderCloseDialog({
     } catch (err) {
       toast({
         title: 'Erro no upload',
-        description: formatLeadAttachmentUploadError(err),
+        description: err instanceof Error ? err.message : 'Não foi possível anexar',
         variant: 'destructive',
       });
     } finally {
@@ -306,10 +217,9 @@ export function ServiceOrderCloseDialog({
     if (raw.startsWith('http://') || raw.startsWith('https://')) {
       return raw;
     }
-    // data URL → blob → upload (com fallback data URL)
     const res = await fetch(raw);
     const blob = await res.blob();
-    return uploadOrDataUrl(organizationId, order.id, blob, 'assinatura.png');
+    return uploadServiceOrderMedia(organizationId, order.id, blob, 'assinatura.png');
   };
 
   const handleFinalize = async () => {
@@ -321,10 +231,10 @@ export function ServiceOrderCloseDialog({
       });
       return;
     }
-    if (!account) {
+    if (isChecklistIncomplete(order.checklist)) {
       toast({
-        title: 'Escolha a conta',
-        description: 'Selecione a conta da carteira que recebe o lançamento.',
+        title: 'Checklist incompleto',
+        description: 'Conclua o checklist antes de encerrar a ordem.',
         variant: 'destructive',
       });
       return;
@@ -339,7 +249,7 @@ export function ServiceOrderCloseDialog({
         execution_ends_at: endDate ? new Date(endDate).toISOString() : undefined,
         close_attachments: attachments,
         signature_url,
-        account,
+        account: account || undefined,
       });
       if (ok) onOpenChange(false);
     } catch (err) {
@@ -410,14 +320,16 @@ export function ServiceOrderCloseDialog({
             <section className="space-y-3 rounded-2xl border bg-card p-3.5 shadow-sm">
               <div>
                 <Label className="text-sm font-medium">Conta da carteira</Label>
-                <p className="text-xs text-muted-foreground">Onde o recebimento da OS entra</p>
+                <p className="text-xs text-muted-foreground">
+                  Opcional — o escritório pode lançar o financeiro depois
+                </p>
               </div>
               <Select value={account || 'none'} onValueChange={(value) => setAccount(value === 'none' ? '' : value)}>
                 <SelectTrigger data-testid="os-close-account">
-                  <SelectValue placeholder="Selecione a conta" />
+                  <SelectValue placeholder="Sem lançamento agora" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Selecione a conta</SelectItem>
+                  <SelectItem value="none">Sem lançamento agora</SelectItem>
                   {walletAccounts.map((name) => (
                     <SelectItem key={name} value={name}>{name}</SelectItem>
                   ))}

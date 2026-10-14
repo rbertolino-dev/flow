@@ -11,6 +11,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   CalendarClock,
   ClipboardCheck,
   Copy,
@@ -19,29 +26,42 @@ import {
   Loader2,
   MapPin,
   MessageCircle,
+  Navigation,
   Pencil,
+  QrCode,
+  MapPinned,
   Tag,
   Trash2,
   User,
   Users,
   XCircle,
 } from 'lucide-react';
+import QRCode from 'qrcode';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ServiceOrder, ServiceOrderChecklistItem, ServiceOrderLog } from '@/types/serviceOrder';
+import {
+  ServiceOrder,
+  ServiceOrderChecklistItem,
+  ServiceOrderLog,
+  ServiceOrderStatus,
+} from '@/types/serviceOrder';
 import { Equipment, equipmentDisplayName } from '@/types/equipment';
 import { maintenanceMarkLabel } from '@/lib/serviceOrderMaintenance';
 import { executionDurationLabel, formatServiceOrderMoment } from '@/lib/serviceOrderDuration';
+import { mapsSearchUrl, serviceOrderDeepLink } from '@/lib/serviceOrderMedia';
 import { useServiceOrderViewer, visibleClientPhone } from '@/lib/serviceOrderPhone';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchEquipmentsForOrder } from '@/hooks/useEquipments';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
+import { useToast } from '@/hooks/use-toast';
 import { osDialogContentClass } from './osResponsive';
 
 interface ServiceOrderDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   order: ServiceOrder | null;
+  statuses?: ServiceOrderStatus[];
+  fieldMode?: boolean;
   onEdit: (order: ServiceOrder) => void;
   onCloseOrder: (order: ServiceOrder) => void;
   onDelete: (order: ServiceOrder) => void;
@@ -54,6 +74,8 @@ interface ServiceOrderDetailDialogProps {
     orderId: string,
     item: { id: string; is_done?: boolean; answer?: string | null }
   ) => Promise<boolean>;
+  onStatusChange?: (order: ServiceOrder, statusId: string) => void;
+  onCheckIn?: (order: ServiceOrder) => Promise<boolean> | boolean;
   canEdit?: boolean;
   canDelete?: boolean;
   exporting?: boolean;
@@ -75,10 +97,41 @@ function formatRange(starts?: string | null, ends?: string | null) {
   return `${s} - ${e}`;
 }
 
+function PhotoGallery({
+  title,
+  urls,
+  onOpen,
+}: {
+  title: string;
+  urls: string[];
+  onOpen: (url: string) => void;
+}) {
+  if (!urls.length) return null;
+  return (
+    <div className="rounded-lg border p-3 space-y-2">
+      <p className="text-sm font-semibold">{title}</p>
+      <div className="grid grid-cols-3 gap-2">
+        {urls.map((url) => (
+          <button
+            key={url}
+            type="button"
+            className="aspect-square overflow-hidden rounded-md border bg-muted"
+            onClick={() => onOpen(url)}
+          >
+            <img src={url} alt="" className="h-full w-full object-cover" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ServiceOrderDetailDialog({
   open,
   onOpenChange,
   order,
+  statuses = [],
+  fieldMode = false,
   onEdit,
   onCloseOrder,
   onDelete,
@@ -88,10 +141,13 @@ export function ServiceOrderDetailDialog({
   onOpenVisit,
   onCancelFutureVisits,
   onChecklistItemChange,
+  onStatusChange,
+  onCheckIn,
   canEdit = true,
   canDelete = true,
   exporting,
 }: ServiceOrderDetailDialogProps) {
+  const { toast } = useToast();
   const viewer = useServiceOrderViewer();
   const [logs, setLogs] = useState<ServiceOrderLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
@@ -101,6 +157,9 @@ export function ServiceOrderDetailDialog({
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [checklist, setChecklist] = useState<ServiceOrderChecklistItem[]>([]);
   const [savingChecklistId, setSavingChecklistId] = useState<string | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [checkingIn, setCheckingIn] = useState(false);
   const { activeOrgId } = useActiveOrganization();
 
   useEffect(() => {
@@ -110,6 +169,8 @@ export function ServiceOrderDetailDialog({
       setVisits([]);
       setEquipments([]);
       setChecklist([]);
+      setQrDataUrl('');
+      setLightboxUrl(null);
       return;
     }
     setChecklist(
@@ -120,17 +181,23 @@ export function ServiceOrderDetailDialog({
         .then(setEquipments)
         .catch(() => setEquipments([]));
     }
-    if (!order.maintenance_plan_id) {
+    void QRCode.toDataURL(serviceOrderDeepLink(order.id), { width: 160, margin: 1 })
+      .then(setQrDataUrl)
+      .catch(() => setQrDataUrl(''));
+  }, [open, order, activeOrgId]);
+
+  useEffect(() => {
+    if (!open || !order?.maintenance_plan_id || !activeOrgId) {
       setVisits([]);
       return;
     }
     let cancelled = false;
     void (async () => {
-      // @ts-expect-error tabela ainda nao tipada no client gerado
+      // @ts-expect-error tabela ainda nao tipada
       const { data } = await supabase
         .from('service_orders')
         .select('id, code, starts_at, is_closed, maintenance_index, status:service_order_statuses(name, color)')
-        .eq('organization_id', order.organization_id)
+        .eq('organization_id', activeOrgId)
         .eq('maintenance_plan_id', order.maintenance_plan_id)
         .is('deleted_at', null)
         .order('maintenance_index', { ascending: true });
@@ -139,24 +206,22 @@ export function ServiceOrderDetailDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, order, activeOrgId]);
+  }, [open, order?.maintenance_plan_id, order?.id, activeOrgId]);
 
   const loadLogs = async () => {
-    if (!order) return;
+    if (!order || !activeOrgId) return;
     setShowLogs(true);
     setLoadingLogs(true);
     try {
-      // @ts-expect-error tabela ainda nao tipada no client gerado
-      const { data, error } = await supabase
+      // @ts-expect-error tabela ainda nao tipada
+      const { data } = await supabase
         .from('service_order_logs')
         .select('*')
         .eq('service_order_id', order.id)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
+        .eq('organization_id', activeOrgId)
+        .order('created_at', { ascending: false })
+        .limit(50);
       setLogs((data || []) as ServiceOrderLog[]);
-    } catch (err) {
-      console.error(err);
-      setLogs([]);
     } finally {
       setLoadingLogs(false);
     }
@@ -172,12 +237,12 @@ export function ServiceOrderDetailDialog({
     },
     viewer
   );
-  const clientLabel = [
-    phone,
-    order.client_name || order.lead?.name,
-  ]
-    .filter(Boolean)
-    .join(' - ');
+  const clientLabel = [phone, order.client_name || order.lead?.name].filter(Boolean).join(' - ');
+  const showOfficeTabs = !fieldMode;
+  const tabCols = showOfficeTabs ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2';
+  const beforePhotos = order.reference_images || [];
+  const afterPhotos = order.close_attachments || [];
+  const checkins = order.field_checkins || [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -205,23 +270,41 @@ export function ServiceOrderDetailDialog({
         </DialogHeader>
 
         <Tabs defaultValue="geral" className="px-5">
-          <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4 h-auto gap-1">
+          <TabsList className={`w-full grid ${tabCols} h-auto gap-1`}>
             <TabsTrigger value="geral">Geral</TabsTrigger>
             <TabsTrigger value="checklist" className="gap-1">
               <ClipboardCheck className="h-3.5 w-3.5" />
               Checklist
             </TabsTrigger>
-            <TabsTrigger value="vendas">Vendas</TabsTrigger>
-            <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
+            {showOfficeTabs && <TabsTrigger value="vendas">Vendas</TabsTrigger>}
+            {showOfficeTabs && <TabsTrigger value="financeiro">Financeiro</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="geral" className="space-y-3 pt-4 pb-2">
-            <div className="flex items-center gap-2 text-sm">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
               <span
                 className="h-2.5 w-2.5 rounded-full shrink-0"
                 style={{ backgroundColor: order.status?.color || '#94a3b8' }}
               />
-              <span className="font-medium">{order.status?.name || 'Sem status'}</span>
+              {canEdit && onStatusChange && statuses.length > 0 && !order.is_closed ? (
+                <Select
+                  value={order.status_id || ''}
+                  onValueChange={(statusId) => onStatusChange(order, statusId)}
+                >
+                  <SelectTrigger className="h-9 w-[min(100%,14rem)]" data-testid="os-detail-status">
+                    <SelectValue placeholder="Etapa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statuses.map((status) => (
+                      <SelectItem key={status.id} value={status.id}>
+                        {status.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <span className="font-medium">{order.status?.name || 'Sem status'}</span>
+              )}
               {order.is_closed && (
                 <Badge className="ml-auto bg-emerald-600">Encerrada</Badge>
               )}
@@ -260,11 +343,65 @@ export function ServiceOrderDetailDialog({
 
             <div className="text-sm flex gap-2">
               <MapPin className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-              <span>
-                <span className="text-muted-foreground">Endereço: </span>
-                {order.address || '—'}
-              </span>
+              <div className="space-y-2 min-w-0 flex-1">
+                <span>
+                  <span className="text-muted-foreground">Endereço: </span>
+                  {order.address || '—'}
+                </span>
+                {order.address ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" className="min-h-10" asChild>
+                      <a href={mapsSearchUrl(order.address)} target="_blank" rel="noreferrer">
+                        <Navigation className="h-4 w-4 mr-1" />
+                        Abrir no Maps
+                      </a>
+                    </Button>
+                    {onCheckIn && canEdit && !order.is_closed && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="min-h-10"
+                        disabled={checkingIn}
+                        data-testid="os-detail-checkin"
+                        onClick={() => {
+                          setCheckingIn(true);
+                          void Promise.resolve(onCheckIn(order))
+                            .then((ok) => {
+                              toast({
+                                title: ok ? 'Check-in registrado' : 'GPS indisponível',
+                                description: ok
+                                  ? 'Localização salva nesta OS.'
+                                  : 'Permita a localização no navegador ou tente de novo.',
+                                variant: ok ? 'default' : 'destructive',
+                              });
+                            })
+                            .finally(() => setCheckingIn(false));
+                        }}
+                      >
+                        {checkingIn ? (
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        ) : (
+                          <MapPinned className="h-4 w-4 mr-1" />
+                        )}
+                        Check-in
+                      </Button>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             </div>
+
+            {checkins.length > 0 && (
+              <div className="rounded-lg border p-3 space-y-1 text-xs text-muted-foreground">
+                <p className="text-sm font-semibold text-foreground">Check-ins</p>
+                {checkins.slice(-5).map((item, idx) => (
+                  <p key={`${item.at}-${idx}`}>
+                    {format(new Date(item.at), 'dd/MM HH:mm')} · {item.event} ·{' '}
+                    {item.lat.toFixed(5)}, {item.lng.toFixed(5)}
+                  </p>
+                ))}
+              </div>
+            )}
 
             <div className="text-sm flex gap-2">
               <Users className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -273,6 +410,9 @@ export function ServiceOrderDetailDialog({
                 {order.collaborator_name || '—'}
               </span>
             </div>
+
+            <PhotoGallery title="Fotos antes" urls={beforePhotos} onOpen={setLightboxUrl} />
+            <PhotoGallery title="Fotos depois" urls={afterPhotos} onOpen={setLightboxUrl} />
 
             {equipments.length > 0 && (
               <div className="rounded-lg border p-3 space-y-2" data-testid="os-detail-equipments">
@@ -293,6 +433,32 @@ export function ServiceOrderDetailDialog({
               </div>
             )}
 
+            <div className="rounded-lg border p-3 space-y-2" data-testid="os-detail-qr">
+              <p className="text-sm font-semibold flex items-center gap-1.5">
+                <QrCode className="h-4 w-4" />
+                Abrir no celular
+              </p>
+              {qrDataUrl ? (
+                <img src={qrDataUrl} alt="QR da ordem" className="h-28 w-28 rounded-lg bg-white p-1" />
+              ) : null}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full min-h-10"
+                onClick={async () => {
+                  const link = serviceOrderDeepLink(order.id);
+                  try {
+                    await navigator.clipboard.writeText(link);
+                    toast({ title: 'Link copiado' });
+                  } catch {
+                    toast({ title: 'Link', description: link });
+                  }
+                }}
+              >
+                Copiar link da OS
+              </Button>
+            </div>
+
             <p className="text-xs text-muted-foreground pt-1">
               Criado por {order.creator_name || 'Colaborador'} às{' '}
               {format(new Date(order.created_at), 'HH:mm', { locale: ptBR })} em{' '}
@@ -303,11 +469,6 @@ export function ServiceOrderDetailDialog({
               <div className="rounded-lg border bg-muted/40 p-3 space-y-1 text-sm">
                 <p className="font-semibold">Encerramento</p>
                 <p>{order.execution_summary || '—'}</p>
-                {(order.close_attachments || []).length > 0 && (
-                  <p className="text-muted-foreground">
-                    {(order.close_attachments || []).length} anexo(s)
-                  </p>
-                )}
                 {order.signature_url && (
                   <img
                     src={order.signature_url}
@@ -362,56 +523,60 @@ export function ServiceOrderDetailDialog({
               </div>
             )}
 
-            <div className="flex justify-center gap-2 pt-2">
-              <Button variant="secondary" size="sm" onClick={() => onCopy(order)}>
-                <Copy className="h-4 w-4 mr-1" />
-                Copiar Ordem de Serviço
-              </Button>
-            </div>
+            {!fieldMode && (
+              <>
+                <div className="flex justify-center gap-2 pt-2">
+                  <Button variant="secondary" size="sm" onClick={() => onCopy(order)}>
+                    <Copy className="h-4 w-4 mr-1" />
+                    Copiar Ordem de Serviço
+                  </Button>
+                </div>
 
-            <div className="grid grid-cols-1 gap-2 pt-2">
-              <Button
-                variant="outline"
-                onClick={() => onExportPdf(order, 'full')}
-                disabled={!!exporting}
-              >
-                {exporting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <FileDown className="h-4 w-4 mr-2" />
-                )}
-                PDF completo (com valores)
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => onExportPdf(order, 'no_values')}
-                disabled={!!exporting || !order.is_closed}
-                title={!order.is_closed ? 'Disponível após encerrar a OS' : undefined}
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                PDF sem valores (com fechamento)
-              </Button>
-              {order.template?.pdf_layout === 'three_slips' && (
-                <Button
-                  variant="outline"
-                  onClick={() => onExportPdf(order, 'three_slips')}
-                  disabled={!!exporting}
-                >
-                  <FileDown className="h-4 w-4 mr-2" />
-                  PDF em 3 vias
-                </Button>
-              )}
-              {onSendWhatsApp && (
-                <Button
-                  variant="outline"
-                  onClick={() => onSendWhatsApp(order)}
-                  data-testid="os-detail-send-whatsapp"
-                >
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                  Enviar via WhatsApp
-                </Button>
-              )}
-            </div>
+                <div className="grid grid-cols-1 gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => onExportPdf(order, 'full')}
+                    disabled={!!exporting}
+                  >
+                    {exporting ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <FileDown className="h-4 w-4 mr-2" />
+                    )}
+                    PDF completo (com valores)
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => onExportPdf(order, 'no_values')}
+                    disabled={!!exporting || !order.is_closed}
+                    title={!order.is_closed ? 'Disponível após encerrar a OS' : undefined}
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    PDF sem valores (com fechamento)
+                  </Button>
+                  {order.template?.pdf_layout === 'three_slips' && (
+                    <Button
+                      variant="outline"
+                      onClick={() => onExportPdf(order, 'three_slips')}
+                      disabled={!!exporting}
+                    >
+                      <FileDown className="h-4 w-4 mr-2" />
+                      PDF em 3 vias
+                    </Button>
+                  )}
+                  {onSendWhatsApp && (
+                    <Button
+                      variant="outline"
+                      onClick={() => onSendWhatsApp(order)}
+                      data-testid="os-detail-send-whatsapp"
+                    >
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      Enviar via WhatsApp
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="checklist" className="pt-4 pb-2 space-y-3">
@@ -480,87 +645,54 @@ export function ServiceOrderDetailDialog({
             )}
           </TabsContent>
 
-          <TabsContent value="vendas" className="pt-4 pb-2 space-y-2">
-            {(order.items || []).length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">
-                Nenhum produto/serviço vinculado.
-              </p>
-            ) : (
-              <>
-                {(order.items || [])
-                  .filter((item) => !(item.item_type === 'product' && item.use_cost && Number(item.unit_price) === 0))
-                  .map((item, idx) => (
-                    <div key={`bill-${idx}`} className="flex justify-between text-sm border rounded-md px-3 py-2">
-                      <span>
-                        {item.name} × {item.quantity}
-                      </span>
-                      <span className="font-medium">
-                        R${' '}
-                        {item.total_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  ))}
-                {(order.items || []).some(
-                  (item) => item.item_type === 'product' && item.use_cost && Number(item.unit_price) === 0
-                ) && <p className="text-sm font-semibold pt-2">Insumos gastos</p>}
-                {(order.items || [])
-                  .filter((item) => item.item_type === 'product' && item.use_cost && Number(item.unit_price) === 0)
-                  .map((item, idx) => (
-                    <div key={`supply-${idx}`} className="flex justify-between text-sm border rounded-md px-3 py-2">
-                      <span>
-                        {item.name} × {item.quantity} {item.unit || ''}
-                        <Badge className="ml-2 bg-violet-100 text-violet-700 hover:bg-violet-100">Insumo</Badge>
-                      </span>
-                      <span className="text-muted-foreground">
-                        Custo R${' '}
-                        {((item.unit_cost || 0) * item.quantity).toLocaleString('pt-BR', {
-                          minimumFractionDigits: 2,
-                        })}
-                      </span>
-                    </div>
-                  ))}
-              </>
-            )}
-            <p className="text-right font-semibold pt-2">
-              Total: R${' '}
-              {(order.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </p>
-          </TabsContent>
+          {showOfficeTabs && (
+            <TabsContent value="vendas" className="pt-4 pb-2 space-y-2">
+              {(order.items || []).length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  Nenhum produto/serviço vinculado.
+                </p>
+              ) : (
+                <>
+                  {(order.items || [])
+                    .filter((item) => !(item.item_type === 'product' && item.use_cost && Number(item.unit_price) === 0))
+                    .map((item, idx) => (
+                      <div key={`bill-${idx}`} className="flex justify-between text-sm border rounded-md px-3 py-2">
+                        <span>
+                          {item.name} × {item.quantity}
+                        </span>
+                        <span className="font-medium">
+                          R${' '}
+                          {item.total_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    ))}
+                  <p className="text-right font-semibold pt-2">
+                    Total: R${' '}
+                    {(order.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </p>
+                </>
+              )}
+            </TabsContent>
+          )}
 
-          <TabsContent value="financeiro" className="pt-4 pb-2 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span>Subtotal</span>
-              <span>
-                R${' '}
-                {(order.subtotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span>Desconto</span>
-              <span>
-                R${' '}
-                {(order.discount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-            {order.has_commission && (
+          {showOfficeTabs && (
+            <TabsContent value="financeiro" className="pt-4 pb-2 space-y-2 text-sm">
               <div className="flex justify-between">
-                <span>Comissão</span>
+                <span>Subtotal</span>
                 <span>
                   R${' '}
-                  {(order.commission_value || 0).toLocaleString('pt-BR', {
-                    minimumFractionDigits: 2,
-                  })}
+                  {(order.subtotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </span>
               </div>
-            )}
-            <div className="flex justify-between font-semibold border-t pt-2">
-              <span>Total</span>
-              <span>
-                R${' '}
-                {(order.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-          </TabsContent>
+              <div className="flex justify-between font-semibold border-t pt-2">
+                <span>Total</span>
+                <span>
+                  R${' '}
+                  {(order.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </TabsContent>
+          )}
         </Tabs>
 
         {showLogs && (
@@ -621,6 +753,20 @@ export function ServiceOrderDetailDialog({
             </Button>
           )}
         </div>
+
+        {lightboxUrl && (
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <img
+              src={lightboxUrl}
+              alt="Anexo"
+              className="max-h-full max-w-full rounded-lg object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

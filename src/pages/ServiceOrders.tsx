@@ -43,6 +43,7 @@ import {
   Calendar,
   Package,
   MessageCircle,
+  MapPinned,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useServiceOrders } from '@/hooks/useServiceOrders';
@@ -54,6 +55,7 @@ import { ServiceOrderTemplatesDialog } from '@/components/service-orders/Service
 import { ServiceOrderStatusesDialog } from '@/components/service-orders/ServiceOrderStatusesDialog';
 import { ServiceOrderDetailDialog } from '@/components/service-orders/ServiceOrderDetailDialog';
 import { ServiceOrderCloseDialog } from '@/components/service-orders/ServiceOrderCloseDialog';
+import { ServiceOrdersFieldTab } from '@/components/service-orders/ServiceOrdersFieldTab';
 import { EquipmentsTab } from '@/components/service-orders/EquipmentsTab';
 import { ServiceOrdersAgenda } from '@/components/service-orders/ServiceOrdersAgenda';
 import { ServicesCatalogPanel } from '@/components/budgets/ServicesCatalogPanel';
@@ -61,6 +63,7 @@ import { ServiceOrderFormData, ServiceOrder, ServiceOrderCloseData } from '@/typ
 import { maintenanceMarkLabel } from '@/lib/serviceOrderMaintenance';
 import { executionDurationLabel, formatServiceOrderMoment } from '@/lib/serviceOrderDuration';
 import { useServiceOrderViewer, visibleClientPhone } from '@/lib/serviceOrderPhone';
+import { isChecklistIncomplete } from '@/lib/serviceOrderMedia';
 import { useToast } from '@/hooks/use-toast';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { useEvolutionConfigs } from '@/hooks/useEvolutionConfigs';
@@ -141,12 +144,16 @@ export default function ServiceOrders() {
   const [showSendWhatsApp, setShowSendWhatsApp] = useState(false);
   const [selectedInstanceId, setSelectedInstanceId] = useState('');
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const openEquipmentId = searchParams.get('equipment');
-  const [moduleTab, setModuleTab] = useState<'orders' | 'equipments' | 'agenda' | 'services'>(() =>
-    openEquipmentId ? 'equipments' : 'orders'
-  );
+  const openOsId = searchParams.get('os');
+  const [moduleTab, setModuleTab] = useState<'orders' | 'equipments' | 'agenda' | 'services' | 'campo'>(() => {
+    if (typeof window !== 'undefined' && window.location.pathname.endsWith('/campo')) return 'campo';
+    if (openEquipmentId) return 'equipments';
+    return 'orders';
+  });
   const [agendaRevision, setAgendaRevision] = useState(0);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const agendaDialogsOpen = showDetail || showCreate || showClose || showDeleteConfirm;
   const agendaDialogWasOpen = useRef(false);
 
@@ -157,10 +164,21 @@ export default function ServiceOrders() {
   const connectedInstances = evolutionConfigs.filter((config) => config.is_connected);
   const location = useLocation();
   const navigate = useNavigate();
+  const isFieldTab = moduleTab === 'campo';
+
+  useEffect(() => {
+    if (location.pathname.endsWith('/campo')) setModuleTab('campo');
+  }, [location.pathname]);
 
   useEffect(() => {
     if (openEquipmentId) setModuleTab('equipments');
   }, [openEquipmentId]);
+
+  useEffect(() => {
+    void supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id || null);
+    });
+  }, []);
 
   useEffect(() => {
     if (agendaDialogsOpen) {
@@ -228,6 +246,11 @@ export default function ServiceOrders() {
     [appliedFilters, maintenanceOnly]
   );
 
+  const queryFilters = useMemo(
+    () => (moduleTab === 'campo' ? {} : filters),
+    [moduleTab, filters]
+  );
+
   const {
     orders,
     loading,
@@ -242,8 +265,37 @@ export default function ServiceOrders() {
     peekNextCode,
     refetch,
     closeOrder,
+    appendFieldCheckin,
     duplicateOrder,
-  } = useServiceOrders(filters);
+  } = useServiceOrders(queryFilters);
+
+  useEffect(() => {
+    if (!openOsId || !activeOrgId) return;
+    let cancelled = false;
+    void (async () => {
+      const order = await getOrder(openOsId);
+      if (cancelled || !order) {
+        if (!cancelled) {
+          toast({
+            title: 'Ordem não encontrada',
+            description: 'Não foi possível abrir esta ordem de serviço.',
+            variant: 'destructive',
+          });
+        }
+        return;
+      }
+      setSelectedOrder(order);
+      setShowDetail(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('os');
+      setSearchParams(next, { replace: true });
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // getOrder estabiliza com activeOrgId; openOsId dispara a abertura
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openOsId, activeOrgId]);
 
   const { isOrgAdmin } = useIsActiveOrgAdmin();
   const { canViewFeature, canEditFeature, canDeleteFeature } = useOrgUserPermissions();
@@ -506,6 +558,21 @@ export default function ServiceOrders() {
     setShowDetail(true);
   };
 
+  const requestCloseOrder = (order: ServiceOrder) => {
+    if (isChecklistIncomplete(order.checklist)) {
+      toast({
+        title: 'Checklist incompleto',
+        description: 'Conclua o checklist antes de encerrar a ordem.',
+        variant: 'destructive',
+      });
+      setSelectedOrder(order);
+      setShowDetail(true);
+      return;
+    }
+    setSelectedOrder(order);
+    setShowClose(true);
+  };
+
   const handleStatusChange = (order: ServiceOrder, statusId: string) => {
     if (!canEditOs) {
       toast({
@@ -518,15 +585,18 @@ export default function ServiceOrders() {
     if (statusId === order.status_id) return;
     const next = statuses.find((status) => status.id === statusId);
     if (next?.is_final) {
-      setSelectedOrder(order);
-      setShowClose(true);
+      requestCloseOrder(order);
       return;
     }
     if (order.is_closed) {
-      void updateOrder(order.id, { status_id: statusId, is_closed: false });
+      void updateOrder(order.id, { status_id: statusId, is_closed: false }).then((ok) => {
+        if (ok) void appendFieldCheckin(order.id, 'stage_change');
+      });
       return;
     }
-    void updateOrder(order.id, { status_id: statusId });
+    void updateOrder(order.id, { status_id: statusId }).then((ok) => {
+      if (ok) void appendFieldCheckin(order.id, 'stage_change');
+    });
   };
 
   const handleCreateOrUpdate = async (data: ServiceOrderFormData) => {
@@ -732,38 +802,64 @@ export default function ServiceOrders() {
             <ClipboardList className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-bold">Ordem de Serviço</h1>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={orders.length === 0 || !!exportingId}
-            onClick={() => {
-              if (orders.length === 1) {
-                exportOrderPdf(orders[0], { open: true, mode: 'full' });
-                return;
-              }
-              toast({
-                title: 'Exportar PDF',
-                description: 'Abra a ordem ou use Opções → Exportar PDF na lista.',
-              });
-            }}
-            data-testid="os-exportar-btn"
-          >
-            <Download className="h-4 w-4 mr-1" />
-            Exportar
-          </Button>
+          {!isFieldTab && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={orders.length === 0 || !!exportingId}
+              onClick={() => {
+                if (orders.length === 1) {
+                  exportOrderPdf(orders[0], { open: true, mode: 'full' });
+                  return;
+                }
+                toast({
+                  title: 'Exportar PDF',
+                  description: 'Abra a ordem ou use Opções → Exportar PDF na lista.',
+                });
+              }}
+              data-testid="os-exportar-btn"
+            >
+              <Download className="h-4 w-4 mr-1" />
+              Exportar
+            </Button>
+          )}
+          {isFieldTab && canEditOs && (
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditingOrder(null);
+                setOrderDraft(null);
+                setShowCreate(true);
+              }}
+              data-testid="os-field-create-btn"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Nova OS
+            </Button>
+          )}
         </div>
 
         <Tabs
           value={moduleTab}
-          onValueChange={(value) =>
-            setModuleTab(value as 'orders' | 'equipments' | 'agenda' | 'services')
-          }
+          onValueChange={(value) => {
+            const next = value as 'orders' | 'equipments' | 'agenda' | 'services' | 'campo';
+            setModuleTab(next);
+            if (next === 'campo' && !location.pathname.endsWith('/campo')) {
+              navigate('/service-orders/campo', { replace: true });
+            } else if (next !== 'campo' && location.pathname.endsWith('/campo')) {
+              navigate('/service-orders', { replace: true });
+            }
+          }}
           className="space-y-4"
         >
-          <TabsList className="h-auto w-full justify-start gap-1 rounded-lg bg-slate-100 p-1" data-testid="os-module-tabs">
+          <TabsList className="h-auto w-full justify-start gap-1 rounded-lg bg-slate-100 p-1 flex-wrap" data-testid="os-module-tabs">
             <TabsTrigger value="orders" className="gap-1.5" data-testid="os-tab-orders">
               <ClipboardList className="h-4 w-4" />
               Ordens
+            </TabsTrigger>
+            <TabsTrigger value="campo" className="gap-1.5" data-testid="os-tab-campo">
+              <MapPinned className="h-4 w-4" />
+              Campo
             </TabsTrigger>
             <TabsTrigger value="agenda" className="gap-1.5" data-testid="os-tab-agenda">
               <Calendar className="h-4 w-4" />
@@ -778,6 +874,19 @@ export default function ServiceOrders() {
               Serviços
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="campo" className="mt-0">
+            <ServiceOrdersFieldTab
+              orders={orders}
+              statuses={statuses}
+              currentUserId={currentUserId}
+              canEdit={canEditOs}
+              loading={loading}
+              onOpen={openOrderDetail}
+              onStatusChange={handleStatusChange}
+              onCloseOrder={requestCloseOrder}
+            />
+          </TabsContent>
 
           <TabsContent value="services" className="mt-0">
             <ServicesCatalogPanel emptyHint="Cadastre serviços para usá-los na criação da ordem de serviço." />
@@ -1215,6 +1324,8 @@ export default function ServiceOrders() {
         open={showDetail}
         onOpenChange={setShowDetail}
         order={selectedOrder}
+        statuses={statuses}
+        fieldMode={isFieldTab}
         exporting={!!selectedOrder && exportingId === selectedOrder.id}
         canEdit={canEditOs}
         canDelete={canDeleteOs}
@@ -1224,10 +1335,7 @@ export default function ServiceOrders() {
           setShowDetail(false);
           setShowCreate(true);
         }}
-        onCloseOrder={(order) => {
-          setSelectedOrder(order);
-          setShowClose(true);
-        }}
+        onCloseOrder={requestCloseOrder}
         onDelete={(order) => {
           setSelectedOrder(order);
           setShowDeleteConfirm(true);
@@ -1235,6 +1343,15 @@ export default function ServiceOrders() {
         onCopy={handleCopyOrder}
         onExportPdf={(order, mode) => exportOrderPdf(order, { open: true, mode })}
         onSendWhatsApp={canEditOs ? openSendWhatsApp : undefined}
+        onStatusChange={handleStatusChange}
+        onCheckIn={async (order) => {
+          const ok = await appendFieldCheckin(order.id, 'manual');
+          if (ok) {
+            const fresh = await getOrder(order.id);
+            if (fresh) setSelectedOrder(fresh);
+          }
+          return ok;
+        }}
         onChecklistItemChange={async (orderId, item) => {
           const ok = await updateChecklistItem(orderId, item);
           if (ok) {

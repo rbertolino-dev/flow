@@ -488,6 +488,23 @@ export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): 
     y += 2;
   }
 
+  const beforePhotos = order.reference_images || [];
+  if (beforePhotos.length > 0) {
+    sectionTitle('Fotos antes');
+    for (const url of beforePhotos) {
+      try {
+        const img = await loadImageForBudgetPdf(url);
+        if (!img) continue;
+        const box = fitImageInBox(img.naturalW, img.naturalH, maxWidth, 55);
+        ensureSpace(box.h + 6);
+        doc.addImage(img.dataUrl, img.format, margin, y, box.w, box.h);
+        y += box.h + 4;
+      } catch (err) {
+        console.warn('Falha ao embutir foto antes no PDF:', err);
+      }
+    }
+  }
+
   // Encerramento
   if (order.is_closed || order.execution_summary || order.signature_url || (order.close_attachments || []).length) {
     sectionTitle('Encerramento da ordem');
@@ -509,7 +526,7 @@ export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       doc.setTextColor(100, 116, 139);
-      doc.text('FOTOS / ANEXOS', margin, y);
+      doc.text('FOTOS DEPOIS', margin, y);
       y += 4;
 
       for (const url of photos) {

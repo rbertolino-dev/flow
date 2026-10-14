@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Plus, ClipboardList } from 'lucide-react';
+import { Camera, ImagePlus, Plus, ClipboardList, Loader2, X } from 'lucide-react';
 import {
   ServiceOrderFormData,
   ServiceOrderItem,
@@ -51,6 +51,10 @@ import {
   maintenanceVisitDates,
   resolveMaintenanceInterval,
 } from '@/lib/serviceOrderMaintenance';
+import {
+  compressServiceOrderImage,
+  uploadServiceOrderMedia,
+} from '@/lib/serviceOrderMedia';
 
 interface CreateServiceOrderDialogProps {
   open: boolean;
@@ -166,6 +170,9 @@ export function CreateServiceOrderDialog({
   const { configs: googleCalendarConfigs } = useGoogleCalendarConfigs();
   const hasActiveGoogleCalendar = googleCalendarConfigs.some((c) => c.is_active);
   const [orgUsers, setOrgUsers] = useState<Array<{ id: string; name: string }>>([]);
+  const [uploadingBeforePhoto, setUploadingBeforePhoto] = useState(false);
+  const draftMediaId = useRef(`draft-${crypto.randomUUID()}`);
+  const beforePhotoInputRef = useRef<HTMLInputElement>(null);
 
   const template = templates.find((t) => t.id === templateId) || defaultTemplate;
   const visibleFields = useMemo(() => {
@@ -277,6 +284,7 @@ export function CreateServiceOrderDialog({
         custom_fields: editingOrder.custom_fields || {},
         label_tag: editingOrder.label_tag || undefined,
         equipment_ids: editingOrder.equipment_ids || [],
+        reference_images: editingOrder.reference_images || [],
         add_to_agilize_calendar: editingOrder.add_to_agilize_calendar !== false,
         add_to_google_calendar: Boolean(editingOrder.add_to_google_calendar),
         google_calendar_config_id: editingOrder.google_calendar_config_id || undefined,
@@ -288,17 +296,20 @@ export function CreateServiceOrderDialog({
       setLabelTag(editingOrder.label_tag || '');
       setMaintenanceOn(false);
       setNewCheckItem('');
+      draftMediaId.current = editingOrder.id;
       return;
     }
 
     setStep(1);
     setTemplateId(initialDraft?.template_id || defaultTemplate?.id || '');
     setStatusId(initialDraft?.status_id || defaultStatus?.id || '');
+    draftMediaId.current = `draft-${crypto.randomUUID()}`;
     setForm({
       is_single_day: true,
       has_commission: false,
       custom_fields: {},
       add_to_google_calendar: false,
+      reference_images: initialDraft?.reference_images || [],
       ...initialDraft,
       starts_at: initialDraft?.starts_at
         ? format(new Date(initialDraft.starts_at), "yyyy-MM-dd'T'HH:mm")
@@ -888,6 +899,7 @@ export function CreateServiceOrderDialog({
       label_tag: labelTag || undefined,
       add_to_agilize_calendar: form.add_to_agilize_calendar !== false,
       add_to_google_calendar: hasActiveGoogleCalendar && Boolean(form.add_to_google_calendar),
+      reference_images: form.reference_images || [],
       items,
       checklist,
       equipment_ids: form.equipment_ids || [],
@@ -947,6 +959,98 @@ export function CreateServiceOrderDialog({
               selectedIds={form.equipment_ids || []}
               onChange={(ids) => setField('equipment_ids', ids, false)}
             />
+
+            <div className="space-y-2 rounded-xl border p-4" data-testid="os-reference-images">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <Label>Fotos antes</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Referência do equipamento ou local antes do serviço
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    ref={beforePhotoInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    multiple
+                    className="hidden"
+                    onChange={async (e) => {
+                      const files = e.target.files;
+                      if (!files?.length || !activeOrgId) return;
+                      setUploadingBeforePhoto(true);
+                      try {
+                        const urls: string[] = [];
+                        for (const file of Array.from(files)) {
+                          const prepared = await compressServiceOrderImage(file);
+                          const url = await uploadServiceOrderMedia(
+                            activeOrgId,
+                            draftMediaId.current,
+                            prepared,
+                            file.name.replace(/\s+/g, '_') || 'antes.jpg'
+                          );
+                          urls.push(url);
+                        }
+                        setForm((prev) => ({
+                          ...prev,
+                          reference_images: [...(prev.reference_images || []), ...urls],
+                        }));
+                      } catch (err) {
+                        toast({
+                          title: 'Erro no upload',
+                          description: err instanceof Error ? err.message : 'Não foi possível anexar',
+                          variant: 'destructive',
+                        });
+                      } finally {
+                        setUploadingBeforePhoto(false);
+                        if (beforePhotoInputRef.current) beforePhotoInputRef.current.value = '';
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadingBeforePhoto || !activeOrgId}
+                    onClick={() => beforePhotoInputRef.current?.click()}
+                  >
+                    {uploadingBeforePhoto ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <Camera className="h-4 w-4 mr-1" />
+                    )}
+                    Foto
+                  </Button>
+                </div>
+              </div>
+              {(form.reference_images || []).length === 0 ? (
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <ImagePlus className="h-3.5 w-3.5" />
+                  Nenhuma foto ainda
+                </p>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {(form.reference_images || []).map((url) => (
+                    <div key={url} className="relative aspect-square overflow-hidden rounded-md border">
+                      <img src={url} alt="" className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        className="absolute right-1 top-1 rounded-full bg-black/60 p-0.5 text-white"
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            reference_images: (prev.reference_images || []).filter((item) => item !== url),
+                          }))
+                        }
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {!isEditing && (
               <div className="space-y-3 rounded-xl border p-4" data-testid="os-maintenance-plan">
