@@ -9,7 +9,8 @@ export type FinanceSourceType =
   | 'ordem_servico'
   | 'boleto'
   | 'comissao'
-  | 'manual';
+  | 'manual'
+  | 'ofx';
 
 export interface FinancialAccount {
   id: string;
@@ -135,6 +136,8 @@ export interface FinancialEntry {
   attachment_name?: string | null;
   attachment_path?: string | null;
   notes?: string | null;
+  bank_fit_id?: string | null;
+  reconciliation_line_id?: string | null;
   created_by?: string | null;
   created_at: string;
   updated_at?: string | null;

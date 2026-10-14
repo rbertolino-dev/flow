@@ -71,6 +71,7 @@ const FinanceCategories = lazyWithRetry(() => import("./pages/FinanceCategories"
 const FinanceBanks = lazyWithRetry(() => import("./pages/FinanceBanks"));
 const FinanceDre = lazyWithRetry(() => import("./pages/FinanceDre"));
 const FinanceCashFlow = lazyWithRetry(() => import("./pages/FinanceCashFlow"));
+const FinanceReconciliation = lazyWithRetry(() => import("./pages/FinanceReconciliation"));
 const Reports = lazyWithRetry(() => import("./pages/Reports"));
 const ReportsMargins = lazyWithRetry(() => import("./pages/ReportsMargins"));
 const ReportsCommissions = lazyWithRetry(() => import("./pages/ReportsCommissions"));
@@ -218,6 +219,7 @@ const App = () => {
                 <Route path="/financeiro/bancos" element={<FinanceBanks />} />
                 <Route path="/financeiro/dre" element={<FinanceDre />} />
                 <Route path="/financeiro/fluxo-de-caixa" element={<FinanceCashFlow />} />
+                <Route path="/financeiro/conciliacao" element={<FinanceReconciliation />} />
                 <Route path="/relatorios" element={<Reports />} />
                 <Route path="/relatorios/margens" element={<ReportsMargins />} />
                 <Route path="/relatorios/comissoes" element={<ReportsCommissions />} />
