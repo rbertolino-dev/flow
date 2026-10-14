@@ -13,6 +13,12 @@ import {
   type OsReportDateMode,
   type OsReportOrder,
 } from "@/lib/serviceOrdersReport";
+import {
+  aggregateCollaboratorProductivity,
+  aggregateStageTimes,
+  isServiceOrderOverdue,
+  type StageChangeLog,
+} from "@/lib/serviceOrderManagement";
 
 const ORDER_SELECT = `
   id, code, client_name, client_phone,
@@ -43,6 +49,7 @@ export function useServiceOrdersReport() {
   const [onlyMaintenance, setOnlyMaintenance] = useState(false);
 
   const [rawOrders, setRawOrders] = useState<OsReportOrder[]>([]);
+  const [stageLogs, setStageLogs] = useState<StageChangeLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -79,7 +86,27 @@ export function useServiceOrdersReport() {
         if (from > 20000) break;
       }
 
+      const logs: StageChangeLog[] = [];
+      let logFrom = 0;
+      for (;;) {
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        const { data: logBatch, error: logError } = await supabase
+          .from("service_order_logs")
+          .select("service_order_id, created_at, message, metadata")
+          .eq("organization_id", activeOrgId)
+          .eq("event_type", "status_change")
+          .order("created_at", { ascending: true })
+          .range(logFrom, logFrom + PAGE_SIZE - 1);
+        if (logError) throw logError;
+        const rows = (logBatch || []) as StageChangeLog[];
+        logs.push(...rows);
+        if (rows.length < PAGE_SIZE) break;
+        logFrom += PAGE_SIZE;
+        if (logFrom > 50000) break;
+      }
+
       setRawOrders(all);
+      setStageLogs(logs);
       setLoaded(true);
     } catch (error) {
       console.error("Erro ao carregar relatório de OS:", error);
@@ -89,6 +116,7 @@ export function useServiceOrdersReport() {
         variant: "destructive",
       });
       setRawOrders([]);
+      setStageLogs([]);
     } finally {
       setLoading(false);
     }
@@ -138,6 +166,62 @@ export function useServiceOrdersReport() {
   );
   const serviceRows = useMemo(() => aggregateByService(filteredOrders), [filteredOrders]);
 
+  const stageTimeRows = useMemo(() => {
+    const orderIds = new Set(filteredOrders.map((o) => o.id));
+    const relevantLogs = stageLogs.filter((l) => orderIds.has(l.service_order_id));
+    return aggregateStageTimes(
+      filteredOrders.map((o) => ({
+        id: o.id,
+        created_at: o.createdAt,
+        closed_at: o.closedAt,
+        is_closed: o.isClosed,
+        status_id: o.statusId,
+        status: {
+          id: o.statusId || undefined,
+          name: o.statusName,
+          color: o.statusColor,
+        },
+      })),
+      relevantLogs,
+    );
+  }, [filteredOrders, stageLogs]);
+
+  const productivityRows = useMemo(
+    () =>
+      aggregateCollaboratorProductivity(
+        filteredOrders.map((o) => ({
+          id: o.id,
+          is_closed: o.isClosed,
+          starts_at: o.startsAt,
+          ends_at: o.endsAt,
+          created_at: o.createdAt,
+          closed_at: o.closedAt,
+          total: o.total,
+          collaborator_user_id: o.collaboratorKey.startsWith("id:")
+            ? o.collaboratorKey.slice(3)
+            : null,
+          collaborator_name: o.collaboratorName,
+          status: {
+            id: o.statusId || undefined,
+            name: o.statusName,
+            color: o.statusColor,
+            is_final: o.statusIsFinal,
+          },
+          status_id: o.statusId,
+        })),
+      ),
+    [filteredOrders],
+  );
+
+  const overdueInPeriod = useMemo(
+    () => filteredOrders.filter((o) => isServiceOrderOverdue({
+      is_closed: o.isClosed,
+      starts_at: o.startsAt,
+      status: { is_final: o.statusIsFinal },
+    })).length,
+    [filteredOrders],
+  );
+
   const statusOptions = useMemo(() => {
     const map = new Map<string, { id: string; name: string; color: string }>();
     for (const order of rawOrders) {
@@ -173,6 +257,9 @@ export function useServiceOrdersReport() {
     responsibleRows,
     collaboratorRows,
     serviceRows,
+    stageTimeRows,
+    productivityRows,
+    overdueInPeriod,
     statusOptions,
   };
 }

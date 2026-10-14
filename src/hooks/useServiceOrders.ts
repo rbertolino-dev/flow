@@ -604,6 +604,24 @@ export function useServiceOrders(
         toast
       );
 
+      if (form.status_id) {
+        let toName = 'Etapa inicial';
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        const { data: statusRow } = await supabase
+          .from('service_order_statuses')
+          .select('name')
+          .eq('id', form.status_id)
+          .eq('organization_id', activeOrgId)
+          .maybeSingle();
+        toName = String((statusRow as { name?: string } | null)?.name || '').trim() || toName;
+        await addLog(order.id, `Etapa inicial: ${toName}`, 'status_change', {
+          from_status_id: null,
+          to_status_id: form.status_id,
+          from_name: null,
+          to_name: toName,
+        });
+      }
+
       if (!options?.quiet) {
         toast({ title: 'Ordem criada', description: `OS ${order.code} criada com sucesso.` });
       }
@@ -684,18 +702,32 @@ export function useServiceOrders(
         if (patch[k] !== undefined) updatePayload[k] = patch[k];
       });
 
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { data: beforeRow } = await supabase
+        .from('service_orders')
+        .select('code, status_id, status:service_order_statuses(id, name)')
+        .eq('id', id)
+        .eq('organization_id', activeOrgId)
+        .maybeSingle();
+      const previousStatusId = (beforeRow as { status_id?: string | null } | null)?.status_id || null;
+      const previousStatusName =
+        ((beforeRow as { status?: { name?: string } | null } | null)?.status?.name || '').trim() ||
+        'Sem etapa';
+
       let previousItems: ServiceOrderItem[] | null = null;
-      let orderCode = '';
+      let orderCode = String((beforeRow as { code?: string } | null)?.code || '');
       if (patch.items) {
         Object.assign(updatePayload, calcTotals(patch.items));
-        // @ts-expect-error tabela ainda nao tipada no client gerado
-        const { data: existing } = await supabase
-          .from('service_orders')
-          .select('code')
-          .eq('id', id)
-          .eq('organization_id', activeOrgId)
-          .maybeSingle();
-        orderCode = String((existing as { code?: string } | null)?.code || '');
+        if (!orderCode) {
+          // @ts-expect-error tabela ainda nao tipada no client gerado
+          const { data: existing } = await supabase
+            .from('service_orders')
+            .select('code')
+            .eq('id', id)
+            .eq('organization_id', activeOrgId)
+            .maybeSingle();
+          orderCode = String((existing as { code?: string } | null)?.code || '');
+        }
         // @ts-expect-error tabela ainda nao tipada no client gerado
         const { data: prev } = await supabase
           .from('service_order_items')
@@ -833,6 +865,29 @@ export function useServiceOrders(
         }
       }
 
+      if (patch.status_id && patch.status_id !== previousStatusId) {
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        const { data: nextStatusRow } = await supabase
+          .from('service_order_statuses')
+          .select('name')
+          .eq('id', patch.status_id)
+          .eq('organization_id', activeOrgId)
+          .maybeSingle();
+        const toName =
+          String((nextStatusRow as { name?: string } | null)?.name || '').trim() || 'Etapa';
+        await addLog(
+          id,
+          `Etapa: ${previousStatusName} → ${toName}`,
+          'status_change',
+          {
+            from_status_id: previousStatusId,
+            to_status_id: patch.status_id,
+            from_name: previousStatusName,
+            to_name: toName,
+          }
+        );
+      }
+
       toast({ title: 'OS atualizada' });
       await fetchOrders();
       return true;
@@ -921,7 +976,12 @@ export function useServiceOrders(
     }
   };
 
-  const addLog = async (orderId: string, message: string, eventType = 'note') => {
+  const addLog = async (
+    orderId: string,
+    message: string,
+    eventType = 'note',
+    metadata?: Record<string, unknown> | null
+  ) => {
     if (!activeOrgId) return;
     try {
       const {
@@ -942,6 +1002,7 @@ export function useServiceOrders(
         organization_id: activeOrgId,
         event_type: eventType,
         message,
+        metadata: metadata || {},
         created_by: user?.id || null,
         created_by_name: name,
       });
@@ -1019,11 +1080,24 @@ export function useServiceOrders(
         closedByName = profile?.full_name || user.email || null;
       }
 
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { data: beforeClose } = await supabase
+        .from('service_orders')
+        .select('status_id, status:service_order_statuses(id, name)')
+        .eq('id', orderId)
+        .eq('organization_id', activeOrgId)
+        .maybeSingle();
+      const previousStatusId =
+        (beforeClose as { status_id?: string | null } | null)?.status_id || null;
+      const previousStatusName =
+        ((beforeClose as { status?: { name?: string } | null } | null)?.status?.name || '').trim() ||
+        'Sem etapa';
+
       // Marcar status final se existir
       // @ts-expect-error tabela ainda nao tipada no client gerado
       const { data: finalStatus } = await supabase
         .from('service_order_statuses')
-        .select('id')
+        .select('id, name')
         .eq('organization_id', activeOrgId)
         .eq('is_final', true)
         .order('sort_order', { ascending: false })
@@ -1049,6 +1123,16 @@ export function useServiceOrders(
         .eq('organization_id', activeOrgId);
 
       if (error) throw error;
+
+      if (finalStatus?.id && finalStatus.id !== previousStatusId) {
+        const toName = String((finalStatus as { name?: string }).name || '').trim() || 'Finalizado';
+        await addLog(orderId, `Etapa: ${previousStatusName} → ${toName}`, 'status_change', {
+          from_status_id: previousStatusId,
+          to_status_id: finalStatus.id,
+          from_name: previousStatusName,
+          to_name: toName,
+        });
+      }
 
       void appendFieldCheckin(orderId, 'close');
 

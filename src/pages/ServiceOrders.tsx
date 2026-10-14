@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  AlertTriangle,
   ClipboardList,
   Plus,
   LayoutTemplate,
@@ -44,6 +45,7 @@ import {
   Package,
   MessageCircle,
   MapPinned,
+  UserX,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useServiceOrders } from '@/hooks/useServiceOrders';
@@ -64,6 +66,11 @@ import { maintenanceMarkLabel } from '@/lib/serviceOrderMaintenance';
 import { executionDurationLabel, formatServiceOrderMoment } from '@/lib/serviceOrderDuration';
 import { useServiceOrderViewer, visibleClientPhone } from '@/lib/serviceOrderPhone';
 import { isChecklistIncomplete } from '@/lib/serviceOrderMedia';
+import {
+  hasServiceOrderTechnician,
+  isServiceOrderOpenToday,
+  isServiceOrderOverdue,
+} from '@/lib/serviceOrderManagement';
 import { useToast } from '@/hooks/use-toast';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { useEvolutionConfigs } from '@/hooks/useEvolutionConfigs';
@@ -152,6 +159,7 @@ export default function ServiceOrders() {
     if (openEquipmentId) return 'equipments';
     return 'orders';
   });
+  const [mgmtFilter, setMgmtFilter] = useState<'all' | 'overdue' | 'today' | 'no_tech'>('all');
   const [agendaRevision, setAgendaRevision] = useState(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const agendaDialogsOpen = showDetail || showCreate || showClose || showDeleteConfirm;
@@ -268,6 +276,31 @@ export default function ServiceOrders() {
     appendFieldCheckin,
     duplicateOrder,
   } = useServiceOrders(queryFilters);
+
+  const managementStats = useMemo(() => {
+    const now = Date.now();
+    let overdue = 0;
+    let today = 0;
+    let noTech = 0;
+    for (const order of orders) {
+      if (isServiceOrderOverdue(order, now)) overdue += 1;
+      if (isServiceOrderOpenToday(order)) today += 1;
+      if (!order.is_closed && !order.status?.is_final && !hasServiceOrderTechnician(order)) {
+        noTech += 1;
+      }
+    }
+    return { overdue, today, noTech };
+  }, [orders]);
+
+  const displayedOrders = useMemo(() => {
+    const now = Date.now();
+    if (mgmtFilter === 'all') return orders;
+    if (mgmtFilter === 'overdue') return orders.filter((o) => isServiceOrderOverdue(o, now));
+    if (mgmtFilter === 'today') return orders.filter((o) => isServiceOrderOpenToday(o));
+    return orders.filter(
+      (o) => !o.is_closed && !o.status?.is_final && !hasServiceOrderTechnician(o)
+    );
+  }, [orders, mgmtFilter]);
 
   useEffect(() => {
     if (!openOsId || !activeOrgId) return;
@@ -921,6 +954,73 @@ export default function ServiceOrders() {
 
           <TabsContent value="orders" className="mt-0 space-y-6">
 
+        <div
+          className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3"
+          data-testid="os-mgmt-cards"
+        >
+          {(
+            [
+              {
+                key: 'overdue' as const,
+                label: 'Atrasadas',
+                value: managementStats.overdue,
+                hint: 'Previsão já passou e ainda abertas',
+                icon: AlertTriangle,
+                activeClass: 'border-rose-400 bg-rose-50 ring-rose-400',
+                idleClass: 'border-rose-100 bg-rose-50/60 hover:bg-rose-50',
+                valueClass: 'text-rose-700',
+              },
+              {
+                key: 'today' as const,
+                label: 'Abertas hoje',
+                value: managementStats.today,
+                hint: 'Agenda para hoje, ainda não fechadas',
+                icon: Calendar,
+                activeClass: 'border-amber-400 bg-amber-50 ring-amber-400',
+                idleClass: 'border-amber-100 bg-amber-50/60 hover:bg-amber-50',
+                valueClass: 'text-amber-800',
+              },
+              {
+                key: 'no_tech' as const,
+                label: 'Sem técnico',
+                value: managementStats.noTech,
+                hint: 'Abertas sem colaborador',
+                icon: UserX,
+                activeClass: 'border-sky-400 bg-sky-50 ring-sky-400',
+                idleClass: 'border-sky-100 bg-sky-50/60 hover:bg-sky-50',
+                valueClass: 'text-sky-800',
+              },
+            ] as const
+          ).map((card) => {
+            const Icon = card.icon;
+            const active = mgmtFilter === card.key;
+            return (
+              <button
+                key={card.key}
+                type="button"
+                data-testid={`os-mgmt-card-${card.key}`}
+                onClick={() => setMgmtFilter((prev) => (prev === card.key ? 'all' : card.key))}
+                className={`rounded-xl border p-3 sm:p-4 text-left transition ${
+                  active ? `ring-2 ring-offset-2 ${card.activeClass}` : card.idleClass
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                      {card.label}
+                    </p>
+                    <p className={`mt-1 text-2xl font-bold tabular-nums ${card.valueClass}`}>
+                      {card.value}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{card.hint}</p>
+                  </div>
+                  <Icon className={`h-5 w-5 shrink-0 ${card.valueClass}`} aria-hidden />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Status cards — etapas da organização */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3" data-testid="os-status-cards">
           {statuses.map((s) => {
@@ -957,7 +1057,17 @@ export default function ServiceOrders() {
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground font-medium">
-            {orders.length} {orders.length === 1 ? 'Ordem' : 'Ordens'}
+            {displayedOrders.length}{' '}
+            {displayedOrders.length === 1 ? 'Ordem' : 'Ordens'}
+            {mgmtFilter !== 'all' ? (
+              <button
+                type="button"
+                className="ml-2 text-primary underline-offset-2 hover:underline"
+                onClick={() => setMgmtFilter('all')}
+              >
+                limpar filtro
+              </button>
+            ) : null}
           </p>
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
             {canEditOs && (
@@ -1079,25 +1189,34 @@ export default function ServiceOrders() {
               <Loader2 className="h-5 w-5 animate-spin mr-2" />
               Carregando ordens...
             </div>
-          ) : orders.length === 0 ? (
+          ) : displayedOrders.length === 0 ? (
             <div className="py-16 text-center text-muted-foreground border rounded-lg bg-card px-4">
-              Nenhuma ordem de serviço encontrada.
-              <div className="mt-3">
-                <Button
-                  onClick={() => {
-                    setEditingOrder(null);
-                    setOrderDraft(null);
-                    setShowCreate(true);
-                  }}
-                >
-                  Criar primeira OS
-                </Button>
+              {mgmtFilter !== 'all'
+                ? 'Nenhuma ordem neste filtro de gestão.'
+                : 'Nenhuma ordem de serviço encontrada.'}
+              <div className="mt-3 flex flex-wrap justify-center gap-2">
+                {mgmtFilter !== 'all' ? (
+                  <Button variant="outline" onClick={() => setMgmtFilter('all')}>
+                    Limpar filtro
+                  </Button>
+                ) : null}
+                {canEditOs && mgmtFilter === 'all' ? (
+                  <Button
+                    onClick={() => {
+                      setEditingOrder(null);
+                      setOrderDraft(null);
+                      setShowCreate(true);
+                    }}
+                  >
+                    Criar primeira OS
+                  </Button>
+                ) : null}
               </div>
             </div>
           ) : (
             <>
               <div className="lg:hidden space-y-3" data-testid="os-mobile-cards">
-                {orders.map((order) => (
+                {displayedOrders.map((order) => (
                   <article
                     key={order.id}
                     className="border rounded-xl bg-card p-4 space-y-3 shadow-sm"
@@ -1178,7 +1297,7 @@ export default function ServiceOrders() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {orders.map((order) => (
+                {displayedOrders.map((order) => (
                   <TableRow
                     key={order.id}
                     className="cursor-pointer hover:bg-muted/50"

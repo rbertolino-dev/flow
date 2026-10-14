@@ -92,6 +92,25 @@ export function mapsSearchUrl(address: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address.trim())}`;
 }
 
+/** Link do Google Maps a partir de latitude/longitude do GPS. */
+export function mapsCoordsUrl(lat: number, lng: number): string {
+  return `https://www.google.com/maps?q=${lat},${lng}`;
+}
+
+/** Rótulo amigável do motivo do registro de presença. */
+export function fieldCheckinEventLabel(event: string): string {
+  switch (event) {
+    case 'manual':
+      return 'Confirmação no local';
+    case 'stage_change':
+      return 'Ao mudar etapa';
+    case 'close':
+      return 'Ao fechar a OS';
+    default:
+      return event || 'Presença';
+  }
+}
+
 export function serviceOrderDeepLink(orderId: string): string {
   if (typeof window === 'undefined') return `/service-orders?os=${orderId}`;
   return `${window.location.origin}/service-orders?os=${orderId}`;

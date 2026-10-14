@@ -21,6 +21,23 @@ function mapsSearchUrl(address: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address.trim())}`;
 }
 
+function mapsCoordsUrl(lat: number, lng: number): string {
+  return `https://www.google.com/maps?q=${lat},${lng}`;
+}
+
+function fieldCheckinEventLabel(event: string): string {
+  switch (event) {
+    case "manual":
+      return "Confirmação no local";
+    case "stage_change":
+      return "Ao mudar etapa";
+    case "close":
+      return "Ao fechar a OS";
+    default:
+      return event || "Presença";
+  }
+}
+
 test.describe("serviceOrderMedia helpers @unit", () => {
   test("isChecklistIncomplete", () => {
     expect(isChecklistIncomplete([])).toBe(false);
@@ -33,5 +50,12 @@ test.describe("serviceOrderMedia helpers @unit", () => {
   test("mapsSearchUrl", () => {
     expect(mapsSearchUrl("Rua A, 10")).toContain("google.com/maps");
     expect(mapsSearchUrl("Rua A, 10")).toContain(encodeURIComponent("Rua A, 10"));
+  });
+
+  test("mapsCoordsUrl e rótulos de presença", () => {
+    expect(mapsCoordsUrl(-23.55, -46.63)).toContain("-23.55,-46.63");
+    expect(fieldCheckinEventLabel("manual")).toBe("Confirmação no local");
+    expect(fieldCheckinEventLabel("stage_change")).toBe("Ao mudar etapa");
+    expect(fieldCheckinEventLabel("close")).toBe("Ao fechar a OS");
   });
 });

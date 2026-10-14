@@ -48,7 +48,12 @@ import {
 import { Equipment, equipmentDisplayName } from '@/types/equipment';
 import { maintenanceMarkLabel } from '@/lib/serviceOrderMaintenance';
 import { executionDurationLabel, formatServiceOrderMoment } from '@/lib/serviceOrderDuration';
-import { mapsSearchUrl, serviceOrderDeepLink } from '@/lib/serviceOrderMedia';
+import {
+  fieldCheckinEventLabel,
+  mapsCoordsUrl,
+  mapsSearchUrl,
+  serviceOrderDeepLink,
+} from '@/lib/serviceOrderMedia';
 import { useServiceOrderViewer, visibleClientPhone } from '@/lib/serviceOrderPhone';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchEquipmentsForOrder } from '@/hooks/useEquipments';
@@ -363,14 +368,15 @@ export function ServiceOrderDetailDialog({
                         className="min-h-10"
                         disabled={checkingIn}
                         data-testid="os-detail-checkin"
+                        title="Usa o GPS do celular para registrar que você estava neste endereço"
                         onClick={() => {
                           setCheckingIn(true);
                           void Promise.resolve(onCheckIn(order))
                             .then((ok) => {
                               toast({
-                                title: ok ? 'Check-in registrado' : 'GPS indisponível',
+                                title: ok ? 'Presença registrada' : 'GPS indisponível',
                                 description: ok
-                                  ? 'Localização salva nesta OS.'
+                                  ? 'Salvamos que você estava no local (com o GPS do aparelho).'
                                   : 'Permita a localização no navegador ou tente de novo.',
                                 variant: ok ? 'default' : 'destructive',
                               });
@@ -383,7 +389,7 @@ export function ServiceOrderDetailDialog({
                         ) : (
                           <MapPinned className="h-4 w-4 mr-1" />
                         )}
-                        Check-in
+                        Estou no local
                       </Button>
                     )}
                   </div>
@@ -392,14 +398,43 @@ export function ServiceOrderDetailDialog({
             </div>
 
             {checkins.length > 0 && (
-              <div className="rounded-lg border p-3 space-y-1 text-xs text-muted-foreground">
-                <p className="text-sm font-semibold text-foreground">Check-ins</p>
-                {checkins.slice(-5).map((item, idx) => (
-                  <p key={`${item.at}-${idx}`}>
-                    {format(new Date(item.at), 'dd/MM HH:mm')} · {item.event} ·{' '}
-                    {item.lat.toFixed(5)}, {item.lng.toFixed(5)}
+              <div className="rounded-lg border p-3 space-y-2" data-testid="os-detail-checkins">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Presença no local</p>
+                  <p className="text-xs text-muted-foreground">
+                    Registro com GPS para comprovar que o técnico esteve no endereço do serviço.
                   </p>
-                ))}
+                </div>
+                <ul className="space-y-2">
+                  {checkins.slice(-5).reverse().map((item, idx) => (
+                    <li
+                      key={`${item.at}-${idx}`}
+                      className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                    >
+                      <span>
+                        <span className="font-medium text-foreground">
+                          {format(new Date(item.at), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {' '}
+                          · {fieldCheckinEventLabel(item.event)}
+                          {typeof item.accuracy === 'number' && item.accuracy > 0
+                            ? ` · precisão ~${Math.round(item.accuracy)} m`
+                            : ''}
+                        </span>
+                      </span>
+                      <a
+                        href={mapsCoordsUrl(item.lat, item.lng)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-primary underline-offset-2 hover:underline"
+                      >
+                        <Navigation className="h-3 w-3" />
+                        Ver no mapa
+                      </a>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 

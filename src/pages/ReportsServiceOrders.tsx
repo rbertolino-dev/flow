@@ -45,9 +45,14 @@ import {
   type OsServiceRow,
   type OsStatusRow,
 } from "@/lib/serviceOrdersReport";
+import {
+  formatDurationMs,
+  type ProductivityRow,
+  type StageTimeRow,
+} from "@/lib/serviceOrderManagement";
 import { cn } from "@/lib/utils";
 
-type TabKey = "visao" | "pessoas" | "servicos" | "detalhes";
+type TabKey = "visao" | "gestao" | "pessoas" | "servicos" | "detalhes";
 
 function StatCard({
   title,
@@ -309,6 +314,86 @@ function EmptyHint({ text }: { text: string }) {
   );
 }
 
+function StageTimeTable({ rows }: { rows: StageTimeRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <EmptyHint text="Ainda não há mudanças de etapa registradas no período. O tempo médio passa a aparecer após novas trocas de etapa." />
+    );
+  }
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-gradient-to-r from-slate-50 to-amber-50 hover:bg-slate-50">
+            <TableHead className="font-semibold text-slate-700">Etapa</TableHead>
+            <TableHead className="text-right font-semibold text-slate-700">Passagens</TableHead>
+            <TableHead className="text-right font-semibold text-slate-700">Tempo médio</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.statusId}>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: row.color }}
+                  />
+                  <span className="font-medium text-slate-800">{row.name}</span>
+                </div>
+              </TableCell>
+              <TableCell className="text-right tabular-nums">{row.sampleCount}</TableCell>
+              <TableCell className="text-right tabular-nums font-medium text-slate-800">
+                {formatDurationMs(row.avgMs)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function ProductivityTable({ rows }: { rows: ProductivityRow[] }) {
+  if (rows.length === 0) {
+    return <EmptyHint text="Nenhum colaborador no período." />;
+  }
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-gradient-to-r from-slate-50 to-rose-50 hover:bg-slate-50">
+            <TableHead className="font-semibold text-slate-700">Colaborador</TableHead>
+            <TableHead className="text-right font-semibold text-slate-700">OS</TableHead>
+            <TableHead className="text-right font-semibold text-slate-700">Fechadas</TableHead>
+            <TableHead className="text-right font-semibold text-slate-700">Ciclo médio</TableHead>
+            <TableHead className="text-right font-semibold text-slate-700">Atrasadas</TableHead>
+            <TableHead className="text-right font-semibold text-slate-700">Ticket</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.key}>
+              <TableCell className="font-medium text-slate-800">{row.name}</TableCell>
+              <TableCell className="text-right tabular-nums">{row.orderCount}</TableCell>
+              <TableCell className="text-right tabular-nums text-emerald-700">
+                {row.closedCount}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-slate-700">
+                {row.avgCycleMs > 0 ? formatDurationMs(row.avgCycleMs) : "—"}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-rose-700">
+                {row.overdueCount} ({row.overduePct.toFixed(0)}%)
+              </TableCell>
+              <TableCell className="text-right tabular-nums">{formatOsMoney(row.ticketAvg)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 function LoadingState() {
   return (
     <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-16 text-slate-500">
@@ -408,7 +493,7 @@ export default function ReportsServiceOrders() {
                 Painel de Ordens de Serviço
               </h1>
               <p className="mt-1 max-w-xl text-sm text-white/85">
-                Acompanhe volume, valores, status e desempenho por pessoa e serviço no período.
+                Volume, valores, tempo por etapa, atrasadas e produtividade por colaborador.
               </p>
             </div>
             <Button
@@ -567,6 +652,13 @@ export default function ReportsServiceOrders() {
                   Visão geral
                 </TabsTrigger>
                 <TabsTrigger
+                  value="gestao"
+                  className="rounded-xl px-4 py-2 data-[state=active]:bg-white data-[state=active]:text-violet-700 data-[state=active]:shadow-sm"
+                  data-testid="os-report-tab-gestao"
+                >
+                  Gestão
+                </TabsTrigger>
+                <TabsTrigger
                   value="pessoas"
                   className="rounded-xl px-4 py-2 data-[state=active]:bg-white data-[state=active]:text-violet-700 data-[state=active]:shadow-sm"
                 >
@@ -628,6 +720,46 @@ export default function ReportsServiceOrders() {
                       Soma das OS com comissão preenchida
                     </p>
                   </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="gestao" className="mt-0 space-y-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-rose-100 bg-rose-50/70 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-rose-700">
+                      Atrasadas no período
+                    </p>
+                    <p className="mt-1 text-2xl font-bold tabular-nums text-rose-800">
+                      {report.overdueInPeriod}
+                    </p>
+                    <p className="text-xs text-slate-600">Abertas com previsão já vencida</p>
+                  </div>
+                  <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                      Em aberto
+                    </p>
+                    <p className="mt-1 text-2xl font-bold tabular-nums text-amber-900">
+                      {report.summary.openCount}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                      Fechadas
+                    </p>
+                    <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-900">
+                      {report.summary.closedCount}
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold text-slate-700">Tempo médio por etapa</h3>
+                  <StageTimeTable rows={report.stageTimeRows} />
+                </div>
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold text-slate-700">
+                    Produtividade por colaborador
+                  </h3>
+                  <ProductivityTable rows={report.productivityRows} />
                 </div>
               </TabsContent>
 

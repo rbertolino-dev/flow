@@ -236,12 +236,21 @@ export interface ServiceOrder {
   }>;
 }
 
+export interface ServiceOrderLogMetadata {
+  from_status_id?: string | null;
+  to_status_id?: string | null;
+  from_name?: string | null;
+  to_name?: string | null;
+  [key: string]: unknown;
+}
+
 export interface ServiceOrderLog {
   id: string;
   service_order_id: string;
   organization_id: string;
   event_type: string;
   message: string;
+  metadata?: ServiceOrderLogMetadata | null;
   created_by?: string | null;
   created_by_name?: string | null;
   created_at: string;
