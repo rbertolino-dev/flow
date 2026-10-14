@@ -1,6 +1,7 @@
 import type { FinanceDirection } from '@/lib/finance';
 
-export const OFX_MAX_TRANSACTIONS = 100;
+/** Limite prático por importação (extratos Asaas mensais costumam passar de 100). */
+export const OFX_MAX_TRANSACTIONS = 500;
 
 export interface OfxTransaction {
   fitId: string;
@@ -146,7 +147,7 @@ export function parseOfxContent(content: string): OfxParseResult {
   }
   if (transactions.length > OFX_MAX_TRANSACTIONS) {
     throw new Error(
-      `O limite é de até ${OFX_MAX_TRANSACTIONS} lançamentos. Caso tenha um número maior, exporte o OFX em período menor e tente novamente.`,
+      `Este arquivo tem ${transactions.length} lançamentos. O limite é de até ${OFX_MAX_TRANSACTIONS} por visualização. Exporte o OFX em um período menor e tente novamente.`,
     );
   }
 

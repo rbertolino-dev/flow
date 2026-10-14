@@ -171,9 +171,12 @@ test.describe('@unit ofxParser', () => {
     );
   });
 
-  test(`rejeita mais de ${OFX_MAX_TRANSACTIONS} lançamentos`, () => {
+  test(`rejeita mais de ${OFX_MAX_TRANSACTIONS} lançamentos e informa a quantidade`, () => {
     expect(() => parseOfxContent(buildManyTransactions(OFX_MAX_TRANSACTIONS + 1))).toThrow(
-      /limite é de até 100/,
+      new RegExp(`Este arquivo tem ${OFX_MAX_TRANSACTIONS + 1} lançamentos`),
+    );
+    expect(() => parseOfxContent(buildManyTransactions(OFX_MAX_TRANSACTIONS + 1))).toThrow(
+      new RegExp(`limite é de até ${OFX_MAX_TRANSACTIONS}`),
     );
     const ok = parseOfxContent(buildManyTransactions(OFX_MAX_TRANSACTIONS));
     expect(ok.transactions).toHaveLength(OFX_MAX_TRANSACTIONS);
