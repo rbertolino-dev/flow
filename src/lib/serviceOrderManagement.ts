@@ -162,7 +162,7 @@ function pointsFromLogs(
 }
 
 /**
- * Ciclo de atendimento: começa ao sair da 1ª etapa (aguardando início)
+ * Ciclo de atendimento: começa ao sair da 1ª etapa da lista (qualquer nome)
  * e termina ao entrar na etapa final. Não conta tempo na 1ª nem na final.
  */
 export function attendanceCycleBoundsMs(
@@ -199,7 +199,7 @@ export function attendanceCycleBoundsMs(
 
 /**
  * Tempo por etapa do ciclo de atendimento.
- * - 1ª etapa (menor sort_order aberta) = aguardando início → não conta
+ * - 1ª etapa da lista (menor sort_order aberta), independente do nome → não conta
  * - Etapa final (is_final) → não conta
  * - Conta só o intervalo entre sair da 1ª e entrar na final
  */
@@ -255,7 +255,7 @@ export function aggregateStageTimes(
     for (let i = 0; i < points.length; i++) {
       const point = points[i];
 
-      // 1ª etapa = aguardando início → não conta; marca que o ciclo pode começar na próxima
+      // 1ª etapa da lista → não conta; marca que o ciclo pode começar na próxima
       if (point.isInitial) {
         leftWaiting = true;
         continue;
@@ -264,7 +264,7 @@ export function aggregateStageTimes(
       // Entrou no final → ciclo acaba; não conta tempo em Finalizado
       if (point.isFinal) break;
 
-      // Só conta depois de ter saído da etapa de aguardando
+      // Só conta depois de ter saído da primeira etapa
       if (!leftWaiting) continue;
 
       const start = point.at;

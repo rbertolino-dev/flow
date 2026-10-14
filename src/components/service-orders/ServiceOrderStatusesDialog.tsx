@@ -72,6 +72,8 @@ export function ServiceOrderStatusesDialog({
   const [editColor, setEditColor] = useState('#3b82f6');
   const [editFinal, setEditFinal] = useState(false);
 
+  const firstOpenStatusId = statuses.find((s) => !s.is_final)?.id ?? null;
+
   const resetForm = () => {
     setName('');
     setColor('#3b82f6');
@@ -119,6 +121,30 @@ export function ServiceOrderStatusesDialog({
             fechar a ordem de serviço.
           </DialogDescription>
         </DialogHeader>
+
+        <div
+          className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-sm text-amber-950"
+          data-testid="os-status-cycle-hint"
+        >
+          <p className="font-medium">Tempo de atendimento (relatórios)</p>
+          <ul className="mt-1 list-disc space-y-1 pl-4 text-xs sm:text-sm text-amber-900/90">
+            <li>
+              A <strong>primeira etapa da lista</strong> (qualquer nome) é só a fila antes do
+              serviço — <strong>não conta</strong> como início do atendimento.
+            </li>
+            <li>
+              O atendimento começa quando a OS <strong>sai dessa primeira etapa</strong> para a
+              seguinte.
+            </li>
+            <li>
+              <strong>Finalizado</strong> encerra o ciclo e também <strong>não conta</strong> tempo
+              nessa etapa.
+            </li>
+            <li>
+              Use as setas ↑ ↓ para definir qual etapa é a primeira; o nome não muda a regra.
+            </li>
+          </ul>
+        </div>
 
         <div className="space-y-3">
           {statuses.map((s, idx) => (
@@ -175,6 +201,14 @@ export function ServiceOrderStatusesDialog({
                     <div className="flex flex-wrap gap-1 mt-1">
                       {s.is_default && <Badge variant="secondary">Padrão</Badge>}
                       {s.is_final && <Badge>Finalizado · fecha a OS</Badge>}
+                      {!s.is_final && s.id === firstOpenStatusId && (
+                        <Badge
+                          variant="outline"
+                          className="border-amber-300 bg-amber-50 text-amber-900"
+                        >
+                          1ª etapa · não conta no atendimento
+                        </Badge>
+                      )}
                       <span className="text-xs text-muted-foreground">ordem {idx + 1}</span>
                     </div>
                   </div>
@@ -240,6 +274,11 @@ export function ServiceOrderStatusesDialog({
 
         <div className="border rounded-lg p-4 space-y-3 mt-2">
           <h3 className="font-semibold">Nova etapa</h3>
+          <p className="text-xs text-muted-foreground">
+            Etapas novas entram no fim da lista (antes de Finalizado). Só a etapa que estiver{' '}
+            <strong>em primeiro</strong> na lista fica de fora do tempo de atendimento — o nome
+            pode ser o que você quiser.
+          </p>
           <div className="space-y-1">
             <Label>Nome</Label>
             <Input

@@ -317,7 +317,7 @@ function EmptyHint({ text }: { text: string }) {
 function StageTimeTable({ rows }: { rows: StageTimeRow[] }) {
   if (rows.length === 0) {
     return (
-      <EmptyHint text="Ainda não há ciclo de atendimento no período. O tempo começa a contar quando a OS sai da 1ª etapa e para ao entrar em Finalizado." />
+      <EmptyHint text="Ainda não há ciclo de atendimento no período. O tempo começa quando a OS sai da primeira etapa da lista e para ao entrar em Finalizado." />
     );
   }
   return (
@@ -754,8 +754,9 @@ export default function ReportsServiceOrders() {
                 <div>
                   <h3 className="mb-2 text-sm font-semibold text-slate-700">Tempo médio por etapa</h3>
                   <p className="mb-2 text-xs text-muted-foreground">
-                    Conta só o ciclo de atendimento: da saída da 1ª etapa (aguardando início) até
-                    entrar em Finalizado. A 1ª etapa e o status final não entram na média.
+                    Conta só o ciclo de atendimento: da saída da <strong>primeira etapa da lista</strong>{' '}
+                    (qualquer nome) até entrar em Finalizado. A primeira etapa e o Finalizado não
+                    entram na média.
                   </p>
                   <StageTimeTable rows={report.stageTimeRows} />
                 </div>
@@ -764,7 +765,7 @@ export default function ReportsServiceOrders() {
                     Produtividade por colaborador
                   </h3>
                   <p className="mb-2 text-xs text-muted-foreground">
-                    Ciclo médio = tempo entre sair da 1ª etapa e chegar em Finalizado.
+                    Ciclo médio = tempo entre sair da primeira etapa da lista e chegar em Finalizado.
                   </p>
                   <ProductivityTable rows={report.productivityRows} />
                 </div>
