@@ -70,6 +70,7 @@
     "test:validate-funnel": "npm run test:unit:lead-tags && npm run test:unit:funnel-perf && npm run test:e2e:funnel-perf:secure",
     "test:unit:funnel-perf": "playwright test tests/e2e/funnel-perf-diagnosis.unit.spec.ts --project=chromium",
     "test:unit:lead-tags": "playwright test tests/e2e/lead-tags-sync.unit.spec.ts --project=chromium",
+    "test:unit:ofx": "playwright test tests/e2e/ofx-parser.unit.spec.ts --config=playwright.deployed.config.ts --project=chromium-unit",
     "test:e2e:human": "playwright test --grep @human-behavior",
     "test:e2e:accessibility": "playwright test --grep @accessibility",
     "test:e2e:performance": "playwright test --grep @performance",
