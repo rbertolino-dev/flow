@@ -248,6 +248,7 @@ export function ServiceOrderDetailDialog({
   const beforePhotos = order.reference_images || [];
   const afterPhotos = order.close_attachments || [];
   const checkins = order.field_checkins || [];
+  const hasManualPresence = checkins.some((item) => item.event === 'manual');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -361,14 +362,14 @@ export function ServiceOrderDetailDialog({
                         Abrir no Maps
                       </a>
                     </Button>
-                    {onCheckIn && canEdit && !order.is_closed && (
+                    {onCheckIn && canEdit && !order.is_closed && !hasManualPresence && (
                       <Button
                         variant="outline"
                         size="sm"
                         className="min-h-10"
                         disabled={checkingIn}
                         data-testid="os-detail-checkin"
-                        title="Usa o GPS do celular para registrar que você estava neste endereço"
+                        title="Usa o GPS do celular para registrar que você estava neste endereço (só uma vez)"
                         onClick={() => {
                           setCheckingIn(true);
                           void Promise.resolve(onCheckIn(order))
@@ -376,7 +377,7 @@ export function ServiceOrderDetailDialog({
                               toast({
                                 title: ok ? 'Presença registrada' : 'GPS indisponível',
                                 description: ok
-                                  ? 'Salvamos que você estava no local (com o GPS do aparelho).'
+                                  ? 'Salvamos que você estava no local. O botão some após este registro.'
                                   : 'Permita a localização no navegador ou tente de novo.',
                                 variant: ok ? 'default' : 'destructive',
                               });

@@ -1032,6 +1032,10 @@ export function useServiceOrders(
       const previous = Array.isArray((existing as { field_checkins?: unknown } | null)?.field_checkins)
         ? ((existing as { field_checkins: ServiceOrderFieldCheckin[] }).field_checkins || [])
         : [];
+      // "Estou no local" só uma vez por OS
+      if (event === 'manual' && previous.some((item) => item.event === 'manual')) {
+        return true;
+      }
       const entry: ServiceOrderFieldCheckin = {
         at: new Date().toISOString(),
         lat: position.lat,
