@@ -749,6 +749,8 @@ export function StockModule() {
     setExpenseOffer({
       description: `NF ${invoice.number || "s/n"} ${formatNfeDate(invoice.issuedAt)} ${supplier}`,
       amount: total > 0 ? total.toFixed(2).replace(".", ",") : "",
+      contactName: supplier,
+      leadId: null,
       descriptionHint: "Padrão: número da nota, data e fornecedor. Você pode alterar antes de registrar.",
       amountHint: amount != null
         ? "Valor sugerido: soma dos itens que você escolheu lançar."
@@ -823,12 +825,21 @@ export function StockModule() {
     if (!activeOrgId || !expenseOffer) return;
     const amount = parseExpenseAmount(expenseOffer.amount);
     const description = expenseOffer.description.trim();
+    const contactName = (expenseOffer.contactName || "").trim();
     if (!description) {
       toast({ title: "Descrição obrigatória", description: "Informe a descrição da conta a pagar.", variant: "destructive" });
       return;
     }
     if (!Number.isFinite(amount) || amount <= 0) {
       toast({ title: "Valor obrigatório", description: "Informe o valor da despesa.", variant: "destructive" });
+      return;
+    }
+    if (!contactName) {
+      toast({
+        title: "Pessoa obrigatória",
+        description: "Vincule um contato (fornecedor ou pessoa) à conta a pagar.",
+        variant: "destructive",
+      });
       return;
     }
     setSavingExpense(true);
@@ -846,15 +857,16 @@ export function StockModule() {
         p_status: "open",
         p_settlement_status: "confirmado",
         p_description: description,
-        p_contact_name: "Estoque",
-        p_billing_name: "Estoque",
+        p_lead_id: expenseOffer.leadId || null,
+        p_contact_name: contactName,
+        p_billing_name: contactName,
         p_category: "Fornecedores",
         p_origin_label: "Estoque",
         p_competence_date: todayIsoDate(),
       });
       if (error) throw new Error(error.message);
       if (!data) throw new Error("Não foi possível criar a conta a pagar");
-      toast({ title: "Conta a pagar criada", description: "A despesa entrou no financeiro." });
+      toast({ title: "Conta a pagar criada", description: `Despesa vinculada a ${contactName}.` });
       setExpenseOffer(null);
     } catch (error: unknown) {
       toast({
@@ -1859,6 +1871,7 @@ export function StockModule() {
       <StockEntryExpenseDialog
         offer={expenseOffer}
         saving={savingExpense}
+        organizationId={activeOrgId}
         onChange={setExpenseOffer}
         onSkip={() => setExpenseOffer(null)}
         onConfirm={() => void saveStockExpense()}
@@ -1870,9 +1883,18 @@ export function StockModule() {
 interface StockExpenseOffer {
   description: string;
   amount: string;
+  contactName: string;
+  leadId: string | null;
   descriptionHint?: string;
   amountHint?: string;
 }
+
+type StockExpenseLeadOption = {
+  id: string;
+  name: string;
+  phone?: string | null;
+  company?: string | null;
+};
 
 function parseExpenseAmount(value: string) {
   const raw = value.trim();
@@ -1888,33 +1910,122 @@ function buildStockExpenseOffer(product: Product, quantity: number): StockExpens
   return {
     description: `${product.name} ${date} ${qty}`,
     amount: cost > 0 ? (cost * quantity).toFixed(2).replace(".", ",") : "",
+    contactName: "",
+    leadId: null,
   };
 }
 
 function StockEntryExpenseDialog({
   offer,
   saving,
+  organizationId,
   onChange,
   onSkip,
   onConfirm,
 }: {
   offer: StockExpenseOffer | null;
   saving: boolean;
+  organizationId: string | null;
   onChange: (offer: StockExpenseOffer) => void;
   onSkip: () => void;
   onConfirm: () => void;
 }) {
+  const [leadOptions, setLeadOptions] = useState<StockExpenseLeadOption[]>([]);
+  const [searchingLeads, setSearchingLeads] = useState(false);
+
+  useEffect(() => {
+    if (!offer || !organizationId || offer.leadId) {
+      setLeadOptions([]);
+      return;
+    }
+    const query = offer.contactName.trim().replace(/[%(),]/g, " ");
+    if (query.length < 2) {
+      setLeadOptions([]);
+      return;
+    }
+    setSearchingLeads(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const { data } = await supabase
+          .from("leads")
+          .select("id, name, phone, company")
+          .eq("organization_id", organizationId)
+          .is("deleted_at", null)
+          .or(`name.ilike.%${query}%,company.ilike.%${query}%`)
+          .limit(8);
+        setLeadOptions((data || []) as StockExpenseLeadOption[]);
+      } catch {
+        setLeadOptions([]);
+      } finally {
+        setSearchingLeads(false);
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [offer?.contactName, offer?.leadId, offer, organizationId]);
+
   return (
     <Dialog open={!!offer} onOpenChange={(open) => { if (!open && !saving) onSkip(); }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Gerar conta a pagar?</DialogTitle>
           <DialogDescription>
-            A entrada já está no estoque. A despesa é opcional e aparece em Contas a pagar.
+            A entrada já está no estoque. Vincule a pessoa ou fornecedor da despesa; ela aparece em Contas a pagar.
           </DialogDescription>
         </DialogHeader>
         {offer && (
           <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="stock-expense-contact">Pessoa / fornecedor</Label>
+              <Input
+                id="stock-expense-contact"
+                value={offer.contactName}
+                placeholder="Digite ao menos 2 letras para buscar no CRM"
+                onChange={(event) =>
+                  onChange({
+                    ...offer,
+                    contactName: event.target.value,
+                    leadId: null,
+                  })
+                }
+              />
+              {offer.leadId && (
+                <p className="text-xs text-emerald-700">Contato vinculado do CRM.</p>
+              )}
+              {!offer.leadId && searchingLeads && (
+                <p className="text-xs text-muted-foreground">Buscando contatos...</p>
+              )}
+              {!offer.leadId && leadOptions.length > 0 && (
+                <div className="max-h-40 overflow-auto rounded-md border border-slate-200 bg-white">
+                  {leadOptions.map((lead) => (
+                    <button
+                      key={lead.id}
+                      type="button"
+                      className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                      onClick={() =>
+                        onChange({
+                          ...offer,
+                          contactName: lead.company
+                            ? `${lead.name} · ${lead.company}`
+                            : lead.name,
+                          leadId: lead.id,
+                        })
+                      }
+                    >
+                      <span className="font-medium text-slate-800">{lead.name}</span>
+                      {lead.company ? (
+                        <span className="text-slate-500"> · {lead.company}</span>
+                      ) : null}
+                      {lead.phone ? (
+                        <span className="block text-xs text-slate-400">{lead.phone}</span>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Escolha um contato do CRM ou mantenha o nome digitado (ex.: fornecedor da nota).
+              </p>
+            </div>
             <div className="space-y-1">
               <Label>Descrição</Label>
               <Input
