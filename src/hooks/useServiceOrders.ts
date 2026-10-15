@@ -12,6 +12,11 @@ import {
 } from '@/types/serviceOrder';
 import { captureGeolocation } from '@/lib/serviceOrderMedia';
 import {
+  pickActiveFinanceEntry,
+  type OsFinanceEntrySummary,
+  type OsFinanceStatus,
+} from '@/lib/serviceOrderFinance';
+import {
   addMaintenanceInterval,
   clampMaintenanceVisitCount,
   resolveMaintenanceInterval,
@@ -1457,6 +1462,86 @@ export function useServiceOrders(
     }
   };
 
+  const getOrderFinanceStatus = async (orderId: string): Promise<OsFinanceStatus> => {
+    const empty: OsFinanceStatus = { receivable: null, commission: null };
+    if (!activeOrgId || !orderId) return empty;
+    try {
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { data, error } = await supabase
+        .from('financial_entries')
+        .select('id, direction, amount, status, account, description, source_type, source_id')
+        .eq('organization_id', activeOrgId)
+        .in('source_type', ['ordem_servico', 'comissao'])
+        .in('source_id', [orderId, `os:${orderId}`]);
+      if (error) throw error;
+      const rows = (data || []) as OsFinanceEntrySummary[];
+      return {
+        receivable: pickActiveFinanceEntry(rows, 'ordem_servico', orderId),
+        commission: pickActiveFinanceEntry(rows, 'comissao', `os:${orderId}`),
+      };
+    } catch (err) {
+      console.error('Erro ao buscar financeiro da OS:', err);
+      return empty;
+    }
+  };
+
+  const launchOrderFinance = async (orderId: string, account: string): Promise<boolean> => {
+    if (!activeOrgId) return false;
+    const accountName = account.trim();
+    if (!accountName) {
+      toast({
+        title: 'Conta obrigatória',
+        description: 'Escolha a conta da carteira para lançar no financeiro.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    try {
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { data: orderRow } = await supabase
+        .from('service_orders')
+        .select('is_closed, deleted_at')
+        .eq('id', orderId)
+        .eq('organization_id', activeOrgId)
+        .maybeSingle();
+      if (!(orderRow as { is_closed?: boolean } | null)?.is_closed) {
+        toast({
+          title: 'OS ainda aberta',
+          description: 'Encerre a ordem antes de lançar no financeiro.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+
+      const { error: financeError } = await (supabase as unknown as {
+        rpc: (
+          fn: string,
+          args: Record<string, string>
+        ) => Promise<{ error: { message: string } | null }>;
+      }).rpc('sync_service_order_finance', {
+        p_organization_id: activeOrgId,
+        p_order_id: orderId,
+        p_account: accountName,
+      });
+      if (financeError) throw financeError;
+
+      await addLog(orderId, `Financeiro lançado na conta ${accountName}`, 'finance');
+      toast({
+        title: 'Financeiro lançado',
+        description: 'Contas a receber (e comissão, se houver) foram criadas.',
+      });
+      return true;
+    } catch (err) {
+      console.error('Erro ao lançar OS no financeiro:', err);
+      toast({
+        title: 'Erro',
+        description: err instanceof Error ? err.message : 'Não foi possível lançar no financeiro',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
   return {
     orders,
     loading,
@@ -1474,6 +1559,8 @@ export function useServiceOrders(
     appendFieldCheckin,
     duplicateOrder,
     addLog,
+    getOrderFinanceStatus,
+    launchOrderFinance,
   };
 }
 

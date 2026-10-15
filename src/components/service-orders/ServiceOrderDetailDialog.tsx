@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -8,6 +9,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -21,6 +23,7 @@ import {
   CalendarClock,
   ClipboardCheck,
   Copy,
+  ExternalLink,
   FileDown,
   FileText,
   Loader2,
@@ -34,6 +37,7 @@ import {
   Trash2,
   User,
   Users,
+  Wallet,
   XCircle,
 } from 'lucide-react';
 import QRCode from 'qrcode';
@@ -54,6 +58,13 @@ import {
   mapsSearchUrl,
   serviceOrderDeepLink,
 } from '@/lib/serviceOrderMedia';
+import {
+  billableOrderItems,
+  financeStatusLabel,
+  formatOsMoney,
+  orderItemsCost,
+  type OsFinanceStatus,
+} from '@/lib/serviceOrderFinance';
 import { useServiceOrderViewer, visibleClientPhone } from '@/lib/serviceOrderPhone';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchEquipmentsForOrder } from '@/hooks/useEquipments';
@@ -81,6 +92,8 @@ interface ServiceOrderDetailDialogProps {
   ) => Promise<boolean>;
   onStatusChange?: (order: ServiceOrder, statusId: string) => void;
   onCheckIn?: (order: ServiceOrder) => Promise<boolean> | boolean;
+  onLoadFinanceStatus?: (orderId: string) => Promise<OsFinanceStatus>;
+  onLaunchFinance?: (orderId: string, account: string) => Promise<boolean>;
   canEdit?: boolean;
   canDelete?: boolean;
   exporting?: boolean;
@@ -148,6 +161,8 @@ export function ServiceOrderDetailDialog({
   onChecklistItemChange,
   onStatusChange,
   onCheckIn,
+  onLoadFinanceStatus,
+  onLaunchFinance,
   canEdit = true,
   canDelete = true,
   exporting,
@@ -165,6 +180,11 @@ export function ServiceOrderDetailDialog({
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [checkingIn, setCheckingIn] = useState(false);
+  const [financeStatus, setFinanceStatus] = useState<OsFinanceStatus | null>(null);
+  const [loadingFinance, setLoadingFinance] = useState(false);
+  const [walletAccounts, setWalletAccounts] = useState<string[]>([]);
+  const [launchAccount, setLaunchAccount] = useState('');
+  const [launchingFinance, setLaunchingFinance] = useState(false);
   const { activeOrgId } = useActiveOrganization();
 
   useEffect(() => {
@@ -213,6 +233,53 @@ export function ServiceOrderDetailDialog({
     };
   }, [open, order?.maintenance_plan_id, order?.id, activeOrgId]);
 
+  useEffect(() => {
+    if (!open || !order || fieldMode || !onLoadFinanceStatus) {
+      setFinanceStatus(null);
+      setLaunchAccount('');
+      return;
+    }
+    let cancelled = false;
+    setLoadingFinance(true);
+    void onLoadFinanceStatus(order.id)
+      .then((status) => {
+        if (!cancelled) setFinanceStatus(status);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingFinance(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // onLoadFinanceStatus é estável o suficiente por render do pai; depende do id da OS
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, order?.id, fieldMode]);
+
+  useEffect(() => {
+    if (!open || !activeOrgId || fieldMode) {
+      setWalletAccounts([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      // @ts-expect-error tabela ainda nao tipada
+      const { data } = await supabase
+        .from('financial_accounts')
+        .select('name')
+        .eq('organization_id', activeOrgId)
+        .order('name');
+      if (cancelled) return;
+      const names = ((data || []) as Array<{ name: string }>)
+        .map((row) => row.name)
+        .filter(Boolean);
+      setWalletAccounts(names);
+      setLaunchAccount((prev) => prev || names[0] || '');
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, activeOrgId, fieldMode]);
+
   const loadLogs = async () => {
     if (!order || !activeOrgId) return;
     setShowLogs(true);
@@ -232,6 +299,19 @@ export function ServiceOrderDetailDialog({
     }
   };
 
+  const billableItems = useMemo(
+    () => billableOrderItems(order?.items),
+    [order?.items]
+  );
+  const itemsCost = useMemo(() => orderItemsCost(order?.items), [order?.items]);
+  const margin = (order?.total || 0) - itemsCost;
+  const hasActiveReceivable = Boolean(financeStatus?.receivable);
+  const canLaunchFinance =
+    Boolean(order?.is_closed) &&
+    !hasActiveReceivable &&
+    Boolean(onLaunchFinance) &&
+    canEdit;
+
   if (!order) return null;
 
   const phone = visibleClientPhone(
@@ -249,6 +329,9 @@ export function ServiceOrderDetailDialog({
   const afterPhotos = order.close_attachments || [];
   const checkins = order.field_checkins || [];
   const hasManualPresence = checkins.some((item) => item.event === 'manual');
+  const supplyItems = (order.items || []).filter(
+    (item) => item.item_type === 'product' && item.use_cost && Number(item.unit_price) === 0
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -682,51 +765,242 @@ export function ServiceOrderDetailDialog({
           </TabsContent>
 
           {showOfficeTabs && (
-            <TabsContent value="vendas" className="pt-4 pb-2 space-y-2">
-              {(order.items || []).length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">
-                  Nenhum produto/serviço vinculado.
-                </p>
+            <TabsContent value="vendas" className="pt-4 pb-2 space-y-3" data-testid="os-detail-vendas">
+              {billableItems.length === 0 ? (
+                <div className="rounded-lg border border-dashed px-3 py-6 text-center space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Nenhum produto/serviço cobrado nesta OS.
+                  </p>
+                  {canEdit && !order.is_closed ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onEdit(order)}
+                      data-testid="os-vendas-edit-cta"
+                    >
+                      <Pencil className="h-4 w-4 mr-1" />
+                      Editar OS
+                    </Button>
+                  ) : null}
+                </div>
               ) : (
                 <>
-                  {(order.items || [])
-                    .filter((item) => !(item.item_type === 'product' && item.use_cost && Number(item.unit_price) === 0))
-                    .map((item, idx) => (
-                      <div key={`bill-${idx}`} className="flex justify-between text-sm border rounded-md px-3 py-2">
-                        <span>
-                          {item.name} × {item.quantity}
-                        </span>
-                        <span className="font-medium">
-                          R${' '}
-                          {item.total_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </span>
-                      </div>
-                    ))}
-                  <p className="text-right font-semibold pt-2">
-                    Total: R${' '}
-                    {(order.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </p>
+                  {billableItems.map((item, idx) => (
+                    <div
+                      key={`bill-${item.id || idx}`}
+                      className="flex justify-between text-sm border rounded-md px-3 py-2"
+                    >
+                      <span>
+                        {item.name} × {item.quantity}
+                      </span>
+                      <span className="font-medium">{formatOsMoney(item.total_price || 0)}</span>
+                    </div>
+                  ))}
+                  {supplyItems.length > 0 ? (
+                    <div className="rounded-md border border-dashed px-3 py-2 space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Insumos (custo, sem cobrança)
+                      </p>
+                      {supplyItems.map((item, idx) => (
+                        <div
+                          key={`supply-${item.id || idx}`}
+                          className="flex justify-between text-xs text-muted-foreground"
+                        >
+                          <span>
+                            {item.name} × {item.quantity}
+                          </span>
+                          <span>
+                            custo {formatOsMoney((item.unit_cost || 0) * (item.quantity || 0))}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="space-y-1 text-sm border-t pt-2">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total cobrado</span>
+                      <span className="font-semibold">{formatOsMoney(order.total || 0)}</span>
+                    </div>
+                    {itemsCost > 0 ? (
+                      <>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Custo dos itens</span>
+                          <span>{formatOsMoney(itemsCost)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Margem</span>
+                          <span
+                            className={
+                              margin < 0 ? 'font-semibold text-rose-600' : 'font-semibold text-emerald-700'
+                            }
+                          >
+                            {formatOsMoney(margin)}
+                          </span>
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
                 </>
               )}
+              <div className="rounded-lg border px-3 py-2 text-sm space-y-1" data-testid="os-vendas-commission">
+                <p className="font-medium">Comissão</p>
+                {order.has_commission && (order.commission_value || 0) > 0 ? (
+                  <p>
+                    Sim · <span className="font-semibold">{formatOsMoney(order.commission_value || 0)}</span>
+                  </p>
+                ) : (
+                  <p className="text-muted-foreground">Não há comissão nesta OS.</p>
+                )}
+              </div>
             </TabsContent>
           )}
 
           {showOfficeTabs && (
-            <TabsContent value="financeiro" className="pt-4 pb-2 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Subtotal</span>
-                <span>
-                  R${' '}
-                  {(order.subtotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </span>
+            <TabsContent
+              value="financeiro"
+              className="pt-4 pb-2 space-y-3 text-sm"
+              data-testid="os-detail-financeiro"
+            >
+              <div className="space-y-1 rounded-lg border px-3 py-2">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span>{formatOsMoney(order.subtotal || 0)}</span>
+                </div>
+                <div className="flex justify-between font-semibold border-t pt-2">
+                  <span>Total</span>
+                  <span>{formatOsMoney(order.total || 0)}</span>
+                </div>
               </div>
-              <div className="flex justify-between font-semibold border-t pt-2">
-                <span>Total</span>
-                <span>
-                  R${' '}
-                  {(order.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
+
+              {loadingFinance ? (
+                <div className="flex items-center gap-2 text-muted-foreground py-4 justify-center">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Carregando lançamentos…
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="rounded-lg border px-3 py-2 space-y-1" data-testid="os-finance-receivable">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium">A receber (OS)</p>
+                      <Badge variant={hasActiveReceivable ? 'default' : 'secondary'}>
+                        {financeStatusLabel(financeStatus?.receivable?.status)}
+                      </Badge>
+                    </div>
+                    {financeStatus?.receivable ? (
+                      <>
+                        <p>
+                          {formatOsMoney(financeStatus.receivable.amount)}
+                          {financeStatus.receivable.account
+                            ? ` · conta ${financeStatus.receivable.account}`
+                            : ''}
+                        </p>
+                        <Button variant="link" className="h-auto p-0 text-xs" asChild>
+                          <Link to="/financeiro/receber">
+                            Ver no Financeiro
+                            <ExternalLink className="h-3 w-3 ml-1" />
+                          </Link>
+                        </Button>
+                      </>
+                    ) : (
+                      <p className="text-muted-foreground text-xs">
+                        {order.is_closed
+                          ? 'Ainda não há lançamento a receber desta OS.'
+                          : 'O lançamento só ocorre após encerrar a OS (com conta ou pelo botão abaixo).'}
+                      </p>
+                    )}
+                  </div>
+
+                  {(order.has_commission && (order.commission_value || 0) > 0) ||
+                  financeStatus?.commission ? (
+                    <div className="rounded-lg border px-3 py-2 space-y-1" data-testid="os-finance-commission">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium">Comissão a pagar</p>
+                        <Badge variant={financeStatus?.commission ? 'default' : 'secondary'}>
+                          {financeStatusLabel(financeStatus?.commission?.status)}
+                        </Badge>
+                      </div>
+                      {financeStatus?.commission ? (
+                        <>
+                          <p>
+                            {formatOsMoney(financeStatus.commission.amount)}
+                            {financeStatus.commission.account
+                              ? ` · conta ${financeStatus.commission.account}`
+                              : ''}
+                          </p>
+                          <Button variant="link" className="h-auto p-0 text-xs" asChild>
+                            <Link to="/financeiro/pagar">
+                              Ver no Financeiro
+                              <ExternalLink className="h-3 w-3 ml-1" />
+                            </Link>
+                          </Button>
+                        </>
+                      ) : (
+                        <p className="text-muted-foreground text-xs">
+                          Comissão de {formatOsMoney(order.commission_value || 0)} será lançada
+                          junto com o a receber.
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {canLaunchFinance ? (
+                    <div
+                      className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-3 space-y-2"
+                      data-testid="os-finance-launch"
+                    >
+                      <div className="flex items-start gap-2">
+                        <Wallet className="h-4 w-4 text-emerald-700 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="font-medium text-emerald-900">Lançar no financeiro</p>
+                          <p className="text-xs text-emerald-800/80">
+                            A OS foi encerrada sem conta. Escolha a carteira e lance agora.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Conta da carteira</Label>
+                        <Select value={launchAccount || undefined} onValueChange={setLaunchAccount}>
+                          <SelectTrigger data-testid="os-finance-launch-account">
+                            <SelectValue placeholder="Selecione a conta" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {walletAccounts.map((name) => (
+                              <SelectItem key={name} value={name}>
+                                {name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        className="w-full"
+                        disabled={launchingFinance || !launchAccount}
+                        data-testid="os-finance-launch-btn"
+                        onClick={() => {
+                          if (!onLaunchFinance || !launchAccount) return;
+                          setLaunchingFinance(true);
+                          void onLaunchFinance(order.id, launchAccount)
+                            .then(async (ok) => {
+                              if (ok && onLoadFinanceStatus) {
+                                const next = await onLoadFinanceStatus(order.id);
+                                setFinanceStatus(next);
+                              }
+                            })
+                            .finally(() => setLaunchingFinance(false));
+                        }}
+                      >
+                        {launchingFinance ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Wallet className="h-4 w-4 mr-2" />
+                        )}
+                        Lançar no financeiro
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              )}
             </TabsContent>
           )}
         </Tabs>

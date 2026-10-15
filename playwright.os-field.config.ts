@@ -35,7 +35,7 @@ export default defineConfig({
     },
     {
       name: "unit",
-      testMatch: /service-order-(field|management)\.unit\.spec\.ts/,
+      testMatch: /service-order-(field|management|finance)\.unit\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
   ],

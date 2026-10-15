@@ -275,6 +275,8 @@ export default function ServiceOrders() {
     closeOrder,
     appendFieldCheckin,
     duplicateOrder,
+    getOrderFinanceStatus,
+    launchOrderFinance,
   } = useServiceOrders(queryFilters);
 
   const managementStats = useMemo(() => {
@@ -1471,6 +1473,8 @@ export default function ServiceOrders() {
           }
           return ok;
         }}
+        onLoadFinanceStatus={getOrderFinanceStatus}
+        onLaunchFinance={launchOrderFinance}
         onChecklistItemChange={async (orderId, item) => {
           const ok = await updateChecklistItem(orderId, item);
           if (ok) {
