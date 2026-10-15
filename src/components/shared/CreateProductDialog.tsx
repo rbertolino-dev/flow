@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { useWholesalePriceEnabled } from "@/hooks/useWholesalePriceEnabled";
 import { generateEan13Barcode } from "@/lib/productBarcode";
-import { ImagePlus, Loader2, X, Dices } from "lucide-react";
+import { ImagePlus, Loader2, X, Dices, Plus } from "lucide-react";
 
 const BUCKET_ID = "whatsapp-workflow-media";
 
@@ -93,10 +93,61 @@ export function CreateProductDialog({
   const [formAttempted, setFormAttempted] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [catalogCategories, setCatalogCategories] = useState<string[]>([]);
+  const [catalogBrands, setCatalogBrands] = useState<string[]>([]);
   const formSeeded = useRef("");
   const productSeed = product
     ? `${product.id}|${product.updated_at ?? ""}|${product.is_supply ? "1" : "0"}`
     : "new";
+
+  const catalogAuthHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token || !activeOrgId) throw new Error("Usuário não autenticado");
+    return {
+      Authorization: `Bearer ${session.access_token}`,
+      "Content-Type": "application/json",
+      "X-Organization-Id": activeOrgId,
+    };
+  };
+
+  const loadCatalogNames = async (kind: "categories" | "brands") => {
+    if (!activeOrgId) return;
+    try {
+      const headers = await catalogAuthHeaders();
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/products/${kind}`, { headers });
+      const result = await response.json().catch(() => ({ data: [] }));
+      if (!response.ok) throw new Error(result.error || "Não foi possível carregar o catálogo");
+      const names = uniqueNames(
+        ((result.data || []) as { name?: string }[]).map((row) => row.name || "")
+      );
+      if (kind === "categories") setCatalogCategories(names);
+      else setCatalogBrands(names);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const createCatalogName = async (kind: "categories" | "brands", name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error("Informe o nome");
+    const headers = await catalogAuthHeaders();
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const response = await fetch(`${supabaseUrl}/functions/v1/products/${kind}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: trimmed }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível criar no catálogo");
+    const savedName = String((result.data as { name?: string } | undefined)?.name || trimmed).trim();
+    if (kind === "categories") {
+      setCatalogCategories((current) => uniqueNames([...current, savedName]));
+    } else {
+      setCatalogBrands((current) => uniqueNames([...current, savedName]));
+    }
+    return savedName;
+  };
 
   useEffect(() => {
     const seedKey = open ? `${productSeed}|${defaultCategory}|${initialDraft?.name ?? ""}|${initialDraft?.sku ?? ""}` : "";
@@ -154,8 +205,23 @@ export function CreateProductDialog({
     setImagePreview(null);
   }, [open, product, productSeed, defaultCategory, initialDraft]);
 
-  const categories = uniqueNames(products.map((item) => item.category || ""));
-  const brands = uniqueNames(products.map((item) => item.brand || ""));
+  useEffect(() => {
+    if (!open || !activeOrgId) return;
+    void loadCatalogNames("categories");
+    void loadCatalogNames("brands");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, activeOrgId]);
+
+  const categories = uniqueNames([
+    ...catalogCategories,
+    ...products.map((item) => item.category || ""),
+    form.category,
+  ]);
+  const brands = uniqueNames([
+    ...catalogBrands,
+    ...products.map((item) => item.brand || ""),
+    form.brand,
+  ]);
   const formErrors = validateProductForm(form);
 
   const uploadImage = async (file: File) => {
@@ -485,15 +551,25 @@ export function CreateProductDialog({
               label="Categoria"
               value={form.category}
               options={categories}
-              newPlaceholder="Nome da nova categoria"
+              newPlaceholder="Ex.: Eletrônicos, Peças, Insumos"
               onChange={(value) => setForm({ ...form, category: value })}
+              onCreate={async (name) => {
+                const saved = await createCatalogName("categories", name);
+                setForm((prev) => ({ ...prev, category: saved }));
+                toast({ title: "Categoria criada", description: `"${saved}" já pode ser usada neste produto.` });
+              }}
             />
             <CatalogField
               label="Marca"
               value={form.brand}
               options={brands}
-              newPlaceholder="Nome da nova marca"
+              newPlaceholder="Ex.: Genérica, Samsung"
               onChange={(value) => setForm({ ...form, brand: value })}
+              onCreate={async (name) => {
+                const saved = await createCatalogName("brands", name);
+                setForm((prev) => ({ ...prev, brand: saved }));
+                toast({ title: "Marca criada", description: `"${saved}" já pode ser usada neste produto.` });
+              }}
             />
             <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 md:col-span-2">
               <div>
@@ -569,32 +645,117 @@ function CatalogField({
   onChange,
   options,
   newPlaceholder,
+  onCreate,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: string[];
   newPlaceholder: string;
+  onCreate: (name: string) => Promise<void>;
 }) {
+  const { toast } = useToast();
+  const [mode, setMode] = useState<"pick" | "create">("pick");
+  const [draft, setDraft] = useState("");
   const [creating, setCreating] = useState(false);
-  const choices = uniqueNames([...options, creating ? "" : value]);
-  const selected = creating || (value && !choices.includes(value)) ? "__new__" : value || "__none__";
+  const choices = uniqueNames(options);
+
+  const confirmCreate = async () => {
+    const name = draft.trim();
+    if (!name) {
+      toast({
+        title: `Informe o nome da ${label.toLowerCase()}`,
+        variant: "destructive",
+      });
+      return;
+    }
+    setCreating(true);
+    try {
+      await onCreate(name);
+      setMode("pick");
+      setDraft("");
+    } catch (error: unknown) {
+      toast({
+        title: `Erro ao criar ${label.toLowerCase()}`,
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  if (mode === "create") {
+    return (
+      <div className="space-y-1.5 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+        <Label>Nova {label.toLowerCase()}</Label>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            autoFocus
+            className="bg-white"
+            placeholder={newPlaceholder}
+            value={draft}
+            disabled={creating}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void confirmCreate();
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setMode("pick");
+                setDraft("");
+              }
+            }}
+          />
+          <div className="flex shrink-0 gap-2">
+            <Button
+              type="button"
+              className="gap-1"
+              disabled={creating || !draft.trim()}
+              onClick={() => void confirmCreate()}
+            >
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Adicionar
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={creating}
+              onClick={() => {
+                setMode("pick");
+                setDraft("");
+              }}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </div>
+        <p className="text-xs text-slate-600">
+          Digite o nome e clique em Adicionar. A {label.toLowerCase()} entra no catálogo na hora.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-1.5">
       <Label>{label}</Label>
       <Select
-        value={selected}
+        value={value || "__none__"}
         onValueChange={(next) => {
           if (next === "__new__") {
-            setCreating(true);
-            onChange("");
+            setMode("create");
+            setDraft("");
             return;
           }
-          setCreating(false);
           onChange(next === "__none__" ? "" : next);
         }}
       >
-        <SelectTrigger className="bg-white"><SelectValue placeholder={`Selecione a ${label.toLowerCase()}`} /></SelectTrigger>
+        <SelectTrigger className="bg-white">
+          <SelectValue placeholder={`Selecione a ${label.toLowerCase()}`} />
+        </SelectTrigger>
         <SelectContent>
           <SelectItem value="__none__">Sem {label.toLowerCase()}</SelectItem>
           {choices.map((option) => (
@@ -603,9 +764,6 @@ function CatalogField({
           <SelectItem value="__new__">+ Nova {label.toLowerCase()}</SelectItem>
         </SelectContent>
       </Select>
-      {selected === "__new__" && (
-        <Input className="bg-white" placeholder={newPlaceholder} value={value} onChange={(event) => onChange(event.target.value)} />
-      )}
     </div>
   );
 }
