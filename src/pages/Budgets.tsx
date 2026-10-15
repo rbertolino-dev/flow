@@ -107,6 +107,9 @@ export default function Budgets() {
   const [budgetProductFilter, setBudgetProductFilter] = useState<string>('all');
   const [budgetProductSearch, setBudgetProductSearch] = useState('');
   const [showBudgetProductResults, setShowBudgetProductResults] = useState(false);
+  const [budgetServiceFilter, setBudgetServiceFilter] = useState<string>('all');
+  const [budgetServiceSearch, setBudgetServiceSearch] = useState('');
+  const [showBudgetServiceResults, setShowBudgetServiceResults] = useState(false);
   const [budgetsPage, setBudgetsPage] = useState(1);
   
   // Estados para serviços
@@ -174,6 +177,11 @@ export default function Budgets() {
     return stockProducts.find((product) => product.id === budgetProductFilter) || null;
   }, [stockProducts, budgetProductFilter]);
 
+  const selectedBudgetService = useMemo(() => {
+    if (budgetServiceFilter === 'all') return null;
+    return (services || []).find((service) => service.id === budgetServiceFilter) || null;
+  }, [services, budgetServiceFilter]);
+
   const filteredBudgetClients = useMemo(() => {
     const query = budgetClientSearch.trim().toLowerCase();
     if (!query) return [];
@@ -207,6 +215,19 @@ export default function Budgets() {
       .slice(0, 20);
   }, [budgetFilterProducts, budgetProductSearch]);
 
+  const filteredBudgetServices = useMemo(() => {
+    const query = budgetServiceSearch.trim().toLowerCase();
+    if (!query) return [];
+    return (services || [])
+      .filter((service) => {
+        const name = (service.name || '').toLowerCase();
+        const description = (service.description || '').toLowerCase();
+        const category = (service.category || '').toLowerCase();
+        return name.includes(query) || description.includes(query) || category.includes(query);
+      })
+      .slice(0, 20);
+  }, [services, budgetServiceSearch]);
+
   const {
     budgets,
     loading,
@@ -233,6 +254,7 @@ export default function Budgets() {
     product_category: budgetProductCategoryFilter !== 'all' ? budgetProductCategoryFilter : undefined,
     product_ids_in_category:
       budgetProductCategoryFilter !== 'all' ? productIdsInSelectedCategory : undefined,
+    service_id: budgetServiceFilter !== 'all' ? budgetServiceFilter : undefined,
     page: budgetsPage,
     page_size: BUDGETS_PAGE_SIZE,
   });
@@ -250,6 +272,7 @@ export default function Budgets() {
     budgetStatusFilter,
     budgetProductCategoryFilter,
     budgetProductFilter,
+    budgetServiceFilter,
   ]);
 
   // Se a página atual ficar além do total (ex.: exclusão), ajustar
@@ -674,7 +697,7 @@ export default function Budgets() {
                     <Button variant="outline" className="h-10 rounded-xl border-slate-200 bg-white px-3 shadow-sm">
                       <SlidersHorizontal className="mr-2 h-4 w-4" />
                       Filtros
-                      {(budgetClientFilter !== 'all' || budgetDateFrom || budgetDateTo || budgetExpiresFrom || budgetExpiresTo || budgetStatusFilter !== 'all' || budgetProductCategoryFilter !== 'all' || budgetProductFilter !== 'all') && (
+                      {(budgetClientFilter !== 'all' || budgetDateFrom || budgetDateTo || budgetExpiresFrom || budgetExpiresTo || budgetStatusFilter !== 'all' || budgetProductCategoryFilter !== 'all' || budgetProductFilter !== 'all' || budgetServiceFilter !== 'all') && (
                         <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[11px] font-semibold text-white">
                           {[
                             budgetClientFilter !== 'all',
@@ -683,6 +706,7 @@ export default function Budgets() {
                             Boolean(budgetExpiresFrom || budgetExpiresTo),
                             budgetProductCategoryFilter !== 'all',
                             budgetProductFilter !== 'all',
+                            budgetServiceFilter !== 'all',
                           ].filter(Boolean).length}
                         </span>
                       )}
@@ -909,6 +933,71 @@ export default function Budgets() {
                         ) : null}
                       </div>
                     </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="budget-service-filter">Serviço no orçamento</Label>
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                        <Input
+                          id="budget-service-filter"
+                          value={
+                            selectedBudgetService && !showBudgetServiceResults
+                              ? selectedBudgetService.name
+                              : budgetServiceSearch
+                          }
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setBudgetServiceSearch(value);
+                            setShowBudgetServiceResults(true);
+                            if (budgetServiceFilter !== 'all') {
+                              setBudgetServiceFilter('all');
+                            }
+                          }}
+                          onFocus={() => setShowBudgetServiceResults(true)}
+                          placeholder="Buscar serviço por nome..."
+                          className="h-9 pl-9 pr-9"
+                          autoComplete="off"
+                        />
+                        {(budgetServiceFilter !== 'all' || budgetServiceSearch) && (
+                          <button
+                            type="button"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:text-slate-700"
+                            aria-label="Limpar serviço"
+                            onClick={() => {
+                              setBudgetServiceFilter('all');
+                              setBudgetServiceSearch('');
+                              setShowBudgetServiceResults(false);
+                            }}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {showBudgetServiceResults && budgetServiceSearch.trim() && budgetServiceFilter === 'all' ? (
+                          <div className="absolute z-30 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                            {filteredBudgetServices.length > 0 ? (
+                              filteredBudgetServices.map((service) => (
+                                <button
+                                  key={service.id}
+                                  type="button"
+                                  className="flex w-full flex-col border-b border-slate-100 px-3 py-2 text-left last:border-b-0 hover:bg-slate-50"
+                                  onClick={() => {
+                                    setBudgetServiceFilter(service.id);
+                                    setBudgetServiceSearch(service.name);
+                                    setShowBudgetServiceResults(false);
+                                  }}
+                                >
+                                  <span className="text-sm font-medium text-slate-800">{service.name}</span>
+                                  {service.category ? (
+                                    <span className="text-xs text-slate-500">{service.category}</span>
+                                  ) : null}
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-3 py-2 text-sm text-slate-500">Nenhum serviço encontrado</div>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1.5">
                         <Label htmlFor="budget-date-from">Criação de</Label>
@@ -947,6 +1036,9 @@ export default function Budgets() {
                         setBudgetProductFilter('all');
                         setBudgetProductSearch('');
                         setShowBudgetProductResults(false);
+                        setBudgetServiceFilter('all');
+                        setBudgetServiceSearch('');
+                        setShowBudgetServiceResults(false);
                       }}
                     >
                       <X className="mr-2 h-4 w-4" />

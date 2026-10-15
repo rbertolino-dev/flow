@@ -31,6 +31,8 @@ interface BudgetFilters {
   product_category?: string;
   /** Ids de produtos do estoque na categoria selecionada (fallback para orçamentos antigos). */
   product_ids_in_category?: string[];
+  /** Filtra orçamentos que incluem este serviço. */
+  service_id?: string;
   /** Página 1-based; padrão 1 */
   page?: number;
   page_size?: number;
@@ -39,6 +41,11 @@ interface BudgetFilters {
 function budgetHasProduct(budget: Budget, productId: string): boolean {
   const products = Array.isArray(budget.products) ? budget.products : [];
   return products.some((item) => item?.id === productId);
+}
+
+function budgetHasService(budget: Budget, serviceId: string): boolean {
+  const services = Array.isArray(budget.services) ? budget.services : [];
+  return services.some((item) => item?.id === serviceId);
 }
 
 function budgetHasProductCategory(
@@ -275,6 +282,7 @@ export function useBudgets(filters?: BudgetFilters) {
     filters?.product_id,
     filters?.product_category,
     filters?.product_ids_in_category?.join(','),
+    filters?.service_id,
     page,
     pageSize,
   ]);
@@ -286,7 +294,9 @@ export function useBudgets(filters?: BudgetFilters) {
       setLoading(true);
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
-      const needsClientItemFilter = Boolean(filters?.product_id || filters?.product_category);
+      const needsClientItemFilter = Boolean(
+        filters?.product_id || filters?.product_category || filters?.service_id
+      );
 
       // @ts-ignore - Tabela budgets existe
       let query = supabase
@@ -380,6 +390,10 @@ export function useBudgets(filters?: BudgetFilters) {
             filters.product_ids_in_category || []
           )
         );
+      }
+
+      if (filters?.service_id) {
+        filteredData = filteredData.filter((budget) => budgetHasService(budget, filters.service_id!));
       }
 
       if (needsClientItemFilter) {
