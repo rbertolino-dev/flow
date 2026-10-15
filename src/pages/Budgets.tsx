@@ -102,7 +102,11 @@ export default function Budgets() {
   const [budgetExpiresTo, setBudgetExpiresTo] = useState<string>('');
   const [budgetStatusFilter, setBudgetStatusFilter] = useState<'all' | 'valid' | 'expired' | 'expiring_soon' | 'approved'>('all');
   const [budgetProductCategoryFilter, setBudgetProductCategoryFilter] = useState<string>('all');
+  const [budgetCategorySearch, setBudgetCategorySearch] = useState('');
+  const [showBudgetCategoryResults, setShowBudgetCategoryResults] = useState(false);
   const [budgetProductFilter, setBudgetProductFilter] = useState<string>('all');
+  const [budgetProductSearch, setBudgetProductSearch] = useState('');
+  const [showBudgetProductResults, setShowBudgetProductResults] = useState(false);
   const [budgetsPage, setBudgetsPage] = useState(1);
   
   // Estados para serviços
@@ -165,6 +169,11 @@ export default function Budgets() {
     return (leads || []).find((lead) => lead.id === budgetClientFilter) || null;
   }, [leads, budgetClientFilter]);
 
+  const selectedBudgetProduct = useMemo(() => {
+    if (budgetProductFilter === 'all') return null;
+    return stockProducts.find((product) => product.id === budgetProductFilter) || null;
+  }, [stockProducts, budgetProductFilter]);
+
   const filteredBudgetClients = useMemo(() => {
     const query = budgetClientSearch.trim().toLowerCase();
     if (!query) return [];
@@ -178,6 +187,25 @@ export default function Budgets() {
       })
       .slice(0, 20);
   }, [leads, budgetClientSearch]);
+
+  const filteredBudgetCategories = useMemo(() => {
+    const query = budgetCategorySearch.trim().toLowerCase();
+    if (!query) return [];
+    return budgetProductCategories.filter((category) => category.toLowerCase().includes(query)).slice(0, 20);
+  }, [budgetProductCategories, budgetCategorySearch]);
+
+  const filteredBudgetProducts = useMemo(() => {
+    const query = budgetProductSearch.trim().toLowerCase();
+    if (!query) return [];
+    return budgetFilterProducts
+      .filter((product) => {
+        const name = (product.name || '').toLowerCase();
+        const sku = (product.sku || '').toLowerCase();
+        const barcode = (product.barcode || '').toLowerCase();
+        return name.includes(query) || sku.includes(query) || barcode.includes(query);
+      })
+      .slice(0, 20);
+  }, [budgetFilterProducts, budgetProductSearch]);
 
   const {
     budgets,
@@ -743,46 +771,143 @@ export default function Budgets() {
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="budget-product-category-filter">Categoria do produto</Label>
-                      <Select
-                        value={budgetProductCategoryFilter}
-                        onValueChange={(value) => {
-                          setBudgetProductCategoryFilter(value);
-                          if (value !== 'all') {
-                            const stillVisible = stockProducts.some(
-                              (product) => product.id === budgetProductFilter && product.category === value
-                            );
-                            if (!stillVisible) setBudgetProductFilter('all');
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                        <Input
+                          id="budget-product-category-filter"
+                          value={
+                            budgetProductCategoryFilter !== 'all' && !showBudgetCategoryResults
+                              ? budgetProductCategoryFilter
+                              : budgetCategorySearch
                           }
-                        }}
-                      >
-                        <SelectTrigger id="budget-product-category-filter">
-                          <SelectValue placeholder="Todas as categorias" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todas as categorias</SelectItem>
-                          {budgetProductCategories.map((category) => (
-                            <SelectItem key={category} value={category}>
-                              {category}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setBudgetCategorySearch(value);
+                            setShowBudgetCategoryResults(true);
+                            if (budgetProductCategoryFilter !== 'all') {
+                              setBudgetProductCategoryFilter('all');
+                            }
+                          }}
+                          onFocus={() => setShowBudgetCategoryResults(true)}
+                          placeholder="Buscar categoria..."
+                          className="h-9 pl-9 pr-9"
+                          autoComplete="off"
+                        />
+                        {(budgetProductCategoryFilter !== 'all' || budgetCategorySearch) && (
+                          <button
+                            type="button"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:text-slate-700"
+                            aria-label="Limpar categoria"
+                            onClick={() => {
+                              setBudgetProductCategoryFilter('all');
+                              setBudgetCategorySearch('');
+                              setShowBudgetCategoryResults(false);
+                              if (budgetProductFilter !== 'all') {
+                                setBudgetProductFilter('all');
+                                setBudgetProductSearch('');
+                                setShowBudgetProductResults(false);
+                              }
+                            }}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {showBudgetCategoryResults && budgetCategorySearch.trim() && budgetProductCategoryFilter === 'all' ? (
+                          <div className="absolute z-30 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                            {filteredBudgetCategories.length > 0 ? (
+                              filteredBudgetCategories.map((category) => (
+                                <button
+                                  key={category}
+                                  type="button"
+                                  className="flex w-full border-b border-slate-100 px-3 py-2 text-left text-sm font-medium text-slate-800 last:border-b-0 hover:bg-slate-50"
+                                  onClick={() => {
+                                    setBudgetProductCategoryFilter(category);
+                                    setBudgetCategorySearch(category);
+                                    setShowBudgetCategoryResults(false);
+                                    const stillVisible = stockProducts.some(
+                                      (product) => product.id === budgetProductFilter && product.category === category
+                                    );
+                                    if (!stillVisible) {
+                                      setBudgetProductFilter('all');
+                                      setBudgetProductSearch('');
+                                      setShowBudgetProductResults(false);
+                                    }
+                                  }}
+                                >
+                                  {category}
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-3 py-2 text-sm text-slate-500">Nenhuma categoria encontrada</div>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="budget-product-filter">Produto no orçamento</Label>
-                      <Select value={budgetProductFilter} onValueChange={setBudgetProductFilter}>
-                        <SelectTrigger id="budget-product-filter">
-                          <SelectValue placeholder="Todos os produtos" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todos os produtos</SelectItem>
-                          {budgetFilterProducts.map((product) => (
-                            <SelectItem key={product.id} value={product.id}>
-                              {product.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                        <Input
+                          id="budget-product-filter"
+                          value={
+                            selectedBudgetProduct && !showBudgetProductResults
+                              ? selectedBudgetProduct.name
+                              : budgetProductSearch
+                          }
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setBudgetProductSearch(value);
+                            setShowBudgetProductResults(true);
+                            if (budgetProductFilter !== 'all') {
+                              setBudgetProductFilter('all');
+                            }
+                          }}
+                          onFocus={() => setShowBudgetProductResults(true)}
+                          placeholder="Buscar produto por nome..."
+                          className="h-9 pl-9 pr-9"
+                          autoComplete="off"
+                        />
+                        {(budgetProductFilter !== 'all' || budgetProductSearch) && (
+                          <button
+                            type="button"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:text-slate-700"
+                            aria-label="Limpar produto"
+                            onClick={() => {
+                              setBudgetProductFilter('all');
+                              setBudgetProductSearch('');
+                              setShowBudgetProductResults(false);
+                            }}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {showBudgetProductResults && budgetProductSearch.trim() && budgetProductFilter === 'all' ? (
+                          <div className="absolute z-30 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                            {filteredBudgetProducts.length > 0 ? (
+                              filteredBudgetProducts.map((product) => (
+                                <button
+                                  key={product.id}
+                                  type="button"
+                                  className="flex w-full flex-col border-b border-slate-100 px-3 py-2 text-left last:border-b-0 hover:bg-slate-50"
+                                  onClick={() => {
+                                    setBudgetProductFilter(product.id);
+                                    setBudgetProductSearch(product.name);
+                                    setShowBudgetProductResults(false);
+                                  }}
+                                >
+                                  <span className="text-sm font-medium text-slate-800">{product.name}</span>
+                                  {product.category ? (
+                                    <span className="text-xs text-slate-500">{product.category}</span>
+                                  ) : null}
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-3 py-2 text-sm text-slate-500">Nenhum produto encontrado</div>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1.5">
@@ -817,7 +942,11 @@ export default function Budgets() {
                         setBudgetExpiresTo('');
                         setBudgetStatusFilter('all');
                         setBudgetProductCategoryFilter('all');
+                        setBudgetCategorySearch('');
+                        setShowBudgetCategoryResults(false);
                         setBudgetProductFilter('all');
+                        setBudgetProductSearch('');
+                        setShowBudgetProductResults(false);
                       }}
                     >
                       <X className="mr-2 h-4 w-4" />
