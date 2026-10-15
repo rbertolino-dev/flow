@@ -64,7 +64,8 @@ import {
 import { formatBRL, getStockStatus, stockNumbers, StockStatus } from "@/lib/stockStatus";
 import { productHasWholesalePrice } from "@/lib/productPricing";
 import { useWholesalePriceEnabled } from "@/hooks/useWholesalePriceEnabled";
-import { todayIsoDate } from "@/lib/finance";
+import { paymentTimestamp, todayIsoDate, type FinancialCategory } from "@/lib/finance";
+import { PAYMENT_METHODS } from "@/lib/paymentMethods";
 import { formatNfeDate, NfeInvoice } from "@/lib/nfeXml";
 import { exportShoppingExcel, exportShoppingPdf, ShoppingExportRow } from "@/lib/shoppingListExport";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -747,10 +748,10 @@ export function StockModule() {
     setXmlEntryOpen(false);
     toast({ title: "Entrada por XML registrada", description: "Os produtos entraram no estoque." });
     setExpenseOffer({
+      ...emptyStockExpenseOffer(),
       description: `NF ${invoice.number || "s/n"} ${formatNfeDate(invoice.issuedAt)} ${supplier}`,
       amount: total > 0 ? total.toFixed(2).replace(".", ",") : "",
       contactName: supplier,
-      leadId: null,
       descriptionHint: "Padrão: número da nota, data e fornecedor. Você pode alterar antes de registrar.",
       amountHint: amount != null
         ? "Valor sugerido: soma dos itens que você escolheu lançar."
@@ -826,6 +827,10 @@ export function StockModule() {
     const amount = parseExpenseAmount(expenseOffer.amount);
     const description = expenseOffer.description.trim();
     const contactName = (expenseOffer.contactName || "").trim();
+    const dueDate = (expenseOffer.dueDate || "").trim() || todayIsoDate();
+    const paidDate = (expenseOffer.paidDate || "").trim() || dueDate;
+    const categoryName = (expenseOffer.category || "").trim();
+    const paymentMethod = (expenseOffer.paymentMethod || "").trim();
     if (!description) {
       toast({ title: "Descrição obrigatória", description: "Informe a descrição da conta a pagar.", variant: "destructive" });
       return;
@@ -842,31 +847,54 @@ export function StockModule() {
       });
       return;
     }
+    if (!categoryName) {
+      toast({
+        title: "Categoria obrigatória",
+        description: "Escolha a categoria de saída da conta a pagar.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!paymentMethod) {
+      toast({
+        title: "Forma de pagamento",
+        description: "Informe como essa conta será paga.",
+        variant: "destructive",
+      });
+      return;
+    }
     setSavingExpense(true);
     try {
       const client = supabase as unknown as {
         rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
       };
+      const paid = Boolean(expenseOffer.paid);
       const { data, error } = await client.rpc("upsert_financial_entry", {
         p_organization_id: activeOrgId,
         p_direction: "pagar",
         p_amount: amount,
-        p_due_date: todayIsoDate(),
+        p_due_date: dueDate,
         p_source_type: "manual",
         p_source_id: crypto.randomUUID(),
-        p_status: "open",
+        p_status: paid ? "paid" : "open",
         p_settlement_status: "confirmado",
         p_description: description,
         p_lead_id: expenseOffer.leadId || null,
         p_contact_name: contactName,
         p_billing_name: contactName,
-        p_category: "Fornecedores",
+        p_category: categoryName,
+        p_category_id: expenseOffer.categoryId || null,
+        p_payment_method: paymentMethod,
         p_origin_label: "Estoque",
-        p_competence_date: todayIsoDate(),
+        p_competence_date: dueDate,
+        p_paid_at: paid ? paymentTimestamp(paidDate) : null,
       });
       if (error) throw new Error(error.message);
       if (!data) throw new Error("Não foi possível criar a conta a pagar");
-      toast({ title: "Conta a pagar criada", description: `Despesa vinculada a ${contactName}.` });
+      toast({
+        title: paid ? "Conta a pagar quitada" : "Conta a pagar criada",
+        description: `Despesa vinculada a ${contactName}.`,
+      });
       setExpenseOffer(null);
     } catch (error: unknown) {
       toast({
@@ -1885,6 +1913,12 @@ interface StockExpenseOffer {
   amount: string;
   contactName: string;
   leadId: string | null;
+  category: string;
+  categoryId: string | null;
+  dueDate: string;
+  paidDate: string;
+  paymentMethod: string;
+  paid: boolean;
   descriptionHint?: string;
   amountHint?: string;
 }
@@ -1903,15 +1937,30 @@ function parseExpenseAmount(value: string) {
   return Number(raw.replace(",", "."));
 }
 
+function emptyStockExpenseOffer(): StockExpenseOffer {
+  const today = todayIsoDate();
+  return {
+    description: "",
+    amount: "",
+    contactName: "",
+    leadId: null,
+    category: "Fornecedores",
+    categoryId: null,
+    dueDate: today,
+    paidDate: today,
+    paymentMethod: "pix",
+    paid: false,
+  };
+}
+
 function buildStockExpenseOffer(product: Product, quantity: number): StockExpenseOffer {
   const date = new Date().toLocaleDateString("pt-BR");
   const qty = Number.isInteger(quantity) ? String(quantity) : String(quantity).replace(".", ",");
   const cost = Number(product.cost ?? 0);
   return {
+    ...emptyStockExpenseOffer(),
     description: `${product.name} ${date} ${qty}`,
     amount: cost > 0 ? (cost * quantity).toFixed(2).replace(".", ",") : "",
-    contactName: "",
-    leadId: null,
   };
 }
 
@@ -1932,6 +1981,41 @@ function StockEntryExpenseDialog({
 }) {
   const [leadOptions, setLeadOptions] = useState<StockExpenseLeadOption[]>([]);
   const [searchingLeads, setSearchingLeads] = useState(false);
+  const [categories, setCategories] = useState<FinancialCategory[]>([]);
+
+  useEffect(() => {
+    if (!offer || !organizationId) {
+      setCategories([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase
+        .from("financial_categories")
+        .select("id, organization_id, name, direction, dre_class")
+        .eq("organization_id", organizationId)
+        .order("name");
+      if (cancelled || error) return;
+      const rows = (data || []) as FinancialCategory[];
+      const payable = rows.filter((row) => row.direction === "pagar" || row.direction === "ambos");
+      setCategories(payable);
+      const current = offer.category.trim().toLowerCase();
+      const matched = payable.find((row) => row.name.trim().toLowerCase() === current)
+        || payable.find((row) => row.name.trim().toLowerCase() === "fornecedores")
+        || payable[0];
+      if (!matched) return;
+      if (offer.categoryId === matched.id && offer.category === matched.name) return;
+      onChange({
+        ...offer,
+        category: matched.name,
+        categoryId: matched.id,
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!offer, organizationId]);
 
   useEffect(() => {
     if (!offer || !organizationId || offer.leadId) {
@@ -1965,11 +2049,11 @@ function StockEntryExpenseDialog({
 
   return (
     <Dialog open={!!offer} onOpenChange={(open) => { if (!open && !saving) onSkip(); }}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Gerar conta a pagar?</DialogTitle>
           <DialogDescription>
-            A entrada já está no estoque. Vincule a pessoa ou fornecedor da despesa; ela aparece em Contas a pagar.
+            A entrada já está no estoque. Informe pessoa, categoria de saída, datas e forma de pagamento.
           </DialogDescription>
         </DialogHeader>
         {offer && (
@@ -2022,9 +2106,6 @@ function StockEntryExpenseDialog({
                   ))}
                 </div>
               )}
-              <p className="text-xs text-muted-foreground">
-                Escolha um contato do CRM ou mantenha o nome digitado (ex.: fornecedor da nota).
-              </p>
             </div>
             <div className="space-y-1">
               <Label>Descrição</Label>
@@ -2048,6 +2129,102 @@ function StockEntryExpenseDialog({
                 {offer.amountHint || "Se o produto tem custo, o valor sugerido é custo vezes a quantidade."}
               </p>
             </div>
+            <div className="space-y-1">
+              <Label>Categoria de saída</Label>
+              <Select
+                value={offer.categoryId || offer.category || "__none__"}
+                onValueChange={(next) => {
+                  if (next === "__none__") {
+                    onChange({ ...offer, category: "", categoryId: null });
+                    return;
+                  }
+                  const byId = categories.find((row) => row.id === next);
+                  if (byId) {
+                    onChange({ ...offer, category: byId.name, categoryId: byId.id });
+                    return;
+                  }
+                  onChange({ ...offer, category: next, categoryId: null });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+                  ))}
+                  {!categories.some((row) => row.name === offer.category) && offer.category ? (
+                    <SelectItem value={offer.category}>{offer.category}</SelectItem>
+                  ) : null}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="stock-expense-due">Data de vencimento</Label>
+                <Input
+                  id="stock-expense-due"
+                  type="date"
+                  value={offer.dueDate}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    onChange({
+                      ...offer,
+                      dueDate: next,
+                      paidDate: offer.paid && offer.paidDate === offer.dueDate ? next : offer.paidDate,
+                    });
+                  }}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Forma de pagamento</Label>
+                <Select
+                  value={offer.paymentMethod || "__none__"}
+                  onValueChange={(next) =>
+                    onChange({ ...offer, paymentMethod: next === "__none__" ? "" : next })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Selecione</SelectItem>
+                    {PAYMENT_METHODS.map((method) => (
+                      <SelectItem key={method.value} value={method.value}>{method.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2">
+              <div>
+                <Label htmlFor="stock-expense-paid">Já pago</Label>
+                <p className="text-xs text-muted-foreground">Marca a conta como quitada na data de pagamento.</p>
+              </div>
+              <Switch
+                id="stock-expense-paid"
+                checked={offer.paid}
+                onCheckedChange={(checked) =>
+                  onChange({
+                    ...offer,
+                    paid: checked,
+                    paidDate: checked ? (offer.paidDate || offer.dueDate) : offer.paidDate,
+                  })
+                }
+              />
+            </div>
+            {offer.paid && (
+              <div className="space-y-1">
+                <Label htmlFor="stock-expense-paid-date">Data de pagamento</Label>
+                <Input
+                  id="stock-expense-paid-date"
+                  type="date"
+                  value={offer.paidDate}
+                  onChange={(event) => onChange({ ...offer, paidDate: event.target.value })}
+                />
+              </div>
+            )}
           </div>
         )}
         <DialogFooter>
