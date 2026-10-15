@@ -8,7 +8,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { getPaymentMethodLabel, type PaymentMethod } from "@/lib/paymentMethods";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PAYMENT_METHODS, getPaymentMethodLabel, type PaymentMethod } from "@/lib/paymentMethods";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useToast } from "@/hooks/use-toast";
@@ -37,24 +44,40 @@ export function PosFinanceCreatedDialog({ open, description, entries, onDone }: 
 
   const shown = rows.length ? rows : entries;
 
-  const updateDate = async (id: string, dueDate: string) => {
-    setRows((current) => current.map((row) => (row.id === id ? { ...row, due_date: dueDate } : row)));
+  const patchEntry = async (id: string, values: Record<string, string>) => {
     const client = supabase as unknown as {
       from: (table: string) => {
-        update: (values: Record<string, string>) => {
+        update: (payload: Record<string, string>) => {
           eq: (column: string, value: string) => {
             eq: (column: string, value: string) => Promise<{ error: { message: string } | null }>;
           };
         };
       };
     };
-    const { error } = await client
+    return client
       .from("financial_entries")
-      .update({ due_date: dueDate })
+      .update(values)
       .eq("id", id)
       .eq("organization_id", activeOrgId || "");
+  };
+
+  const updateDate = async (id: string, dueDate: string) => {
+    setRows((current) => current.map((row) => (row.id === id ? { ...row, due_date: dueDate } : row)));
+    const { error } = await patchEntry(id, { due_date: dueDate });
     if (error) {
       toast({ title: "Não foi possível alterar a data", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const updateMethod = async (id: string, method: string) => {
+    setRows((current) => current.map((row) => (row.id === id ? { ...row, method } : row)));
+    const { error } = await patchEntry(id, { payment_method: method });
+    if (error) {
+      toast({
+        title: "Não foi possível alterar a forma de pagamento",
+        description: error.message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -67,6 +90,18 @@ export function PosFinanceCreatedDialog({ open, description, entries, onDone }: 
         args: Record<string, string>
       ) => Promise<{ error: { message: string } | null }>;
     };
+    if (row.method) {
+      const { error: methodError } = await patchEntry(row.id, { payment_method: row.method });
+      if (methodError) {
+        setBusyId(null);
+        toast({
+          title: "Não foi possível salvar a forma de pagamento",
+          description: methodError.message,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     const { error } = await client.rpc("set_financial_entry_status", {
       p_organization_id: activeOrgId,
       p_entry_id: row.id,
@@ -88,9 +123,15 @@ export function PosFinanceCreatedDialog({ open, description, entries, onDone }: 
           <DialogTitle>Lançamentos financeiros criados</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">{description}</p>
+        <p className="text-xs text-muted-foreground">
+          Antes de receber, você pode mudar a data e a forma de pagamento de cada parcela.
+        </p>
         <div className="space-y-2">
           {shown.map((row, index) => (
-            <div key={row.id} className="grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-2 rounded-md border px-3 py-2 text-sm">
+            <div
+              key={row.id}
+              className="grid grid-cols-1 items-center gap-2 rounded-md border px-3 py-2 text-sm sm:grid-cols-[auto_minmax(0,1fr)_150px_minmax(140px,1fr)_auto]"
+            >
               <span className="font-medium">{index + 1}</span>
               <span className="tabular-nums">{money(row.amount)}</span>
               <Input
@@ -98,9 +139,27 @@ export function PosFinanceCreatedDialog({ open, description, entries, onDone }: 
                 aria-label={`Data da parcela ${index + 1}`}
                 value={row.due_date.slice(0, 10)}
                 onChange={(event) => void updateDate(row.id, event.target.value)}
-                className="w-[150px]"
+                className="w-full sm:w-[150px]"
+                disabled={row.status === "paid"}
               />
-              <span>{getPaymentMethodLabel(row.method as PaymentMethod)}</span>
+              <Select
+                value={row.method || "pix"}
+                onValueChange={(value) => void updateMethod(row.id, value)}
+                disabled={row.status === "paid" || !activeOrgId}
+              >
+                <SelectTrigger aria-label={`Forma da parcela ${index + 1}`}>
+                  <SelectValue placeholder="Forma">
+                    {getPaymentMethodLabel((row.method || "pix") as PaymentMethod)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHODS.map((method) => (
+                    <SelectItem key={method.value} value={method.value}>
+                      {method.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Button
                 type="button"
                 className={

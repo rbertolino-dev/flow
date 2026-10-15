@@ -814,8 +814,11 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await human.humanType(confirm.getByLabel("Descrição"), marker, { clearFirst: true });
     await human.humanClick(confirm.getByLabel("Dividir lançamento ou criar recorrência"));
     await human.humanType(confirm.getByLabel(/quantidade de parcelas/i), "2", { clearFirst: true });
-    await human.humanClick(confirm.getByRole("combobox").filter({ hasText: /dinheiro/i }));
+    await expect(confirm.getByText(/parcelas do financeiro/i)).toBeVisible();
+    await human.humanClick(confirm.getByLabel(/forma em todas as parcelas/i));
     await human.humanClick(page.getByRole("option", { name: /^pix$/i }));
+    await expect(confirm.getByLabel(/forma da parcela 1/i)).toContainText(/pix/i);
+    await expect(confirm.getByLabel(/forma da parcela 2/i)).toContainText(/pix/i);
     await expect(confirm.getByText(/dividido em 2x/i)).toBeVisible();
 
     const finalizeResponse = page.waitForResponse(

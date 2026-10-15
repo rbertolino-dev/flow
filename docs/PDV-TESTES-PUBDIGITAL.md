@@ -109,6 +109,8 @@ Arquivo: `tests/e2e/pdv.spec.ts`. Organização ativa: pubdgital. Resultado: pas
 - Recusa de exclusão, troca e fechamento de caixa para um vendedor que não é administrador. A organização não tem um membro só de caixa.
 - Promoção vencida aplicada numa venda. A promoção "dia dos namorados" (validade em 2024) fica cadastrada e não foi escolhida nas vendas desta rodada. Não houve uma venda que tentasse usá-la e comprovasse que o desconto é ignorado.
 
-## Ajuste publicado durante os testes
+## Ajustes publicados durante os testes
 
 O valor sugerido ao adicionar uma forma de pagamento passa a incluir o acréscimo daquela forma. Sem isso, R$ 6 em dinheiro mais PIX deixava "Falta R$ 0,12" e o finalizar ficava desligado.
+
+No parcelamento da venda, cada parcela tem forma e data editáveis. Dá para aplicar uma forma em todas as parcelas ou mudar só em uma. Depois da venda, no diálogo de lançamentos criados, a forma também pode ser alterada antes de receber.

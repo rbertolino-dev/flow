@@ -120,10 +120,23 @@ export function PosConfirmSaleDialog({
   const [downPayment, setDownPayment] = useState("");
   const [downMethod, setDownMethod] = useState("pix");
   const [restMethod, setRestMethod] = useState("cartao_credito");
+  const [lineMethods, setLineMethods] = useState<string[]>([]);
+  const [lineDates, setLineDates] = useState<string[]>([]);
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
   const [walletAccounts, setWalletAccounts] = useState<string[]>([]);
   const [incomeCategories, setIncomeCategories] = useState<string[]>([]);
   const { activeOrgId } = useActiveOrganization();
+  const existingMethods = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          existingPayments
+            .map((payment) => String(payment.method || "").trim())
+            .filter(Boolean)
+        )
+      ),
+    [existingPayments]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -135,7 +148,7 @@ export function PosConfirmSaleDialog({
     setPaymentDate(todayInputDate());
     setFinancialAccount(defaultFinancialAccount || organizationName || "Conta principal");
     setFinancialCategory(matchIncomeCategory(defaultFinancialCategory || "", []));
-    setPaymentMethod(defaultPaymentMethod || "pix");
+    setPaymentMethod(defaultPaymentMethod || existingPayments[0]?.method || "pix");
     setPaymentNotes(defaultNotes || "");
     setApplyStock(true);
     setGenerateFinancial(true);
@@ -147,6 +160,8 @@ export function PosConfirmSaleDialog({
     setDownPayment("");
     setDownMethod("pix");
     setRestMethod("cartao_credito");
+    setLineMethods([]);
+    setLineDates([]);
     setAttachmentName(null);
   }, [
     open,
@@ -157,6 +172,7 @@ export function PosConfirmSaleDialog({
     defaultFinancialCategory,
     defaultNotes,
     total,
+    existingPayments,
   ]);
 
   useEffect(() => {
@@ -164,31 +180,31 @@ export function PosConfirmSaleDialog({
     const client = supabase as unknown as {
       from: (table: string) => {
         select: (columns: string) => {
-        eq: (column: string, value: string) => {
-          order: (column: string) => Promise<{ data: Array<{ name: string }> | null }>;
-          in: (column: string, values: string[]) => {
+          eq: (column: string, value: string) => {
             order: (column: string) => Promise<{ data: Array<{ name: string }> | null }>;
+            in: (column: string, values: string[]) => {
+              order: (column: string) => Promise<{ data: Array<{ name: string }> | null }>;
+            };
           };
-        };
         };
       };
     };
     void client
-      .from('financial_accounts')
-      .select('name')
-      .eq('organization_id', activeOrgId)
-      .order('name')
+      .from("financial_accounts")
+      .select("name")
+      .eq("organization_id", activeOrgId)
+      .order("name")
       .then(({ data }) => {
         const names = (data || []).map((row) => row.name).filter(Boolean);
         setWalletAccounts(names);
-        setFinancialAccount((current) => current || names[0] || '');
+        setFinancialAccount((current) => current || names[0] || "");
       });
     void client
-      .from('financial_categories')
-      .select('name')
-      .eq('organization_id', activeOrgId)
-      .in('direction', ['receber', 'ambos'])
-      .order('name')
+      .from("financial_categories")
+      .select("name")
+      .eq("organization_id", activeOrgId)
+      .in("direction", ["receber", "ambos"])
+      .order("name")
       .then(({ data }) => {
         const names = (data || []).map((row) => row.name).filter(Boolean);
         setIncomeCategories(names);
@@ -203,13 +219,21 @@ export function PosConfirmSaleDialog({
   useEffect(() => {
     if (!open || !splitRecurrence) return;
     const method = splitMode === "entrada" ? restMethod : paymentMethod;
-    const cardInstallments = method === "cartao_credito" && splitMode === "parcelar"
-      ? Math.max(1, parsedCount || 1)
-      : 1;
-    setScheduleTotal(String(roundMoney(
-      resolveTotal ? resolveTotal(method, cardInstallments) : total
-    )));
-  }, [open, splitRecurrence, splitMode, paymentMethod, restMethod, resolveTotal, total, parsedCount]);
+    const cardInstallments =
+      method === "cartao_credito" && splitMode === "parcelar" ? Math.max(1, parsedCount || 1) : 1;
+    setScheduleTotal(
+      String(roundMoney(resolveTotal ? resolveTotal(method, cardInstallments) : total))
+    );
+  }, [
+    open,
+    splitRecurrence,
+    splitMode,
+    paymentMethod,
+    restMethod,
+    resolveTotal,
+    total,
+    parsedCount,
+  ]);
 
   const chargedMethod = splitMode === "entrada" ? restMethod : paymentMethod;
   const chargedTotal = roundMoney(
@@ -223,7 +247,7 @@ export function PosConfirmSaleDialog({
   const maxCount = splitMode === "recorrencia" ? 24 : 12;
   const hasExisting = existingPayments.length > 0;
 
-  const financeLines = useMemo(() => {
+  const baseFinanceLines = useMemo(() => {
     if (!splitRecurrence || !generateFinancial) return [] as PosFinanceLine[];
     if (splitMode === "entrada") {
       const rest = roundMoney(chargedTotal - parsedDown);
@@ -265,6 +289,59 @@ export function PosConfirmSaleDialog({
     maxCount,
   ]);
 
+  useEffect(() => {
+    if (!baseFinanceLines.length) {
+      setLineMethods([]);
+      setLineDates([]);
+      return;
+    }
+    setLineMethods((current) => {
+      if (current.length === baseFinanceLines.length) return current;
+      return baseFinanceLines.map((line) => line.method);
+    });
+    setLineDates((current) => {
+      if (current.length === baseFinanceLines.length) return current;
+      return baseFinanceLines.map((line) => line.due_date);
+    });
+  }, [baseFinanceLines]);
+
+  const financeLines = useMemo(
+    () =>
+      baseFinanceLines.map((line, index) => ({
+        ...line,
+        method: lineMethods[index] || line.method,
+        due_date: lineDates[index] || line.due_date,
+      })),
+    [baseFinanceLines, lineMethods, lineDates]
+  );
+
+  const applyMethodToAllLines = (method: string) => {
+    setPaymentMethod(method);
+    if (splitMode === "entrada") {
+      setDownMethod(method);
+      setRestMethod(method);
+    }
+    setLineMethods((current) =>
+      (current.length ? current : baseFinanceLines.map((line) => line.method)).map(() => method)
+    );
+  };
+
+  const setLineMethod = (index: number, method: string) => {
+    setLineMethods((current) => {
+      const next = (current.length ? current : baseFinanceLines.map((line) => line.method)).slice();
+      next[index] = method;
+      return next;
+    });
+  };
+
+  const setLineDate = (index: number, dueDate: string) => {
+    setLineDates((current) => {
+      const next = (current.length ? current : baseFinanceLines.map((line) => line.due_date)).slice();
+      next[index] = dueDate;
+      return next;
+    });
+  };
+
   const entradaRest = roundMoney(Math.max(0, chargedTotal - parsedDown));
   const installmentValue = financeLines.length
     ? splitMode === "entrada"
@@ -274,16 +351,23 @@ export function PosConfirmSaleDialog({
   const splitValid = !splitRecurrence || !generateFinancial || financeLines.length > 0;
   const canConfirm = total >= 0 && !loading && splitValid && (!!paymentMethod || hasExisting);
 
-  const money = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const money = (value: number) =>
+    value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-  const methodSelect = (value: string, onChange: (next: string) => void) => (
+  const methodSelect = (
+    value: string,
+    onChange: (next: string) => void,
+    options?: { id?: string; ariaLabel?: string }
+  ) => (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger>
+      <SelectTrigger id={options?.id} aria-label={options?.ariaLabel}>
         <SelectValue placeholder="Selecione" />
       </SelectTrigger>
       <SelectContent>
         {PAYMENT_METHODS.map((method) => (
-          <SelectItem key={method.value} value={method.value}>{method.label}</SelectItem>
+          <SelectItem key={method.value} value={method.value}>
+            {method.label}
+          </SelectItem>
         ))}
       </SelectContent>
     </Select>
@@ -338,17 +422,24 @@ export function PosConfirmSaleDialog({
             </div>
             <div className="space-y-1">
               <Label>Conta financeira</Label>
-              <Select value={financialAccount || 'none'} onValueChange={(value) => setFinancialAccount(value === 'none' ? '' : value)}>
+              <Select
+                value={financialAccount || "none"}
+                onValueChange={(value) => setFinancialAccount(value === "none" ? "" : value)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione a conta" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Selecione a conta</SelectItem>
-                  {financialAccount && financialAccount !== "none" && !walletAccounts.includes(financialAccount) ? (
+                  {financialAccount &&
+                  financialAccount !== "none" &&
+                  !walletAccounts.includes(financialAccount) ? (
                     <SelectItem value={financialAccount}>{financialAccount}</SelectItem>
                   ) : null}
                   {walletAccounts.map((name) => (
-                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -368,15 +459,26 @@ export function PosConfirmSaleDialog({
                     <SelectItem value={financialCategory}>{financialCategory}</SelectItem>
                   )}
                   {incomeCategories.map((name) => (
-                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             {!hasExisting || splitRecurrence ? (
               <div className="space-y-1">
-                <Label>Forma de Pag</Label>
-                {methodSelect(paymentMethod, setPaymentMethod)}
+                <Label htmlFor="pos-payment-method-all">
+                  {splitRecurrence ? "Forma em todas as parcelas" : "Forma de Pag"}
+                </Label>
+                {methodSelect(
+                  paymentMethod,
+                  splitRecurrence ? applyMethodToAllLines : setPaymentMethod,
+                  {
+                    id: "pos-payment-method-all",
+                    ariaLabel: splitRecurrence ? "Forma em todas as parcelas" : "Forma de Pag",
+                  }
+                )}
               </div>
             ) : (
               <div className="space-y-1 text-sm text-muted-foreground">
@@ -409,8 +511,13 @@ export function PosConfirmSaleDialog({
 
           <div className="space-y-1">
             <Label>Anexar</Label>
-            <Input type="file" onChange={(event) => setAttachmentName(event.target.files?.[0]?.name || null)} />
-            {attachmentName ? <p className="text-xs text-muted-foreground">{attachmentName}</p> : null}
+            <Input
+              type="file"
+              onChange={(event) => setAttachmentName(event.target.files?.[0]?.name || null)}
+            />
+            {attachmentName ? (
+              <p className="text-xs text-muted-foreground">{attachmentName}</p>
+            ) : null}
           </div>
 
           <div className="flex items-center gap-2">
@@ -425,7 +532,10 @@ export function PosConfirmSaleDialog({
 
           {splitRecurrence && generateFinancial ? (
             <div className="space-y-3 rounded-md border p-3">
-              <Select value={splitMode} onValueChange={(value) => setSplitMode(value as PosSplitMode)}>
+              <Select
+                value={splitMode}
+                onValueChange={(value) => setSplitMode(value as PosSplitMode)}
+              >
                 <SelectTrigger aria-label="Tipo de divisão">
                   <SelectValue />
                 </SelectTrigger>
@@ -439,11 +549,19 @@ export function PosConfirmSaleDialog({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label>Valor total</Label>
-                    <Input value={scheduleTotal} onChange={(event) => setScheduleTotal(event.target.value)} />
+                    <Input
+                      value={scheduleTotal}
+                      onChange={(event) => setScheduleTotal(event.target.value)}
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor="pos-installment-count">Quantidade de parcelas (máx.: 12)</Label>
-                    <Input id="pos-installment-count" value={installmentCount} onChange={(event) => setInstallmentCount(event.target.value)} inputMode="numeric" />
+                    <Input
+                      id="pos-installment-count"
+                      value={installmentCount}
+                      onChange={(event) => setInstallmentCount(event.target.value)}
+                      inputMode="numeric"
+                    />
                   </div>
                   <p className="text-sm text-muted-foreground sm:col-span-2">
                     {money(chargedTotal)} dividido em {parsedCount || 0}x de {money(installmentValue)}
@@ -454,14 +572,23 @@ export function PosConfirmSaleDialog({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label>Total de lançamentos (máx.: 24)</Label>
-                    <Input value={installmentCount} onChange={(event) => setInstallmentCount(event.target.value)} inputMode="numeric" />
+                    <Input
+                      value={installmentCount}
+                      onChange={(event) => setInstallmentCount(event.target.value)}
+                      inputMode="numeric"
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label>Intervalo em meses</Label>
-                    <Input value={intervalMonths} onChange={(event) => setIntervalMonths(event.target.value)} inputMode="numeric" />
+                    <Input
+                      value={intervalMonths}
+                      onChange={(event) => setIntervalMonths(event.target.value)}
+                      inputMode="numeric"
+                    />
                   </div>
                   <p className="text-sm text-muted-foreground sm:col-span-2">
-                    {parsedCount || 0} lançamentos de {money(installmentValue)} a cada {parsedInterval || 0} meses
+                    {parsedCount || 0} lançamentos de {money(installmentValue)} a cada{" "}
+                    {parsedInterval || 0} meses
                   </p>
                 </div>
               ) : null}
@@ -469,7 +596,10 @@ export function PosConfirmSaleDialog({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label>Valor da entrada</Label>
-                    <Input value={downPayment} onChange={(event) => setDownPayment(event.target.value)} />
+                    <Input
+                      value={downPayment}
+                      onChange={(event) => setDownPayment(event.target.value)}
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label>Forma de Pag</Label>
@@ -477,19 +607,79 @@ export function PosConfirmSaleDialog({
                   </div>
                   <div className="space-y-1">
                     <Label>Restante em parcelas (máx.: 12)</Label>
-                    <Input value={installmentCount} onChange={(event) => setInstallmentCount(event.target.value)} inputMode="numeric" />
+                    <Input
+                      value={installmentCount}
+                      onChange={(event) => setInstallmentCount(event.target.value)}
+                      inputMode="numeric"
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label>Forma de Pag</Label>
                     {methodSelect(restMethod, setRestMethod)}
                   </div>
                   <p className="text-sm text-muted-foreground sm:col-span-2">
-                    Entrada {money(parsedDown)} e {money(entradaRest)} em {parsedCount || 0}x de {money(installmentValue)}
+                    Entrada {money(parsedDown)} e {money(entradaRest)} em {parsedCount || 0}x de{" "}
+                    {money(installmentValue)}
                   </p>
                 </div>
               ) : null}
               {!splitValid ? (
-                <p className="text-sm text-destructive">A divisão precisa fechar o total da venda, dentro dos limites de parcelas.</p>
+                <p className="text-sm text-destructive">
+                  A divisão precisa fechar o total da venda, dentro dos limites de parcelas.
+                </p>
+              ) : null}
+              {financeLines.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium">Parcelas do financeiro</p>
+                    {existingMethods.length > 1 ? (
+                      <p className="text-xs text-muted-foreground">
+                        A venda tem {existingMethods.length} formas. Escolha uma para todas ou mude
+                        em cada parcela.
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="space-y-2">
+                    {financeLines.map((line, index) => (
+                      <div
+                        key={`${line.due_date}-${index}`}
+                        className="grid grid-cols-1 items-center gap-2 rounded-md border px-3 py-2 text-sm sm:grid-cols-[auto_minmax(0,1fr)_150px_minmax(0,1fr)]"
+                      >
+                        <span className="font-medium">{index + 1}</span>
+                        <span className="tabular-nums">{money(line.amount)}</span>
+                        <Input
+                          type="date"
+                          aria-label={`Data da parcela ${index + 1}`}
+                          value={line.due_date.slice(0, 10)}
+                          onChange={(event) => setLineDate(index, event.target.value)}
+                          className="w-full sm:w-[150px]"
+                        />
+                        <Select
+                          value={line.method}
+                          onValueChange={(value) => setLineMethod(index, value)}
+                        >
+                          <SelectTrigger aria-label={`Forma da parcela ${index + 1}`}>
+                            <SelectValue placeholder="Forma" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {existingMethods.map((method) => (
+                              <SelectItem key={`existing-${method}`} value={method}>
+                                {getPaymentMethodLabel(method as PaymentMethod)}
+                              </SelectItem>
+                            ))}
+                            {PAYMENT_METHODS.filter(
+                              (method) => !existingMethods.includes(method.value)
+                            ).map((method) => (
+                              <SelectItem key={method.value} value={method.value}>
+                                {method.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               ) : null}
             </div>
           ) : (
@@ -526,15 +716,16 @@ export function PosConfirmSaleDialog({
                 financeLines: lines,
                 salePayments: lines.length
                   ? Array.from(grouped.entries()).map(([method, amount]) => ({
-                    id: crypto.randomUUID(),
-                    method,
-                    amount,
-                  }))
+                      id: crypto.randomUUID(),
+                      method,
+                      amount,
+                    }))
                   : null,
                 attachmentName,
-                cardInstallments: paymentMethod === "cartao_credito" && splitMode === "parcelar"
-                  ? Math.max(1, parsedCount || 1)
-                  : undefined,
+                cardInstallments:
+                  paymentMethod === "cartao_credito" && splitMode === "parcelar"
+                    ? Math.max(1, parsedCount || 1)
+                    : undefined,
               });
             }}
           >
