@@ -69,6 +69,8 @@ const emptyForm = {
   description: "",
   image_url: "" as string | null,
   is_supply: false,
+  commission_percentage: "",
+  commission_fixed: "",
 };
 
 export function CreateProductDialog({
@@ -128,6 +130,14 @@ export function CreateProductDialog({
         description: product.description || "",
         image_url: product.image_url || null,
         is_supply: Boolean(product.is_supply),
+        commission_percentage:
+          product.commission_percentage != null && Number(product.commission_percentage) > 0
+            ? String(product.commission_percentage)
+            : "",
+        commission_fixed:
+          product.commission_fixed != null && Number(product.commission_fixed) > 0
+            ? String(product.commission_fixed)
+            : "",
       });
       setImagePreview(product.image_url || null);
       return;
@@ -226,8 +236,10 @@ export function CreateProductDialog({
       image_url: form.image_url || null,
       is_active: product?.is_active ?? true,
       is_supply: form.is_supply,
-      commission_percentage: product?.commission_percentage ?? null,
-      commission_fixed: product?.commission_fixed ?? null,
+      commission_percentage:
+        form.commission_percentage === "" ? null : Number(form.commission_percentage) || 0,
+      commission_fixed:
+        form.commission_fixed === "" ? null : Number(form.commission_fixed) || 0,
     };
     setSaving(true);
     try {
@@ -394,6 +406,46 @@ export function CreateProductDialog({
                 onChange={(value) => setForm({ ...form, cost: value })}
               />
             )}
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold text-slate-900">Comissão de venda</h3>
+              <p className="text-xs text-slate-500">
+                Use percentual ou valor fixo por unidade. No PDV e no orçamento, o fixo multiplica pela quantidade.
+                Preencher um zera o outro. O relatório fica em Relatórios → Comissões, por vendedor.
+              </p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field
+                label="Comissão (%)"
+                type="number"
+                hint="Percentual sobre o valor da linha."
+                value={form.commission_percentage}
+                onChange={(value) =>
+                  setForm({
+                    ...form,
+                    commission_percentage: value,
+                    commission_fixed:
+                      value !== "" && Number(value) > 0 ? "" : form.commission_fixed,
+                  })
+                }
+              />
+              <Field
+                label="Comissão fixa (R$)"
+                type="number"
+                hint="Valor fixo por unidade vendida."
+                value={form.commission_fixed}
+                onChange={(value) =>
+                  setForm({
+                    ...form,
+                    commission_fixed: value,
+                    commission_percentage:
+                      value !== "" && Number(value) > 0 ? "" : form.commission_percentage,
+                  })
+                }
+              />
+            </div>
           </section>
 
           <section className="grid gap-3 border-t bg-white pt-4 md:grid-cols-2">
