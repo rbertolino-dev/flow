@@ -32,9 +32,16 @@ interface ServiceOrderFilters {
   code?: string;
   responsible?: string;
   collaborator?: string;
+  service?: string;
+  equipment?: string;
+  address?: string;
   date_from?: string;
   date_to?: string;
   maintenance_only?: boolean;
+}
+
+function sanitizeIlikeTerm(value: string): string {
+  return value.trim().replace(/[%(),]/g, ' ').trim();
 }
 
 const ORDER_SELECT = `
@@ -329,6 +336,70 @@ export function useServiceOrders(
     try {
       setLoading(true);
 
+      const serviceTerm = filters?.service ? sanitizeIlikeTerm(filters.service) : '';
+      const addressTerm = filters?.address ? sanitizeIlikeTerm(filters.address) : '';
+      const equipmentTerm = filters?.equipment ? sanitizeIlikeTerm(filters.equipment) : '';
+
+      let equipmentOrderIds: string[] | null = null;
+      if (equipmentTerm) {
+        const pattern = `%${equipmentTerm}%`;
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        const { data: matchedEquipments } = await supabase
+          .from('equipments')
+          .select('id')
+          .eq('organization_id', activeOrgId)
+          .is('deleted_at', null)
+          .or(
+            [
+              `name.ilike.${pattern}`,
+              `equipment_type.ilike.${pattern}`,
+              `brand.ilike.${pattern}`,
+              `model.ilike.${pattern}`,
+              `serial_number.ilike.${pattern}`,
+            ].join(',')
+          )
+          .limit(200);
+        const equipmentIds = ((matchedEquipments || []) as Array<{ id: string }>).map((row) => row.id);
+        const idSet = new Set<string>();
+        if (equipmentIds.length) {
+          // @ts-expect-error tabela ainda nao tipada no client gerado
+          const { data: links } = await supabase
+            .from('service_order_equipments')
+            .select('service_order_id')
+            .eq('organization_id', activeOrgId)
+            .in('equipment_id', equipmentIds);
+          ((links || []) as Array<{ service_order_id: string }>).forEach((link) => {
+            idSet.add(link.service_order_id);
+          });
+        }
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        const { data: bySerial } = await supabase
+          .from('service_orders')
+          .select('id')
+          .eq('organization_id', activeOrgId)
+          .is('deleted_at', null)
+          .ilike('equipment_serial', pattern)
+          .limit(200);
+        ((bySerial || []) as Array<{ id: string }>).forEach((row) => idSet.add(row.id));
+        equipmentOrderIds = Array.from(idSet);
+        if (!equipmentOrderIds.length) {
+          setOrders([]);
+          // @ts-expect-error tabela ainda nao tipada no client gerado
+          const { data: countRows } = await supabase
+            .from('service_orders')
+            .select('status_id')
+            .eq('organization_id', activeOrgId)
+            .is('deleted_at', null);
+          const counts: Record<string, number> = {};
+          ((countRows || []) as Array<{ status_id: string | null }>).forEach((o) => {
+            const key = o.status_id || 'none';
+            counts[key] = (counts[key] || 0) + 1;
+          });
+          setStatusCounts(counts);
+          return;
+        }
+      }
+
       // @ts-expect-error tabela ainda nao tipada no client gerado
       let query = supabase
         .from('service_orders')
@@ -348,6 +419,15 @@ export function useServiceOrders(
       }
       if (filters?.collaborator) {
         query = query.ilike('collaborator_name', `%${filters.collaborator}%`);
+      }
+      if (serviceTerm) {
+        query = query.ilike('service_name', `%${serviceTerm}%`);
+      }
+      if (addressTerm) {
+        query = query.ilike('address', `%${addressTerm}%`);
+      }
+      if (equipmentOrderIds) {
+        query = query.in('id', equipmentOrderIds);
       }
       if (filters?.date_from) {
         query = query.gte('starts_at', filters.date_from);
@@ -371,6 +451,9 @@ export function useServiceOrders(
         if (filters?.code) plain = plain.ilike('code', `%${filters.code}%`);
         if (filters?.responsible) plain = plain.ilike('responsible_name', `%${filters.responsible}%`);
         if (filters?.collaborator) plain = plain.ilike('collaborator_name', `%${filters.collaborator}%`);
+        if (serviceTerm) plain = plain.ilike('service_name', `%${serviceTerm}%`);
+        if (addressTerm) plain = plain.ilike('address', `%${addressTerm}%`);
+        if (equipmentOrderIds) plain = plain.in('id', equipmentOrderIds);
         if (filters?.date_from) plain = plain.gte('starts_at', filters.date_from);
         if (filters?.date_to) plain = plain.lte('starts_at', filters.date_to);
         const retry = await plain;
@@ -388,8 +471,10 @@ export function useServiceOrders(
             o.code?.toLowerCase().includes(q) ||
             o.client_name?.toLowerCase().includes(q) ||
             o.service_name?.toLowerCase().includes(q) ||
+            o.address?.toLowerCase().includes(q) ||
             o.diagnosis?.toLowerCase().includes(q) ||
-            o.responsible_name?.toLowerCase().includes(q)
+            o.responsible_name?.toLowerCase().includes(q) ||
+            o.equipment_serial?.toLowerCase().includes(q)
         );
       }
 

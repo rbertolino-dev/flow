@@ -123,6 +123,9 @@ export default function ServiceOrders() {
   const [codeFilter, setCodeFilter] = useState('');
   const [responsibleFilter, setResponsibleFilter] = useState('');
   const [collaboratorFilter, setCollaboratorFilter] = useState('');
+  const [serviceFilter, setServiceFilter] = useState('');
+  const [equipmentFilter, setEquipmentFilter] = useState('');
+  const [addressFilter, setAddressFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [periodFilterOpen, setPeriodFilterOpen] = useState(false);
@@ -132,6 +135,9 @@ export default function ServiceOrders() {
     code?: string;
     responsible?: string;
     collaborator?: string;
+    service?: string;
+    equipment?: string;
+    address?: string;
     date_from?: string;
     date_to?: string;
     status_id?: string;
@@ -246,6 +252,9 @@ export default function ServiceOrders() {
       code: appliedFilters.code,
       responsible: appliedFilters.responsible,
       collaborator: appliedFilters.collaborator,
+      service: appliedFilters.service,
+      equipment: appliedFilters.equipment,
+      address: appliedFilters.address,
       date_from: appliedFilters.date_from,
       date_to: appliedFilters.date_to,
       status_id: appliedFilters.status_id,
@@ -363,9 +372,12 @@ export default function ServiceOrders() {
 
   const handleApplyFilters = () => {
     setAppliedFilters({
-      code: codeFilter || undefined,
-      responsible: responsibleFilter || undefined,
-      collaborator: collaboratorFilter || undefined,
+      code: codeFilter.trim() || undefined,
+      responsible: responsibleFilter.trim() || undefined,
+      collaborator: collaboratorFilter.trim() || undefined,
+      service: serviceFilter.trim() || undefined,
+      equipment: equipmentFilter.trim() || undefined,
+      address: addressFilter.trim() || undefined,
       date_from: dateFrom ? new Date(dateFrom).toISOString() : undefined,
       date_to: dateTo ? new Date(dateTo).toISOString() : undefined,
       status_id: statusFilter !== 'all' ? statusFilter : undefined,
@@ -1107,7 +1119,15 @@ export default function ServiceOrders() {
         </div>
 
         {/* Filters */}
-        <div className="border rounded-lg p-4 space-y-3 bg-card">
+        <div
+          className="border rounded-lg p-4 space-y-3 bg-card"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              handleApplyFilters();
+            }
+          }}
+        >
           <button
             type="button"
             className="flex w-full items-center justify-between gap-2 text-left"
@@ -1165,6 +1185,35 @@ export default function ServiceOrders() {
                 value={collaboratorFilter}
                 onChange={(e) => setCollaboratorFilter(e.target.value)}
                 placeholder="Colaborador"
+              />
+            </div>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label>Serviço</Label>
+              <Input
+                value={serviceFilter}
+                onChange={(e) => setServiceFilter(e.target.value)}
+                placeholder="Buscar por serviço"
+                data-testid="os-filter-service"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Equipamento</Label>
+              <Input
+                value={equipmentFilter}
+                onChange={(e) => setEquipmentFilter(e.target.value)}
+                placeholder="Nome, marca, modelo ou série"
+                data-testid="os-filter-equipment"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Endereço</Label>
+              <Input
+                value={addressFilter}
+                onChange={(e) => setAddressFilter(e.target.value)}
+                placeholder="Buscar por endereço"
+                data-testid="os-filter-address"
               />
             </div>
           </div>
