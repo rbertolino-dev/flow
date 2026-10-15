@@ -38,6 +38,7 @@ export function ContractTemplateEditor({
     name: '',
     description: '',
     content: '',
+    acceptance_terms: '',
     cover_page_url: '',
   });
   const [detectedVariables, setDetectedVariables] = useState<string[]>([]);
@@ -54,6 +55,7 @@ export function ContractTemplateEditor({
           name: templateToEdit.name,
           description: templateToEdit.description || '',
           content: templateToEdit.content,
+          acceptance_terms: templateToEdit.acceptance_terms || '',
           cover_page_url: templateToEdit.cover_page_url || '',
         });
         setDetectedVariables(templateToEdit.variables || []);
@@ -65,6 +67,7 @@ export function ContractTemplateEditor({
           name: '',
           description: '',
           content: '',
+          acceptance_terms: '',
           cover_page_url: '',
         });
         setDetectedVariables([]);
@@ -198,7 +201,7 @@ export function ContractTemplateEditor({
     try {
       await deleteTemplate(templateId);
       if (template && template.id === templateId) {
-        setFormData({ name: '', description: '', content: '', cover_page_url: '' });
+        setFormData({ name: '', description: '', content: '', acceptance_terms: '', cover_page_url: '' });
         setCoverPreview('');
         setDetectedVariables([]);
       }
@@ -239,6 +242,7 @@ export function ContractTemplateEditor({
           name: formData.name,
           description: formData.description,
           content: formData.content,
+          acceptance_terms: formData.acceptance_terms || null,
           cover_page_url: formData.cover_page_url || undefined,
           variables: detectedVariables,
           is_active: true,
@@ -317,6 +321,7 @@ export function ContractTemplateEditor({
                                 name: t.name,
                                 description: t.description || '',
                                 content: t.content,
+                                acceptance_terms: t.acceptance_terms || '',
                                 cover_page_url: t.cover_page_url || '',
                               });
                               setDetectedVariables(t.variables || []);
@@ -528,6 +533,21 @@ export function ContractTemplateEditor({
             />
             <p className="text-xs text-muted-foreground">
               Clique nas variáveis acima para inserir no texto
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="template-acceptance-terms">Termos de aceite (assinatura digital)</Label>
+            <Textarea
+              id="template-acceptance-terms"
+              value={formData.acceptance_terms}
+              onChange={(e) => setFormData({ ...formData, acceptance_terms: e.target.value })}
+              placeholder="Texto que o cliente lerá e deverá aceitar antes de assinar (LGPD, validade da assinatura eletrônica, etc.). Se vazio, será usado um texto padrão."
+              rows={8}
+              className="text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Exibido na página pública de assinatura, acima do checkbox &quot;Li e aceito&quot;. Copiado para cada contrato criado a partir deste template.
             </p>
           </div>
 

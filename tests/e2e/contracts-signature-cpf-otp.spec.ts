@@ -34,6 +34,7 @@ test.describe('Contratos - Assinatura CPF + OTP @human-behavior', () => {
             status: 'sent',
             signature_token: FAKE_TOKEN,
             title: 'Contrato E2E OTP',
+            acceptance_terms: 'Termos de teste E2E para aceite na assinatura.',
             lead: {
               id: '33333333-3333-4333-8333-333333333333',
               name: 'Cliente E2E',
@@ -178,7 +179,9 @@ test.describe('Contratos - Assinatura CPF + OTP @human-behavior', () => {
     await human.hesitate(200, 400);
     await human.humanClick(page.getByTestId('verify-otp-btn'));
 
-    // Etapa 3: assinatura
+    // Etapa 3: assinatura + leitura dos termos
+    await expect(page.getByTestId('acceptance-terms-block')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/Termos de teste E2E/i)).toBeVisible();
     await expect(page.getByTestId('accept-terms')).toBeVisible({ timeout: 10000 });
 
     const canvas = page.locator('canvas').first();

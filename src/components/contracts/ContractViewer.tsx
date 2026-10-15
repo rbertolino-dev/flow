@@ -16,7 +16,9 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { maskCpf } from '@/lib/cpfValidator';
+import { DEFAULT_CONTRACT_ACCEPTANCE_TERMS } from '@/types/contract';
 import {
   Dialog,
   DialogContent,
@@ -79,7 +81,15 @@ export function ContractViewer({
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [savingTitle, setSavingTitle] = useState(false);
+  const [editingTerms, setEditingTerms] = useState(false);
+  const [termsDraft, setTermsDraft] = useState('');
+  const [savingTerms, setSavingTerms] = useState(false);
   const { toast } = useToast();
+
+  const currentTerms =
+    (contract.acceptance_terms ||
+      contract.template?.acceptance_terms ||
+      '').trim() || DEFAULT_CONTRACT_ACCEPTANCE_TERMS;
 
   const rawPdfUrl = contract.signed_pdf_url || contract.pdf_url;
   const pdfUrl = rawPdfUrl
@@ -332,6 +342,84 @@ export function ContractViewer({
           </div>
 
           <Separator />
+
+          {/* Termos de aceite da assinatura digital */}
+          <div className="p-4 bg-muted/40 border rounded-lg space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Shield className="h-5 w-5 text-primary" />
+                  <p className="font-semibold">Termos de aceite (assinatura)</p>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Texto que o cliente lê e aceita antes de assinar digitalmente
+                </p>
+              </div>
+              {!editingTerms && contract.status !== 'signed' && contract.status !== 'cancelled' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setTermsDraft(contract.acceptance_terms || contract.template?.acceptance_terms || DEFAULT_CONTRACT_ACCEPTANCE_TERMS);
+                    setEditingTerms(true);
+                  }}
+                >
+                  <Pencil className="h-4 w-4 mr-1" />
+                  Editar
+                </Button>
+              )}
+            </div>
+            {editingTerms ? (
+              <div className="space-y-2">
+                <Textarea
+                  value={termsDraft}
+                  onChange={(e) => setTermsDraft(e.target.value)}
+                  rows={8}
+                  className="text-sm"
+                  data-testid="contract-acceptance-terms-edit"
+                />
+                <div className="flex gap-2 justify-end">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setEditingTerms(false)} disabled={savingTerms}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={savingTerms || !termsDraft.trim()}
+                    onClick={async () => {
+                      setSavingTerms(true);
+                      try {
+                        const next = termsDraft.trim();
+                        const { error } = await supabase
+                          .from('contracts')
+                          .update({ acceptance_terms: next })
+                          .eq('id', contract.id);
+                        if (error) throw error;
+                        onContractUpdated?.({ ...contract, acceptance_terms: next });
+                        setEditingTerms(false);
+                        toast({ title: 'Termos salvos', description: 'Os termos de aceite foram atualizados.' });
+                      } catch (err: unknown) {
+                        toast({
+                          title: 'Erro',
+                          description: err instanceof Error ? err.message : 'Não foi possível salvar os termos',
+                          variant: 'destructive',
+                        });
+                      } finally {
+                        setSavingTerms(false);
+                      }
+                    }}
+                  >
+                    {savingTerms ? 'Salvando...' : 'Salvar termos'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="max-h-40 overflow-y-auto rounded border bg-background p-3 text-sm whitespace-pre-wrap text-muted-foreground">
+                {currentTerms}
+              </div>
+            )}
+          </div>
 
           {/* Card destacado para editar mensagem WhatsApp - SEMPRE VISÍVEL */}
           <div className="p-4 bg-primary/5 border-2 border-primary/20 rounded-lg">

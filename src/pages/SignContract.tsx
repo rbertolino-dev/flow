@@ -13,6 +13,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { generateContractPDF } from '@/lib/contractPdfGenerator';
 import { getSignaturePositions } from '@/lib/pdfAnnotationUtils';
 import { cleanCpf, formatCpf, isValidCpf } from '@/lib/cpfValidator';
+import { DEFAULT_CONTRACT_ACCEPTANCE_TERMS } from '@/types/contract';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface ContractData {
   id: string;
@@ -21,6 +23,7 @@ interface ContractData {
   content: string;
   pdf_url: string | null;
   status: string;
+  acceptance_terms?: string | null;
   lead: {
     id: string;
     name: string;
@@ -28,6 +31,7 @@ interface ContractData {
   };
   template?: {
     cover_page_url?: string;
+    acceptance_terms?: string | null;
   };
 }
 
@@ -82,7 +86,7 @@ export default function SignContract() {
         .select(`
           *,
           lead:leads(id, name, phone),
-          template:contract_templates(cover_page_url),
+          template:contract_templates(cover_page_url, acceptance_terms),
           organization_id
         `)
         .eq('id', contractId!)
@@ -387,6 +391,11 @@ export default function SignContract() {
       }
 
       const cpfDigits = cleanCpf(signerCpf);
+      const termsSnapshot = (
+        contract.acceptance_terms ||
+        contract.template?.acceptance_terms ||
+        DEFAULT_CONTRACT_ACCEPTANCE_TERMS
+      ).trim();
 
       const signaturePayload: Record<string, unknown> = {
         contract_id: contract.id,
@@ -398,6 +407,9 @@ export default function SignContract() {
         otp_verified: true,
         otp_verified_at: otpVerifiedAt,
         identity_verification_method: 'cpf_whatsapp_otp',
+        terms_accepted: true,
+        terms_accepted_at: signedAt,
+        accepted_terms_snapshot: termsSnapshot,
       };
 
       if (ipAddress) signaturePayload.ip_address = ipAddress;
@@ -859,18 +871,40 @@ export default function SignContract() {
                     )}
                   </div>
 
-                  <div className="flex items-start gap-3">
-                    <Checkbox
-                      id="accept-terms"
-                      data-testid="accept-terms"
-                      checked={acceptedTerms}
-                      onCheckedChange={(v) => setAcceptedTerms(v === true)}
-                      disabled={signing}
-                    />
-                    <Label htmlFor="accept-terms" className="text-sm font-normal leading-relaxed cursor-pointer">
-                      Li e aceito os termos do contrato
-                    </Label>
-                  </div>
+                  {(() => {
+                    const termsText =
+                      (contract.acceptance_terms ||
+                        contract.template?.acceptance_terms ||
+                        DEFAULT_CONTRACT_ACCEPTANCE_TERMS).trim();
+                    return (
+                      <div className="space-y-3" data-testid="acceptance-terms-block">
+                        <Label>Termos de aceite *</Label>
+                        <ScrollArea className="h-48 w-full rounded-md border bg-muted/30 p-3">
+                          <div className="pr-3 text-sm whitespace-pre-wrap leading-relaxed text-foreground">
+                            {termsText}
+                          </div>
+                        </ScrollArea>
+                        <p className="text-xs text-muted-foreground">
+                          Leia os termos acima e o conteúdo do contrato antes de aceitar.
+                        </p>
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            id="accept-terms"
+                            data-testid="accept-terms"
+                            checked={acceptedTerms}
+                            onCheckedChange={(v) => setAcceptedTerms(v === true)}
+                            disabled={signing}
+                          />
+                          <Label
+                            htmlFor="accept-terms"
+                            className="text-sm font-normal leading-relaxed cursor-pointer"
+                          >
+                            Li e aceito os termos acima e o conteúdo deste contrato
+                          </Label>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   <Button
                     type="submit"

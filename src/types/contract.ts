@@ -2,12 +2,24 @@ export type ContractStatus = 'draft' | 'sent' | 'signed' | 'expired' | 'cancelle
 export type SignerType = 'user' | 'client';
 export type StorageType = 'supabase' | 'firebase' | 's3' | 'custom';
 
+/** Texto padrão se o template/contrato não tiver termos configurados */
+export const DEFAULT_CONTRACT_ACCEPTANCE_TERMS = `Ao assinar eletronicamente este documento, declaro que:
+
+1. Li e compreendi o conteúdo completo do contrato exibido nesta página (incluindo o PDF, quando disponível);
+2. Concordo com todas as cláusulas e condições nele descritas;
+3. Autorizo a coleta da minha assinatura eletrônica, identificação (nome e CPF) e código de verificação via WhatsApp, bem como o registro de data/hora, IP e dados do dispositivo para fins de prova do aceite;
+4. Reconheço que esta assinatura eletrônica tem validade nos termos da Lei nº 14.063/2020 (assinatura eletrônica simples).
+
+Em caso de dúvidas, entre em contato com a empresa responsável antes de assinar.`;
+
 export interface ContractTemplate {
   id: string;
   organization_id: string;
   name: string;
   description?: string;
   content: string;
+  /** Termos exibidos ao cliente na hora de assinar */
+  acceptance_terms?: string | null;
   variables: string[];
   cover_page_url?: string; // URL da folha de rosto (imagem de fundo)
   is_active: boolean;
@@ -32,6 +44,8 @@ export interface Contract {
   whatsapp_message_template?: string; // Template personalizado da mensagem WhatsApp
   /** Instância Evolution usada no envio (OTP deve usar a mesma) */
   whatsapp_instance_id?: string | null;
+  /** Termos de aceite exibidos na assinatura */
+  acceptance_terms?: string | null;
   status: ContractStatus;
   expires_at?: string;
   signed_at?: string;
@@ -71,6 +85,10 @@ export interface ContractSignature {
   otp_verified_at?: string;
   /** Ex: cpf_whatsapp_otp */
   identity_verification_method?: string;
+  terms_accepted?: boolean;
+  terms_accepted_at?: string;
+  /** Snapshot dos termos aceitos no momento da assinatura */
+  accepted_terms_snapshot?: string | null;
   created_at: string;
 }
 

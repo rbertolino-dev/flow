@@ -160,6 +160,7 @@ export function useContracts(filters?: ContractFilters) {
     category_id?: string; // Nova: categoria do contrato
     expires_at?: string;
     title?: string;
+    acceptance_terms?: string;
   }) => {
     if (!activeOrgId) throw new Error('Organização não encontrada');
 
@@ -183,12 +184,16 @@ export function useContracts(filters?: ContractFilters) {
         .eq('id', contractData.lead_id)
         .single();
 
-      // Buscar template para folha de rosto e nome (título padrão)
-      let templateData: { cover_page_url?: string | null; name?: string } | null = null;
+      // Buscar template para folha de rosto, nome e termos de aceite
+      let templateData: {
+        cover_page_url?: string | null;
+        name?: string;
+        acceptance_terms?: string | null;
+      } | null = null;
       if (contractData.template_id) {
         const { data: template } = await supabase
           .from('contract_templates')
-          .select('cover_page_url, name')
+          .select('cover_page_url, name, acceptance_terms')
           .eq('id', contractData.template_id)
           .single();
         templateData = template;
@@ -215,7 +220,11 @@ export function useContracts(filters?: ContractFilters) {
         .map((b) => b.toString(16).padStart(2, '0'))
         .join('');
 
-      const { title: _titleInput, ...restContractData } = contractData;
+      const { title: _titleInput, acceptance_terms: acceptanceTermsInput, ...restContractData } =
+        contractData as typeof contractData & { acceptance_terms?: string };
+
+      const acceptanceTerms =
+        (acceptanceTermsInput || templateData?.acceptance_terms || '').trim() || null;
 
       let { data: contract, error: insertError } = await supabase
         .from('contracts')
@@ -227,6 +236,7 @@ export function useContracts(filters?: ContractFilters) {
           content: contractData.content,
           signature_token: signatureToken,
           title: contractTitle,
+          acceptance_terms: acceptanceTerms,
         })
         .select(`
           *,
@@ -247,6 +257,7 @@ export function useContracts(filters?: ContractFilters) {
             status: 'draft',
             content: contractData.content,
             signature_token: signatureToken,
+            acceptance_terms: acceptanceTerms,
           })
           .select(`
             *,
