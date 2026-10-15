@@ -8,6 +8,10 @@ export interface CommissionSalesRow {
   salesSum: number;
   discountsSum: number;
   commissionSum: number;
+  /** Comissão de vendas com origem PDV (ou sem sale_origin). */
+  pdvCommissionSum: number;
+  /** Comissão de vendas espelho de orçamento. */
+  orcamentoCommissionSum: number;
 }
 
 export interface CommissionOsRow {
@@ -50,6 +54,7 @@ export function buildSalesCommissionRows(
     const userId = sale.commission_user_id;
     const userName = (sale.commission_user_name || "Sem usuário").trim() || "Sem usuário";
     const userKey = userId || `name:${userName.toLowerCase()}`;
+    const fromBudget = String(sale.sale_origin || "pdv") === "orcamento";
 
     const existing = map.get(userKey);
     if (!existing) {
@@ -60,12 +65,16 @@ export function buildSalesCommissionRows(
         salesSum: Number(sale.total || 0),
         discountsSum: Number(sale.discount_amount || 0),
         commissionSum: amount,
+        pdvCommissionSum: fromBudget ? 0 : amount,
+        orcamentoCommissionSum: fromBudget ? amount : 0,
       });
     } else {
       existing.salesCount += 1;
       existing.salesSum += Number(sale.total || 0);
       existing.discountsSum += Number(sale.discount_amount || 0);
       existing.commissionSum += amount;
+      if (fromBudget) existing.orcamentoCommissionSum += amount;
+      else existing.pdvCommissionSum += amount;
     }
   }
 
@@ -75,6 +84,8 @@ export function buildSalesCommissionRows(
       salesSum: roundMoney(row.salesSum),
       discountsSum: roundMoney(row.discountsSum),
       commissionSum: roundMoney(row.commissionSum),
+      pdvCommissionSum: roundMoney(row.pdvCommissionSum),
+      orcamentoCommissionSum: roundMoney(row.orcamentoCommissionSum),
     }))
     .sort((a, b) => a.userName.localeCompare(b.userName, "pt-BR"));
 }

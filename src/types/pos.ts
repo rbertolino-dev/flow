@@ -394,6 +394,8 @@ export interface FinalizeSalePayload {
   promotion_name?: string | null;
   notes?: string | null;
   add_commission?: boolean;
+  /** Usado quando sale_origin=orcamento: valor já calculado na aprovação. */
+  commission_amount?: number;
   commission_user_id?: string | null;
   commission_user_name?: string | null;
   lead_id?: string | null;

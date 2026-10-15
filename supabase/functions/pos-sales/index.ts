@@ -1536,34 +1536,45 @@ serve(async (req) => {
           }, 400);
         }
 
+        const saleOrigin = String(body.sale_origin || "pdv");
         let commissionAmount = 0;
         if (addCommission) {
-          let uncovered = 0;
-          for (const item of normalizedItems) {
-            let own = 0;
-            if (item.item_type === "product" && item.item_id) {
-              const prod = await pg.queryObject<{
-                commission_percentage: number | null;
-                commission_fixed: number | null;
-              }>`
-                SELECT commission_percentage, commission_fixed
-                FROM products
-                WHERE id = ${item.item_id} AND organization_id = ${organizationId}
-                LIMIT 1
-              `;
-              const pct = Number(prod.rows[0]?.commission_percentage || 0);
-              const fixed = Number(prod.rows[0]?.commission_fixed || 0);
-              if (pct > 0 || fixed > 0) {
-                own = (item.total_price * pct) / 100 + fixed * item.quantity;
+          const explicitAmount = Number(body.commission_amount);
+          const useBudgetAmount =
+            saleOrigin === "orcamento" &&
+            Number.isFinite(explicitAmount) &&
+            explicitAmount >= 0;
+          if (useBudgetAmount) {
+            commissionAmount = Math.round(explicitAmount * 100) / 100;
+          } else {
+            let uncovered = 0;
+            for (const item of normalizedItems) {
+              let own = 0;
+              if (item.item_type === "product" && item.item_id) {
+                const prod = await pg.queryObject<{
+                  commission_percentage: number | null;
+                  commission_fixed: number | null;
+                }>`
+                  SELECT commission_percentage, commission_fixed
+                  FROM products
+                  WHERE id = ${item.item_id} AND organization_id = ${organizationId}
+                  LIMIT 1
+                `;
+                const pct = Number(prod.rows[0]?.commission_percentage || 0);
+                const fixed = Number(prod.rows[0]?.commission_fixed || 0);
+                if (pct > 0 || fixed > 0) {
+                  own = (item.total_price * pct) / 100 + fixed * item.quantity;
+                }
               }
+              if (own > 0) commissionAmount += own;
+              else uncovered += item.total_price;
             }
-            if (own > 0) commissionAmount += own;
-            else uncovered += item.total_price;
-          }
-          const dtype = body.default_commission_type === "fixed" ? "fixed" : "percent";
-          const dvalue = Number(body.default_commission_value || 0);
-          if (dvalue > 0 && uncovered > 0.009) {
-            commissionAmount += dtype === "fixed" ? dvalue : (uncovered * dvalue) / 100;
+            const dtype = body.default_commission_type === "fixed" ? "fixed" : "percent";
+            const dvalue = Number(body.default_commission_value || 0);
+            if (dvalue > 0 && uncovered > 0.009) {
+              commissionAmount += dtype === "fixed" ? dvalue : (uncovered * dvalue) / 100;
+            }
+            commissionAmount = Math.round(commissionAmount * 100) / 100;
           }
         }
 
@@ -1690,7 +1701,7 @@ serve(async (req) => {
               ${user.id}, ${userName}, ${soldAt}, ${body.supplier_name || null},
               ${applyStock}, ${generateFinancial}, ${paymentDate}, ${body.payment_notes || null},
               ${body.sale_description || null}, ${body.financial_account || null}, ${body.financial_category || null},
-              ${body.sale_origin || "pdv"}, ${requestId}
+              ${saleOrigin}, ${requestId}
             )
             RETURNING id, sale_number
           `;

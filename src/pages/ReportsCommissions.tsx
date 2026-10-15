@@ -68,6 +68,8 @@ export default function ReportsCommissions() {
                         <TableHead className="text-right font-semibold text-slate-700">Qntd de Vendas</TableHead>
                         <TableHead className="text-right font-semibold text-slate-700">Soma das Vendas</TableHead>
                         <TableHead className="text-right font-semibold text-slate-700">Descontos</TableHead>
+                        <TableHead className="text-right font-semibold text-slate-700">PDV</TableHead>
+                        <TableHead className="text-right font-semibold text-slate-700">Orçamento</TableHead>
                         <TableHead className="text-right font-semibold text-slate-700">Comissão</TableHead>
                         <TableHead className="text-right font-semibold text-slate-700" />
                       </TableRow>
@@ -82,6 +84,12 @@ export default function ReportsCommissions() {
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
                             {formatCommissionMoney(row.discountsSum)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatCommissionMoney(row.pdvCommissionSum)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatCommissionMoney(row.orcamentoCommissionSum)}
                           </TableCell>
                           <TableCell className="text-right tabular-nums font-medium">
                             {formatCommissionMoney(row.commissionSum)}

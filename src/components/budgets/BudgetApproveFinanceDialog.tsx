@@ -31,6 +31,10 @@ import {
   type PosSplitMode,
 } from '@/lib/posFinanceSchedule';
 import type { BudgetFinanceChoice, BudgetProduct } from '@/types/budget';
+import {
+  fetchProductCommissionRates,
+  sumLinesCommission,
+} from '@/lib/productCommission';
 
 interface BudgetApproveFinanceDialogProps {
   budgetId: string | null;
@@ -180,25 +184,20 @@ export function BudgetApproveFinanceDialog({
         .map((item) => item.id)
         .filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
       if (!productIds.length || !activeOrgId) return;
-      const { data: productRows } = await client
-        .from('products')
-        .select('id, commission_percentage, commission_fixed')
-        .eq('organization_id', activeOrgId)
-        .in('id', productIds);
-      if (cancelled || !productRows) return;
-      const rates = new Map(productRows.map((row) => [String(row.id), {
-        commission_percentage: Number(row.commission_percentage) || 0,
-        commission_fixed: Number(row.commission_fixed) || 0,
-      }]));
-      const amount = products.reduce((sum, item) => {
-        const rate = rates.get(item.id);
-        if (!rate) return sum;
-        const lineTotal = Number(item.subtotal || item.price * (item.quantity || 1)) || 0;
-        const percent = rate.commission_percentage;
-        const fixed = rate.commission_fixed;
-        return sum + (lineTotal * percent) / 100 + fixed * (item.quantity || 1);
-      }, 0);
-      setCommissionAmount(roundMoney(amount));
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (cancelled || !session?.access_token) return;
+        const rates = await fetchProductCommissionRates(
+          activeOrgId,
+          session.access_token,
+          productIds,
+        );
+        if (cancelled) return;
+        setCommissionAmount(sumLinesCommission(products, rates));
+      } catch (error) {
+        console.error('Erro ao calcular comissão do orçamento:', error);
+        if (!cancelled) setCommissionAmount(0);
+      }
     })();
 
     return () => {

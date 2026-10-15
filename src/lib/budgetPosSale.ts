@@ -122,6 +122,7 @@ export function buildBudgetPosSalePayload(input: {
         Number(input.choice.commissionAmount) > 0.009 &&
         input.choice.commissionUserId,
     ),
+    commission_amount: Number(input.choice.commissionAmount) || 0,
     commission_user_id: input.choice.commissionUserId || null,
     commission_user_name: input.choice.commissionUserName || null,
     sale_origin: "orcamento",
