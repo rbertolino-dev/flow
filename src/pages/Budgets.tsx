@@ -94,6 +94,8 @@ export default function Budgets() {
 
   // Filtros de orçamentos
   const [budgetClientFilter, setBudgetClientFilter] = useState<string>('all');
+  const [budgetClientSearch, setBudgetClientSearch] = useState('');
+  const [showBudgetClientResults, setShowBudgetClientResults] = useState(false);
   const [budgetDateFrom, setBudgetDateFrom] = useState<string>('');
   const [budgetDateTo, setBudgetDateTo] = useState<string>('');
   const [budgetExpiresFrom, setBudgetExpiresFrom] = useState<string>('');
@@ -157,6 +159,25 @@ export default function Budgets() {
       .filter((product) => product.category === budgetProductCategoryFilter)
       .map((product) => product.id);
   }, [stockProducts, budgetProductCategoryFilter]);
+
+  const selectedBudgetClient = useMemo(() => {
+    if (budgetClientFilter === 'all') return null;
+    return (leads || []).find((lead) => lead.id === budgetClientFilter) || null;
+  }, [leads, budgetClientFilter]);
+
+  const filteredBudgetClients = useMemo(() => {
+    const query = budgetClientSearch.trim().toLowerCase();
+    if (!query) return [];
+    return (leads || [])
+      .filter((lead) => {
+        const name = (lead.name || '').toLowerCase();
+        const phone = (lead.phone || '').toLowerCase();
+        const email = (lead.email || '').toLowerCase();
+        const company = (lead.company || '').toLowerCase();
+        return name.includes(query) || phone.includes(query) || email.includes(query) || company.includes(query);
+      })
+      .slice(0, 20);
+  }, [leads, budgetClientSearch]);
 
   const {
     budgets,
@@ -642,19 +663,68 @@ export default function Budgets() {
                   <PopoverContent align="end" className="w-[340px] space-y-3">
                     <div className="space-y-1.5">
                       <Label htmlFor="budget-client-filter">Cliente</Label>
-                      <Select value={budgetClientFilter} onValueChange={setBudgetClientFilter}>
-                        <SelectTrigger id="budget-client-filter">
-                          <SelectValue placeholder="Todos os clientes" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todos os clientes</SelectItem>
-                          {(leads || []).map((lead) => (
-                            <SelectItem key={lead.id} value={lead.id}>
-                              {lead.name || lead.phone}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                        <Input
+                          id="budget-client-filter"
+                          value={
+                            selectedBudgetClient && !showBudgetClientResults
+                              ? selectedBudgetClient.name || selectedBudgetClient.phone || ''
+                              : budgetClientSearch
+                          }
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setBudgetClientSearch(value);
+                            setShowBudgetClientResults(true);
+                            if (budgetClientFilter !== 'all') {
+                              setBudgetClientFilter('all');
+                            }
+                          }}
+                          onFocus={() => setShowBudgetClientResults(true)}
+                          placeholder="Buscar cliente por nome..."
+                          className="h-9 pl-9 pr-9"
+                          autoComplete="off"
+                        />
+                        {(budgetClientFilter !== 'all' || budgetClientSearch) && (
+                          <button
+                            type="button"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:text-slate-700"
+                            aria-label="Limpar cliente"
+                            onClick={() => {
+                              setBudgetClientFilter('all');
+                              setBudgetClientSearch('');
+                              setShowBudgetClientResults(false);
+                            }}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {showBudgetClientResults && budgetClientSearch.trim() && budgetClientFilter === 'all' ? (
+                          <div className="absolute z-30 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                            {filteredBudgetClients.length > 0 ? (
+                              filteredBudgetClients.map((lead) => (
+                                <button
+                                  key={lead.id}
+                                  type="button"
+                                  className="flex w-full flex-col border-b border-slate-100 px-3 py-2 text-left last:border-b-0 hover:bg-slate-50"
+                                  onClick={() => {
+                                    setBudgetClientFilter(lead.id);
+                                    setBudgetClientSearch(lead.name || lead.phone || '');
+                                    setShowBudgetClientResults(false);
+                                  }}
+                                >
+                                  <span className="text-sm font-medium text-slate-800">{lead.name || 'Sem nome'}</span>
+                                  <span className="text-xs text-slate-500">
+                                    {[lead.phone, lead.email].filter(Boolean).join(' · ')}
+                                  </span>
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-3 py-2 text-sm text-slate-500">Nenhum cliente encontrado</div>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="budget-status-filter">Status</Label>
@@ -739,6 +809,8 @@ export default function Budgets() {
                       onClick={() => {
                         setSearchQuery('');
                         setBudgetClientFilter('all');
+                        setBudgetClientSearch('');
+                        setShowBudgetClientResults(false);
                         setBudgetDateFrom('');
                         setBudgetDateTo('');
                         setBudgetExpiresFrom('');
