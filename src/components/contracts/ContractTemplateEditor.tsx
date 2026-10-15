@@ -7,13 +7,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useContractTemplates } from '@/hooks/useContractTemplates';
 import { CONTRACT_VARIABLES, CONTRACT_VARIABLES_DESTINATARIO, CONTRACT_VARIABLES_REMETENTE, CONTRACT_VARIABLES_GERAIS, ContractTemplate } from '@/types/contract';
-import { X, Upload, Image as ImageIcon, AlertCircle, Plus, Edit, Trash2, User, Building2, Calendar, Sparkles } from 'lucide-react';
+import { X, Upload, Image as ImageIcon, AlertCircle, Plus, Edit, Trash2, User, Building2, Calendar, Sparkles, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Switch } from '@/components/ui/switch';
 import { FileText } from 'lucide-react';
 
 interface ContractTemplateEditorProps {
@@ -40,6 +41,7 @@ export function ContractTemplateEditor({
     content: '',
     acceptance_terms: '',
     cover_page_url: '',
+    require_signature_otp: false,
   });
   const [detectedVariables, setDetectedVariables] = useState<string[]>([]);
   const [coverPreview, setCoverPreview] = useState<string>('');
@@ -57,6 +59,7 @@ export function ContractTemplateEditor({
           content: templateToEdit.content,
           acceptance_terms: templateToEdit.acceptance_terms || '',
           cover_page_url: templateToEdit.cover_page_url || '',
+          require_signature_otp: !!templateToEdit.require_signature_otp,
         });
         setDetectedVariables(templateToEdit.variables || []);
         setCoverPreview(templateToEdit.cover_page_url || '');
@@ -69,6 +72,7 @@ export function ContractTemplateEditor({
           content: '',
           acceptance_terms: '',
           cover_page_url: '',
+          require_signature_otp: false,
         });
         setDetectedVariables([]);
         setCoverPreview('');
@@ -201,7 +205,14 @@ export function ContractTemplateEditor({
     try {
       await deleteTemplate(templateId);
       if (template && template.id === templateId) {
-        setFormData({ name: '', description: '', content: '', acceptance_terms: '', cover_page_url: '' });
+        setFormData({
+          name: '',
+          description: '',
+          content: '',
+          acceptance_terms: '',
+          cover_page_url: '',
+          require_signature_otp: false,
+        });
         setCoverPreview('');
         setDetectedVariables([]);
       }
@@ -243,6 +254,7 @@ export function ContractTemplateEditor({
           description: formData.description,
           content: formData.content,
           acceptance_terms: formData.acceptance_terms || null,
+          require_signature_otp: formData.require_signature_otp,
           cover_page_url: formData.cover_page_url || undefined,
           variables: detectedVariables,
           is_active: true,
@@ -323,6 +335,7 @@ export function ContractTemplateEditor({
                                 content: t.content,
                                 acceptance_terms: t.acceptance_terms || '',
                                 cover_page_url: t.cover_page_url || '',
+                                require_signature_otp: !!t.require_signature_otp,
                               });
                               setDetectedVariables(t.variables || []);
                               setCoverPreview(t.cover_page_url || '');
@@ -549,6 +562,26 @@ export function ContractTemplateEditor({
             <p className="text-xs text-muted-foreground">
               Exibido na página pública de assinatura, acima do checkbox &quot;Li e aceito&quot;. Copiado para cada contrato criado a partir deste template.
             </p>
+          </div>
+
+
+          <div className="flex items-start justify-between gap-3 rounded-lg border p-4">
+            <div className="flex gap-3 flex-1 min-w-0">
+              <Shield className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+              <div className="space-y-1 min-w-0">
+                <Label htmlFor="template-require-otp" className="text-sm font-medium cursor-pointer">
+                  Código de segurança (CPF + WhatsApp) por padrão
+                </Label>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Contratos deste template nascem com autenticação reforçada. Dá para ligar/desligar em cada envio.
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="template-require-otp"
+              checked={formData.require_signature_otp}
+              onCheckedChange={(v) => setFormData({ ...formData, require_signature_otp: v })}
+            />
           </div>
 
           {/* Folha de Rosto */}

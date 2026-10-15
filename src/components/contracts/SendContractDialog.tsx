@@ -3,9 +3,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Contract } from '@/types/contract';
-import { Loader2, Send, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, Send, CheckCircle2, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useEvolutionConfigs } from '@/hooks/useEvolutionConfigs';
 
@@ -28,13 +29,16 @@ export function SendContractDialog({
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>('');
   const [hasBothSignatures, setHasBothSignatures] = useState(false);
   const [checkingSignatures, setCheckingSignatures] = useState(true);
+  const [requireSignatureOtp, setRequireSignatureOtp] = useState(false);
 
-  // Verificar se contrato tem ambas assinaturas
   useEffect(() => {
     if (open && contract.id) {
+      setRequireSignatureOtp(
+        !!(contract.require_signature_otp ?? contract.template?.require_signature_otp),
+      );
       checkSignatures();
     }
-  }, [open, contract.id]);
+  }, [open, contract.id, contract.require_signature_otp, contract.template?.require_signature_otp]);
 
   const checkSignatures = async () => {
     setCheckingSignatures(true);
@@ -100,9 +104,18 @@ export function SendContractDialog({
       const functionName = 'send-contract-whatsapp';
       
       // Para WhatsApp, usar formato da função existente
+      const { error: otpFlagError } = await supabase
+        .from('contracts')
+        .update({ require_signature_otp: requireSignatureOtp })
+        .eq('id', contract.id);
+      if (otpFlagError) {
+        console.warn('Não foi possível salvar require_signature_otp:', otpFlagError);
+      }
+
       const requestBodyForFunction = {
         contract_id: contract.id,
         instance_id: selectedInstanceId,
+        require_signature_otp: requireSignatureOtp,
       };
 
       console.log('📤 Enviando contrato:', {
@@ -242,6 +255,32 @@ export function SendContractDialog({
                   Será enviado para: {contract.lead.phone}
                 </p>
               )}
+
+            <div
+              className="flex items-start justify-between gap-3 rounded-lg border p-4"
+              data-testid="require-signature-otp-toggle"
+            >
+              <div className="flex gap-3 flex-1 min-w-0">
+                <Shield className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                <div className="space-y-1 min-w-0">
+                  <Label htmlFor="require-otp" className="text-sm font-medium cursor-pointer">
+                    Código de segurança (CPF + WhatsApp)
+                  </Label>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {requireSignatureOtp
+                      ? 'O cliente precisará informar o CPF e confirmar um código enviado no WhatsApp antes de assinar.'
+                      : 'Assinatura padrão: nome, desenho da assinatura e aceite dos termos (sem código).'}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="require-otp"
+                checked={requireSignatureOtp}
+                onCheckedChange={setRequireSignatureOtp}
+                disabled={sending}
+              />
+            </div>
+
             </div>
           </div>
         )}

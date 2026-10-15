@@ -189,11 +189,12 @@ export function useContracts(filters?: ContractFilters) {
         cover_page_url?: string | null;
         name?: string;
         acceptance_terms?: string | null;
+        require_signature_otp?: boolean | null;
       } | null = null;
       if (contractData.template_id) {
         const { data: template } = await supabase
           .from('contract_templates')
-          .select('cover_page_url, name, acceptance_terms')
+          .select('cover_page_url, name, acceptance_terms, require_signature_otp')
           .eq('id', contractData.template_id)
           .single();
         templateData = template;
@@ -220,11 +221,23 @@ export function useContracts(filters?: ContractFilters) {
         .map((b) => b.toString(16).padStart(2, '0'))
         .join('');
 
-      const { title: _titleInput, acceptance_terms: acceptanceTermsInput, ...restContractData } =
-        contractData as typeof contractData & { acceptance_terms?: string };
+      const {
+        title: _titleInput,
+        acceptance_terms: acceptanceTermsInput,
+        require_signature_otp: requireOtpInput,
+        ...restContractData
+      } = contractData as typeof contractData & {
+        acceptance_terms?: string;
+        require_signature_otp?: boolean;
+      };
 
       const acceptanceTerms =
         (acceptanceTermsInput || templateData?.acceptance_terms || '').trim() || null;
+
+      const requireSignatureOtp =
+        typeof requireOtpInput === 'boolean'
+          ? requireOtpInput
+          : !!templateData?.require_signature_otp;
 
       let { data: contract, error: insertError } = await supabase
         .from('contracts')
@@ -237,6 +250,7 @@ export function useContracts(filters?: ContractFilters) {
           signature_token: signatureToken,
           title: contractTitle,
           acceptance_terms: acceptanceTerms,
+          require_signature_otp: requireSignatureOtp,
         })
         .select(`
           *,
@@ -258,6 +272,7 @@ export function useContracts(filters?: ContractFilters) {
             content: contractData.content,
             signature_token: signatureToken,
             acceptance_terms: acceptanceTerms,
+            require_signature_otp: requireSignatureOtp,
           })
           .select(`
             *,

@@ -123,6 +123,7 @@ serve(async (req) => {
       .from("contracts")
       .select(`
         id, organization_id, status, expires_at, signature_token, whatsapp_instance_id,
+        require_signature_otp,
         lead:leads(id, name, phone, source_instance_id)
       `)
       .eq("id", contractId)
@@ -131,6 +132,12 @@ serve(async (req) => {
 
     if (contractError || !contract) {
       return json(404, { error: "Contrato não encontrado ou link inválido" });
+    }
+    if (!contract.require_signature_otp) {
+      return json(400, {
+        error:
+          "Este contrato usa assinatura padrão (sem código WhatsApp). Ative a opção de código de segurança no contrato antes de enviar.",
+      });
     }
     if (contract.status === "cancelled") {
       return json(400, { error: "Este contrato foi cancelado" });

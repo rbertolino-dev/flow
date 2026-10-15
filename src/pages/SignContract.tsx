@@ -24,14 +24,16 @@ interface ContractData {
   pdf_url: string | null;
   status: string;
   acceptance_terms?: string | null;
+  require_signature_otp?: boolean | null;
   lead: {
     id: string;
     name: string;
-    phone: string;
+    phone?: string | null;
   };
   template?: {
     cover_page_url?: string;
     acceptance_terms?: string | null;
+    require_signature_otp?: boolean | null;
   };
 }
 
@@ -86,7 +88,7 @@ export default function SignContract() {
         .select(`
           *,
           lead:leads(id, name, phone),
-          template:contract_templates(cover_page_url, acceptance_terms),
+          template:contract_templates(cover_page_url, acceptance_terms, require_signature_otp),
           organization_id
         `)
         .eq('id', contractId!)
@@ -115,15 +117,18 @@ export default function SignContract() {
 
       const row = data as ContractData & { expires_at?: string };
       const lead = row.lead;
-      if (!lead?.phone) {
+      const needsOtp = !!(row.require_signature_otp ?? row.template?.require_signature_otp);
+
+      if (needsOtp && !lead?.phone) {
         setError(
-          'Este contrato não pode ser assinado digitalmente: o cliente não possui telefone cadastrado para envio do código WhatsApp.',
+          'Este contrato exige código WhatsApp, mas o cliente não possui telefone cadastrado.',
         );
         return;
       }
 
       setContract(row);
       if (lead?.name) setSignerName(lead.name);
+      setStep(needsOtp ? 'identity' : 'sign');
     } catch (err: unknown) {
       console.error('Erro ao buscar contrato:', err);
       setError('Erro ao carregar contrato');
@@ -283,10 +288,27 @@ export default function SignContract() {
     setSignatureData(signature);
   };
 
+  const contractRequiresOtp = !!(
+    contract?.require_signature_otp ?? contract?.template?.require_signature_otp
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!verificationToken || !otpVerifiedAt) {
+    if (!contract) {
+      toast({
+        title: 'Erro',
+        description: 'Dados do contrato não encontrados',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const needsOtp = !!(
+      contract.require_signature_otp ?? contract.template?.require_signature_otp
+    );
+
+    if (needsOtp && (!verificationToken || !otpVerifiedAt)) {
       toast({
         title: 'Verificação necessária',
         description: 'Confirme o código WhatsApp antes de assinar',
@@ -305,7 +327,7 @@ export default function SignContract() {
       return;
     }
 
-    if (!isValidCpf(signerCpf)) {
+    if (needsOtp && !isValidCpf(signerCpf)) {
       toast({
         title: 'CPF inválido',
         description: 'Informe um CPF válido',
@@ -332,20 +354,11 @@ export default function SignContract() {
       return;
     }
 
-    if (!contract) {
-      toast({
-        title: 'Erro',
-        description: 'Dados do contrato não encontrados',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     setSigning(true);
 
     try {
       const signedAt = new Date().toISOString();
-      const cpfDigits = cleanCpf(signerCpf);
+      const cpfDigits = needsOtp ? cleanCpf(signerCpf) : '';
       const termsSnapshot = (
         contract.acceptance_terms ||
         contract.template?.acceptance_terms ||
@@ -400,7 +413,7 @@ export default function SignContract() {
 
       const hashPromise = (async () => {
         try {
-          const hashData = `${signatureData}|${signedAt}|${contract.id}|${cpfDigits}`;
+          const hashData = `${signatureData}|${signedAt}|${contract.id}|${cpfDigits || 'standard'}`;
           const hashBuffer = await crypto.subtle.digest(
             'SHA-256',
             new TextEncoder().encode(hashData),
@@ -425,16 +438,18 @@ export default function SignContract() {
         signer_name: signerName.trim(),
         signature_data: signatureData,
         signed_at: signedAt,
-        signer_cpf: cpfDigits,
-        otp_verified: true,
-        otp_verified_at: otpVerifiedAt,
-        identity_verification_method: 'cpf_whatsapp_otp',
+        otp_verified: needsOtp,
+        identity_verification_method: needsOtp ? 'cpf_whatsapp_otp' : 'standard_electronic',
         terms_accepted: true,
         terms_accepted_at: signedAt,
         accepted_terms_snapshot: termsSnapshot,
         user_agent: userAgent,
         device_info: deviceInfo,
       };
+      if (needsOtp && cpfDigits) {
+        signaturePayload.signer_cpf = cpfDigits;
+        signaturePayload.otp_verified_at = otpVerifiedAt;
+      }
       if (ipAddress) signaturePayload.ip_address = ipAddress;
       if (validationHash) signaturePayload.validation_hash = validationHash;
       if (ipCountry) signaturePayload.signed_ip_country = ipCountry;
@@ -565,10 +580,13 @@ export default function SignContract() {
             console.warn('PDF assinado em background falhou (assinatura já salva):', uploadFnError || uploadResult?.error);
           }
 
+          const authNote = needsOtp
+            ? 'CPF verificado via OTP WhatsApp'
+            : 'assinatura eletrônica padrão';
           await supabase.from('activities').insert({
             lead_id: contract.lead.id,
             type: 'contract_signed',
-            content: `Contrato ${contract.contract_number} assinado por ${signerName.trim()} (CPF verificado via OTP WhatsApp)`,
+            content: `Contrato ${contract.contract_number} assinado por ${signerName.trim()} (${authNote})`,
             user_name: signerName.trim(),
             direction: 'incoming',
           });
@@ -654,13 +672,19 @@ export default function SignContract() {
             <CardDescription className="break-words">
               Contrato: {contract.contract_number} | Cliente: {contract.lead.name}
             </CardDescription>
-            <div className="flex gap-2 pt-2 text-xs text-muted-foreground flex-wrap">
-              <span className={step === 'identity' ? 'text-primary font-medium' : ''}>1. Identidade</span>
-              <span>→</span>
-              <span className={step === 'otp' ? 'text-primary font-medium' : ''}>2. Código WhatsApp</span>
-              <span>→</span>
-              <span className={step === 'sign' ? 'text-primary font-medium' : ''}>3. Assinatura</span>
-            </div>
+            {contractRequiresOtp ? (
+              <div className="flex gap-2 pt-2 text-xs text-muted-foreground flex-wrap">
+                <span className={step === 'identity' ? 'text-primary font-medium' : ''}>1. Identidade</span>
+                <span>→</span>
+                <span className={step === 'otp' ? 'text-primary font-medium' : ''}>2. Código WhatsApp</span>
+                <span>→</span>
+                <span className={step === 'sign' ? 'text-primary font-medium' : ''}>3. Assinatura</span>
+              </div>
+            ) : (
+              <p className="pt-2 text-xs text-muted-foreground">
+                Assinatura eletrônica padrão — nome, assinatura e aceite dos termos
+              </p>
+            )}
           </CardHeader>
           <CardContent className="px-4 sm:px-6">
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -694,7 +718,7 @@ export default function SignContract() {
                 </Alert>
               )}
 
-              {(step === 'identity' || step === 'otp') && (
+              {contractRequiresOtp && (step === 'identity' || step === 'otp') && (
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="signer-name">Seu Nome Completo *</Label>
@@ -724,7 +748,7 @@ export default function SignContract() {
                 </>
               )}
 
-              {step === 'identity' && (
+              {contractRequiresOtp && step === 'identity' && (
                 <Button
                   type="button"
                   className="w-full"
@@ -747,7 +771,7 @@ export default function SignContract() {
                 </Button>
               )}
 
-              {step === 'otp' && (
+              {contractRequiresOtp && step === 'otp' && (
                 <div className="space-y-4">
                   <Alert>
                     <Smartphone className="h-4 w-4" />
@@ -819,21 +843,37 @@ export default function SignContract() {
 
               {step === 'sign' && (
                 <>
-                  <Alert>
-                    <CheckCircle2 className="h-4 w-4" />
-                    <AlertDescription>
-                      Identidade verificada via CPF e OTP WhatsApp. Assine abaixo.
-                    </AlertDescription>
-                  </Alert>
-
-                  <div className="text-sm text-muted-foreground space-y-1">
-                    <p>
-                      <strong>Nome:</strong> {signerName}
-                    </p>
-                    <p>
-                      <strong>CPF:</strong> {formatCpf(cleanCpf(signerCpf))}
-                    </p>
-                  </div>
+                  {contractRequiresOtp ? (
+                    <>
+                      <Alert>
+                        <CheckCircle2 className="h-4 w-4" />
+                        <AlertDescription>
+                          Identidade verificada via CPF e OTP WhatsApp. Assine abaixo.
+                        </AlertDescription>
+                      </Alert>
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        <p>
+                          <strong>Nome:</strong> {signerName}
+                        </p>
+                        <p>
+                          <strong>CPF:</strong> {formatCpf(cleanCpf(signerCpf))}
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label htmlFor="signer-name-standard">Seu Nome Completo *</Label>
+                      <Input
+                        id="signer-name-standard"
+                        data-testid="signer-name"
+                        value={signerName}
+                        onChange={(e) => setSignerName(e.target.value)}
+                        placeholder="Digite seu nome completo"
+                        required
+                        disabled={signing}
+                      />
+                    </div>
+                  )}
 
                   <div className="space-y-2 w-full overflow-hidden">
                     <Label>Assinatura Digital *</Label>

@@ -73,7 +73,7 @@ serve(async (req) => {
       );
     }
 
-    const { contract_id, instance_id } = requestBody;
+    const { contract_id, instance_id, require_signature_otp } = requestBody;
 
     if (!contract_id || !instance_id) {
       return new Response(
@@ -371,14 +371,19 @@ Ou você pode baixar o PDF anexado e assinar manualmente.`;
     // Atualizar status + atividade em paralelo após sucesso
     // Persistir instance_id para OTP/reenvios usarem a mesma instância
     const sentAt = new Date().toISOString();
+    const statusUpdate: Record<string, unknown> = {
+      status: 'sent',
+      sent_at: sentAt,
+      signature_token: signatureToken,
+      whatsapp_instance_id: instance_id,
+    };
+    if (typeof require_signature_otp === 'boolean') {
+      statusUpdate.require_signature_otp = require_signature_otp;
+    }
+
     const statusUpdatePromise = supabase
       .from('contracts')
-      .update({
-        status: 'sent',
-        sent_at: sentAt,
-        signature_token: signatureToken,
-        whatsapp_instance_id: instance_id,
-      })
+      .update(statusUpdate)
       .eq('id', contract_id);
 
     const activityPromise = contract.lead_id

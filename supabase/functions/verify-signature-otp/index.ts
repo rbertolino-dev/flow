@@ -70,13 +70,18 @@ serve(async (req) => {
 
     const { data: contract, error: contractError } = await supabase
       .from("contracts")
-      .select("id, status, expires_at, signature_token")
+      .select("id, status, expires_at, signature_token, require_signature_otp")
       .eq("id", contractId)
       .eq("signature_token", signatureToken)
       .maybeSingle();
 
     if (contractError || !contract) {
       return json(404, { error: "Contrato não encontrado ou link inválido" });
+    }
+    if (!contract.require_signature_otp) {
+      return json(400, {
+        error: "Este contrato não exige código WhatsApp (assinatura padrão).",
+      });
     }
     if (contract.status === "cancelled" || contract.status === "signed") {
       return json(400, { error: "Contrato indisponível para assinatura" });

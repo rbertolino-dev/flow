@@ -7,7 +7,7 @@ export const DEFAULT_CONTRACT_ACCEPTANCE_TERMS = `Ao assinar eletronicamente est
 
 1. Li e compreendi o conteúdo completo do contrato exibido nesta página (incluindo o PDF, quando disponível);
 2. Concordo com todas as cláusulas e condições nele descritas;
-3. Autorizo a coleta da minha assinatura eletrônica, identificação (nome e CPF) e código de verificação via WhatsApp, bem como o registro de data/hora, IP e dados do dispositivo para fins de prova do aceite;
+3. Autorizo a coleta da minha assinatura eletrônica, identificação (nome) e, quando exigido, CPF e código de verificação via WhatsApp, bem como o registro de data/hora, IP e dados do dispositivo para fins de prova do aceite;
 4. Reconheço que esta assinatura eletrônica tem validade nos termos da Lei nº 14.063/2020 (assinatura eletrônica simples).
 
 Em caso de dúvidas, entre em contato com a empresa responsável antes de assinar.`;
@@ -20,6 +20,8 @@ export interface ContractTemplate {
   content: string;
   /** Termos exibidos ao cliente na hora de assinar */
   acceptance_terms?: string | null;
+  /** Padrão do template: exigir CPF + OTP WhatsApp na assinatura */
+  require_signature_otp?: boolean;
   variables: string[];
   cover_page_url?: string; // URL da folha de rosto (imagem de fundo)
   is_active: boolean;
@@ -46,6 +48,12 @@ export interface Contract {
   whatsapp_instance_id?: string | null;
   /** Termos de aceite exibidos na assinatura */
   acceptance_terms?: string | null;
+  /**
+   * Se true: cliente precisa de CPF + código WhatsApp antes de assinar.
+   * Se false: assinatura padrão (nome + canvas + termos).
+   * Definido antes do envio ao cliente.
+   */
+  require_signature_otp?: boolean;
   status: ContractStatus;
   expires_at?: string;
   signed_at?: string;

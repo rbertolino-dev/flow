@@ -17,6 +17,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { maskCpf } from '@/lib/cpfValidator';
 import { DEFAULT_CONTRACT_ACCEPTANCE_TERMS } from '@/types/contract';
 import {
@@ -84,12 +85,44 @@ export function ContractViewer({
   const [editingTerms, setEditingTerms] = useState(false);
   const [termsDraft, setTermsDraft] = useState('');
   const [savingTerms, setSavingTerms] = useState(false);
+  const [savingOtpFlag, setSavingOtpFlag] = useState(false);
   const { toast } = useToast();
 
   const currentTerms =
     (contract.acceptance_terms ||
       contract.template?.acceptance_terms ||
       '').trim() || DEFAULT_CONTRACT_ACCEPTANCE_TERMS;
+
+  const requireSignatureOtp = !!(
+    contract.require_signature_otp ?? contract.template?.require_signature_otp
+  );
+
+  const handleToggleRequireOtp = async (enabled: boolean) => {
+    if (contract.status === 'signed' || contract.status === 'cancelled') return;
+    setSavingOtpFlag(true);
+    try {
+      const { error } = await supabase
+        .from('contracts')
+        .update({ require_signature_otp: enabled })
+        .eq('id', contract.id);
+      if (error) throw error;
+      onContractUpdated?.({ ...contract, require_signature_otp: enabled });
+      toast({
+        title: enabled ? 'Código de segurança ativado' : 'Assinatura padrão',
+        description: enabled
+          ? 'O cliente precisará de CPF e código WhatsApp ao assinar.'
+          : 'O cliente assina só com nome, canvas e termos.',
+      });
+    } catch (err: unknown) {
+      toast({
+        title: 'Erro',
+        description: err instanceof Error ? err.message : 'Não foi possível salvar a opção',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingOtpFlag(false);
+    }
+  };
 
   const rawPdfUrl = contract.signed_pdf_url || contract.pdf_url;
   const pdfUrl = rawPdfUrl
@@ -419,6 +452,33 @@ export function ContractViewer({
                 {currentTerms}
               </div>
             )}
+          </div>
+
+
+          <div
+            className="flex items-start justify-between gap-3 p-4 border rounded-lg bg-muted/30"
+            data-testid="contract-require-otp-toggle"
+          >
+            <div className="flex gap-3 flex-1 min-w-0">
+              <Smartphone className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+              <div className="space-y-1 min-w-0">
+                <p className="font-semibold text-sm">Código de segurança (CPF + WhatsApp)</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {requireSignatureOtp
+                    ? 'Ativo: cliente informa CPF e confirma código no WhatsApp antes de assinar.'
+                    : 'Desligado: assinatura padrão (nome, canvas e termos). Ative se a empresa quiser mais autenticidade.'}
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={requireSignatureOtp}
+              onCheckedChange={handleToggleRequireOtp}
+              disabled={
+                savingOtpFlag ||
+                contract.status === 'signed' ||
+                contract.status === 'cancelled'
+              }
+            />
           </div>
 
           {/* Card destacado para editar mensagem WhatsApp - SEMPRE VISÍVEL */}

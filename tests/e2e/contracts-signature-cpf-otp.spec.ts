@@ -35,6 +35,7 @@ test.describe('Contratos - Assinatura CPF + OTP @human-behavior', () => {
             signature_token: FAKE_TOKEN,
             title: 'Contrato E2E OTP',
             acceptance_terms: 'Termos de teste E2E para aceite na assinatura.',
+            require_signature_otp: true,
             lead: {
               id: '33333333-3333-4333-8333-333333333333',
               name: 'Cliente E2E',
@@ -212,5 +213,114 @@ test.describe('Contratos - Assinatura CPF + OTP @human-behavior', () => {
     await expect(
       page.getByTestId('sign-contract-success').getByText(/assinado com sucesso/i),
     ).toBeVisible();
+  });
+});
+
+test.describe('Contratos - Assinatura padrão (sem OTP) @human-behavior', () => {
+  let human: HumanBehavior;
+
+  test.beforeEach(async ({ page }) => {
+    human = new HumanBehavior(page);
+
+    await page.route('**/rest/v1/contracts**', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: FAKE_CONTRACT_ID,
+            organization_id: '22222222-2222-4222-8222-222222222222',
+            contract_number: 'CTR-E2E-STD',
+            content: '<p>Contrato padrão</p>',
+            pdf_url: null,
+            status: 'sent',
+            signature_token: FAKE_TOKEN,
+            acceptance_terms: 'Termos padrão E2E.',
+            require_signature_otp: false,
+            lead: {
+              id: '33333333-3333-4333-8333-333333333333',
+              name: 'Cliente Padrão',
+              phone: '11988887777',
+            },
+            template: null,
+          }),
+        });
+        return;
+      }
+      await route.fulfill({ status: 200, body: JSON.stringify({}) });
+    });
+
+    await page.route('**/rest/v1/contract_signatures**', async (route) => {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON() as Record<string, unknown>;
+        expect(body.otp_verified).toBe(false);
+        expect(body.identity_verification_method).toBe('standard_electronic');
+        expect(body.signer_cpf).toBeUndefined();
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({ id: '55555555-5555-4555-8555-555555555555', ...body }),
+        });
+        return;
+      }
+      await route.fulfill({ status: 200, body: '[]' });
+    });
+
+    await page.route('**/rest/v1/activities**', async (route) => {
+      await route.fulfill({ status: 201, body: JSON.stringify({ id: 'act-std' }) });
+    });
+
+    await page.route('**/functions/v1/upload-signed-contract-pdf', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ signed_pdf_url: 'https://example.com/signed.pdf' }),
+      });
+    });
+
+    await page.route('**/api.ipify.org/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ip: '1.2.3.4' }),
+      });
+    });
+    await page.route('**/ipapi.co/**', async (route) => {
+      await route.fulfill({ status: 200, body: 'BR' });
+    });
+  });
+
+  test('deve assinar com fluxo padrão sem CPF/OTP', async ({ page }) => {
+    await page.goto(`/sign-contract/${FAKE_CONTRACT_ID}/${FAKE_TOKEN}`);
+    await page.waitForLoadState('domcontentloaded');
+
+    await expect(page.getByRole('heading', { name: /assinar contrato/i })).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.getByText(/assinatura eletrônica padrão/i)).toBeVisible();
+    await expect(page.getByTestId('send-otp-btn')).toHaveCount(0);
+    await expect(page.getByTestId('signer-cpf')).toHaveCount(0);
+
+    const nameInput = page.getByTestId('signer-name');
+    await expect(nameInput).toBeVisible();
+    await nameInput.fill('Maria Padrão');
+    await human.randomDelay(300, 500);
+
+    const canvas = page.locator('canvas').first();
+    await expect(canvas).toBeVisible();
+    const box = await canvas.boundingBox();
+    if (box) {
+      await page.mouse.move(box.x + 20, box.y + 40);
+      await page.mouse.down();
+      await page.mouse.move(box.x + 100, box.y + 50);
+      await page.mouse.up();
+    }
+
+    await human.humanClick(page.getByRole('button', { name: /confirmar assinatura/i }));
+    await human.humanClick(page.getByTestId('accept-terms'));
+    await human.hesitate(300, 600);
+    await human.humanClick(page.getByTestId('submit-signature-btn'));
+
+    await expect(page.getByTestId('sign-contract-success')).toBeVisible({ timeout: 30000 });
   });
 });
