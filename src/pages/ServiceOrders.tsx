@@ -128,6 +128,7 @@ export default function ServiceOrders() {
   const [addressFilter, setAddressFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [periodFilterOpen, setPeriodFilterOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [maintenanceOnly, setMaintenanceOnly] = useState(false);
@@ -383,6 +384,21 @@ export default function ServiceOrders() {
       status_id: statusFilter !== 'all' ? statusFilter : undefined,
     });
   };
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (appliedFilters.code) count += 1;
+    if (appliedFilters.responsible) count += 1;
+    if (appliedFilters.collaborator) count += 1;
+    if (appliedFilters.service) count += 1;
+    if (appliedFilters.equipment) count += 1;
+    if (appliedFilters.address) count += 1;
+    if (appliedFilters.date_from) count += 1;
+    if (appliedFilters.date_to) count += 1;
+    if (appliedFilters.status_id) count += 1;
+    if (maintenanceOnly) count += 1;
+    return count;
+  }, [appliedFilters, maintenanceOnly]);
 
   const exportOrderPdf = async (
     order: ServiceOrder,
@@ -1118,11 +1134,11 @@ export default function ServiceOrders() {
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Filters — recolhido por padrão */}
         <div
-          className="border rounded-lg p-4 space-y-3 bg-card"
+          className="border rounded-lg bg-card"
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && filtersOpen) {
               e.preventDefault();
               handleApplyFilters();
             }
@@ -1130,107 +1146,139 @@ export default function ServiceOrders() {
         >
           <button
             type="button"
-            className="flex w-full items-center justify-between gap-2 text-left"
-            onClick={() => setPeriodFilterOpen((open) => !open)}
-            aria-expanded={periodFilterOpen}
-            data-testid="os-period-filter-toggle"
+            className="flex w-full items-center justify-between gap-2 p-4 text-left"
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+            data-testid="os-filters-toggle"
           >
-            <span className="text-sm font-medium">Filtrar por período</span>
-            {periodFilterOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </button>
-          {periodFilterOpen && (
-            <div className="grid md:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Início</Label>
-                <Input type="datetime-local" className="w-full min-w-0" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Até</Label>
-                <Input type="datetime-local" className="w-full min-w-0" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-              </div>
-            </div>
-          )}
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="space-y-1">
-              <Label>Código</Label>
-              <Input value={codeFilter} onChange={(e) => setCodeFilter(e.target.value)} placeholder="Código" />
-            </div>
-            <div className="space-y-1">
-              <Label>Status</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {statuses.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Responsável</Label>
-              <Input
-                value={responsibleFilter}
-                onChange={(e) => setResponsibleFilter(e.target.value)}
-                placeholder="Responsável"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Colaborador</Label>
-              <Input
-                value={collaboratorFilter}
-                onChange={(e) => setCollaboratorFilter(e.target.value)}
-                placeholder="Colaborador"
-              />
-            </div>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <Label>Serviço</Label>
-              <Input
-                value={serviceFilter}
-                onChange={(e) => setServiceFilter(e.target.value)}
-                placeholder="Buscar por serviço"
-                data-testid="os-filter-service"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Equipamento</Label>
-              <Input
-                value={equipmentFilter}
-                onChange={(e) => setEquipmentFilter(e.target.value)}
-                placeholder="Nome, marca, modelo ou série"
-                data-testid="os-filter-equipment"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Endereço</Label>
-              <Input
-                value={addressFilter}
-                onChange={(e) => setAddressFilter(e.target.value)}
-                placeholder="Buscar por endereço"
-                data-testid="os-filter-address"
-              />
-            </div>
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <Button className="w-full sm:w-auto min-h-11" onClick={handleApplyFilters}>
-              <Filter className="h-4 w-4 mr-1" />
+            <span className="flex items-center gap-2 text-sm font-medium">
+              <Filter className="h-4 w-4" />
               Filtros
-            </Button>
-            <label className="flex items-center gap-2 text-sm">
-              <Switch
-                checked={maintenanceOnly}
-                onCheckedChange={setMaintenanceOnly}
-                data-testid="os-maintenance-filter"
-              />
-              Somente manutenção
-            </label>
-          </div>
+              {activeFilterCount > 0 ? (
+                <Badge variant="secondary" className="font-normal">
+                  {activeFilterCount} ativo{activeFilterCount === 1 ? '' : 's'}
+                </Badge>
+              ) : null}
+            </span>
+            {filtersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+          {filtersOpen ? (
+            <div className="space-y-3 border-t px-4 pb-4 pt-3">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-2 text-left"
+                onClick={() => setPeriodFilterOpen((open) => !open)}
+                aria-expanded={periodFilterOpen}
+                data-testid="os-period-filter-toggle"
+              >
+                <span className="text-sm font-medium">Filtrar por período</span>
+                {periodFilterOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+              {periodFilterOpen && (
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Início</Label>
+                    <Input
+                      type="datetime-local"
+                      className="w-full min-w-0"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Até</Label>
+                    <Input
+                      type="datetime-local"
+                      className="w-full min-w-0"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="space-y-1">
+                  <Label>Código</Label>
+                  <Input value={codeFilter} onChange={(e) => setCodeFilter(e.target.value)} placeholder="Código" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Status</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {statuses.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Responsável</Label>
+                  <Input
+                    value={responsibleFilter}
+                    onChange={(e) => setResponsibleFilter(e.target.value)}
+                    placeholder="Responsável"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Colaborador</Label>
+                  <Input
+                    value={collaboratorFilter}
+                    onChange={(e) => setCollaboratorFilter(e.target.value)}
+                    placeholder="Colaborador"
+                  />
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label>Serviço</Label>
+                  <Input
+                    value={serviceFilter}
+                    onChange={(e) => setServiceFilter(e.target.value)}
+                    placeholder="Buscar por serviço"
+                    data-testid="os-filter-service"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Equipamento</Label>
+                  <Input
+                    value={equipmentFilter}
+                    onChange={(e) => setEquipmentFilter(e.target.value)}
+                    placeholder="Nome, marca, modelo ou série"
+                    data-testid="os-filter-equipment"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Endereço</Label>
+                  <Input
+                    value={addressFilter}
+                    onChange={(e) => setAddressFilter(e.target.value)}
+                    placeholder="Buscar por endereço"
+                    data-testid="os-filter-address"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <Button className="w-full sm:w-auto min-h-11" onClick={handleApplyFilters}>
+                  <Filter className="h-4 w-4 mr-1" />
+                  Aplicar filtros
+                </Button>
+                <label className="flex items-center gap-2 text-sm">
+                  <Switch
+                    checked={maintenanceOnly}
+                    onCheckedChange={setMaintenanceOnly}
+                    data-testid="os-maintenance-filter"
+                  />
+                  Somente manutenção
+                </label>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {/* Table */}
