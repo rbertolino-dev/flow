@@ -273,6 +273,9 @@ test.describe("Ordem de Serviço — etapas e criação @human-behavior @service
     await human.humanNavigate("/service-orders");
     await expect(page.getByTestId("os-org-ready")).toBeVisible({ timeout: 45_000 });
 
+    await expect(page.getByTestId("os-filters-toggle")).toBeVisible();
+    await expect(page.getByTestId("os-period-filter-toggle")).toHaveCount(0);
+    await human.humanClick(page.getByTestId("os-filters-toggle"));
     await expect(page.getByTestId("os-period-filter-toggle")).toBeVisible();
     await expect(page.locator('input[type="datetime-local"]')).toHaveCount(0);
     await human.humanClick(page.getByTestId("os-period-filter-toggle"));
