@@ -345,26 +345,12 @@ export default function SignContract() {
 
     try {
       const signedAt = new Date().toISOString();
-
-      let ipAddress: string | null = null;
-      let ipCountry: string | null = null;
-      try {
-        const ipResponse = await fetch('https://api.ipify.org?format=json');
-        const ipData = await ipResponse.json();
-        ipAddress = ipData.ip;
-
-        try {
-          const geoResponse = await fetch(`https://ipapi.co/${ipAddress}/country/`);
-          if (geoResponse.ok) {
-            ipCountry = (await geoResponse.text()).trim() || null;
-          }
-        } catch {
-          /* ignore */
-        }
-      } catch {
-        /* ignore */
-      }
-
+      const cpfDigits = cleanCpf(signerCpf);
+      const termsSnapshot = (
+        contract.acceptance_terms ||
+        contract.template?.acceptance_terms ||
+        DEFAULT_CONTRACT_ACCEPTANCE_TERMS
+      ).trim();
       const userAgent = navigator.userAgent;
       const deviceInfo = {
         platform: navigator.platform,
@@ -378,24 +364,60 @@ export default function SignContract() {
         windowHeight: window.innerHeight,
       };
 
-      const hashData = `${signatureData}|${signedAt}|${contract.id}|${cleanCpf(signerCpf)}`;
-      let validationHash: string | null = null;
-      try {
-        const encoder = new TextEncoder();
-        const data = encoder.encode(hashData);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        validationHash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-      } catch (hashError) {
-        console.error('Erro ao gerar hash de validação:', hashError);
-      }
+      // IP/geo com timeout curto — não pode travar a assinatura
+      const authMetaPromise = (async () => {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 1200);
+        try {
+          const ipResponse = await fetch('https://api.ipify.org?format=json', {
+            signal: ctrl.signal,
+          });
+          const ipData = (await ipResponse.json()) as { ip?: string };
+          const ipAddress = ipData.ip || null;
+          let ipCountry: string | null = null;
+          if (ipAddress) {
+            try {
+              const geoCtrl = new AbortController();
+              const geoTimer = setTimeout(() => geoCtrl.abort(), 800);
+              const geoResponse = await fetch(`https://ipapi.co/${ipAddress}/country/`, {
+                signal: geoCtrl.signal,
+              });
+              clearTimeout(geoTimer);
+              if (geoResponse.ok) {
+                ipCountry = (await geoResponse.text()).trim() || null;
+              }
+            } catch {
+              /* ignore */
+            }
+          }
+          return { ipAddress, ipCountry };
+        } catch {
+          return { ipAddress: null as string | null, ipCountry: null as string | null };
+        } finally {
+          clearTimeout(timer);
+        }
+      })();
 
-      const cpfDigits = cleanCpf(signerCpf);
-      const termsSnapshot = (
-        contract.acceptance_terms ||
-        contract.template?.acceptance_terms ||
-        DEFAULT_CONTRACT_ACCEPTANCE_TERMS
-      ).trim();
+      const hashPromise = (async () => {
+        try {
+          const hashData = `${signatureData}|${signedAt}|${contract.id}|${cpfDigits}`;
+          const hashBuffer = await crypto.subtle.digest(
+            'SHA-256',
+            new TextEncoder().encode(hashData),
+          );
+          return Array.from(new Uint8Array(hashBuffer))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
+        } catch {
+          return null as string | null;
+        }
+      })();
+
+      // Em paralelo: meta de rede (timeout) + hash
+      const [{ ipAddress, ipCountry }, validationHash] = await Promise.all([
+        authMetaPromise,
+        hashPromise,
+      ]);
 
       const signaturePayload: Record<string, unknown> = {
         contract_id: contract.id,
@@ -410,193 +432,150 @@ export default function SignContract() {
         terms_accepted: true,
         terms_accepted_at: signedAt,
         accepted_terms_snapshot: termsSnapshot,
+        user_agent: userAgent,
+        device_info: deviceInfo,
       };
-
       if (ipAddress) signaturePayload.ip_address = ipAddress;
-      if (userAgent) signaturePayload.user_agent = userAgent;
-      if (deviceInfo) signaturePayload.device_info = deviceInfo;
       if (validationHash) signaturePayload.validation_hash = validationHash;
       if (ipCountry) signaturePayload.signed_ip_country = ipCountry;
 
       const { data: savedSignature, error: signatureError } = await supabase
         .from('contract_signatures')
         .insert(signaturePayload)
-        .select()
+        .select('id, signer_name, signature_data, signed_at, signer_type, ip_address, user_agent, signed_ip_country, validation_hash')
         .single();
 
       if (signatureError) {
-        // Fallback se colunas novas ainda não existirem
         if (
           signatureError.message?.includes('column') ||
           signatureError.code === '42703' ||
           signatureError.message?.includes('does not exist')
         ) {
-          const basicPayload = {
-            contract_id: contract.id,
-            signer_type: 'client',
-            signer_name: signerName.trim(),
-            signature_data: signatureData,
-            signed_at: signedAt,
-            ...(ipAddress ? { ip_address: ipAddress } : {}),
-          };
           const { error: retryError } = await supabase
             .from('contract_signatures')
-            .insert(basicPayload)
-            .select()
+            .insert({
+              contract_id: contract.id,
+              signer_type: 'client',
+              signer_name: signerName.trim(),
+              signature_data: signatureData,
+              signed_at: signedAt,
+              ...(ipAddress ? { ip_address: ipAddress } : {}),
+            })
+            .select('id')
             .single();
           if (retryError) throw retryError;
-          toast({
-            title: 'Assinatura salva',
-            description: 'Assinatura salva; execute a migration de CPF/OTP para auditoria completa.',
-          });
         } else {
           throw signatureError;
         }
-      } else {
-        console.log('✅ Assinatura salva:', savedSignature?.id);
       }
 
-      const { data: contractData } = await supabase
+      // Status no CRM imediatamente após gravar a assinatura do cliente (não espera PDF)
+      await supabase
         .from('contracts')
-        .select('content, contract_number, template_id, title')
+        .update({ status: 'signed', signed_at: signedAt })
         .eq('id', contract.id)
-        .single();
+        .eq('signature_token', token!);
 
-      if (!contractData) throw new Error('Contrato não encontrado');
-
-      let coverPageUrl = contract.template?.cover_page_url;
-      if (contractData.template_id && !coverPageUrl) {
-        const { data: templateData } = await supabase
-          .from('contract_templates')
-          .select('cover_page_url')
-          .eq('id', contractData.template_id)
-          .single();
-        coverPageUrl = templateData?.cover_page_url;
-      }
-
-      type SigRow = {
-        signer_name: string;
-        signature_data: string;
-        signed_at: string;
-        signer_type?: 'user' | 'client';
-        ip_address?: string | null;
-        user_agent?: string | null;
-        signed_ip_country?: string | null;
-        validation_hash?: string | null;
-      };
-      let allSignatures: SigRow[] = [];
-      try {
-        const { data, error: selectError } = await supabase
-          .from('contract_signatures')
-          .select(
-            'signer_name, signature_data, signed_at, signer_type, ip_address, user_agent, signed_ip_country, validation_hash, signer_cpf, otp_verified',
-          )
-          .eq('contract_id', contract.id)
-          .order('signed_at', { ascending: true });
-
-        if (selectError) {
-          const { data: basicData, error: basicError } = await supabase
-            .from('contract_signatures')
-            .select('signer_name, signature_data, signed_at, ip_address')
-            .eq('contract_id', contract.id)
-            .order('signed_at', { ascending: true });
-          if (basicError) throw basicError;
-          allSignatures = (basicData || []) as SigRow[];
-        } else {
-          allSignatures = (data || []) as SigRow[];
-        }
-      } catch {
-        const { data: minimalData } = await supabase
-          .from('contract_signatures')
-          .select('signer_name, signature_data, signed_at')
-          .eq('contract_id', contract.id)
-          .order('signed_at', { ascending: true });
-        allSignatures = (minimalData || []) as SigRow[];
-      }
-
-      const signaturePositions = getSignaturePositions(contractData.content || '');
-
-      const pdfBlob = await generateContractPDF({
-        content: contractData.content,
-        contractNumber: contractData.contract_number,
-        title: (contractData as { title?: string }).title,
-        coverPageUrl,
-        signatures: allSignatures.map((sig) => ({
-          name: sig.signer_name,
-          signatureData: sig.signature_data,
-          signedAt: sig.signed_at,
-          signerType: sig.signer_type,
-          ipAddress: sig.ip_address || undefined,
-          userAgent: sig.user_agent || undefined,
-          signedIpCountry: sig.signed_ip_country || undefined,
-          validationHash: sig.validation_hash || undefined,
-        })),
-        signaturePositions,
-      });
-
-      const reader = new FileReader();
-      const pdfBase64 = await new Promise<string>((resolve, reject) => {
-        reader.onloadend = () => {
-          const result = reader.result as string;
-          resolve(result.split(',')[1] || '');
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(pdfBlob);
-      });
-
-      const hasUserSignature = allSignatures.some((s) => s.signer_type === 'user');
-      const hasClientSignature = allSignatures.some((s) => s.signer_type === 'client');
-      const bothSigned = hasUserSignature && hasClientSignature;
-
-      const { data: uploadResult, error: uploadFnError } = await supabase.functions.invoke(
-        'upload-signed-contract-pdf',
-        {
-          body: {
-            contract_id: contract.id,
-            signature_token: token,
-            pdf_base64: pdfBase64,
-            update_status: bothSigned,
-            signed_at: bothSigned ? new Date().toISOString() : undefined,
-          },
-        },
-      );
-
-      if (uploadFnError) {
-        let detail = uploadFnError.message || 'Erro ao fazer upload do PDF assinado';
-        try {
-          const ctx = (uploadFnError as { context?: { json?: () => Promise<{ error?: string }> } })?.context;
-          if (ctx && typeof ctx.json === 'function') {
-            const errBody = await ctx.json();
-            if (errBody?.error) detail = errBody.error;
-          }
-        } catch {
-          /* ignore */
-        }
-        throw new Error(detail);
-      }
-
-      if (uploadResult?.error) throw new Error(String(uploadResult.error));
-      if (!uploadResult?.signed_pdf_url) {
-        throw new Error('Upload do PDF assinado não retornou URL');
-      }
-
-      try {
-        await supabase.from('activities').insert({
-          lead_id: contract.lead.id,
-          type: 'contract_signed',
-          content: `Contrato ${contract.contract_number} assinado por ${signerName.trim()} (CPF verificado via OTP WhatsApp)`,
-          user_name: signerName.trim(),
-          direction: 'incoming',
-        });
-      } catch {
-        /* não crítico */
-      }
-
+      // Sucesso imediato para o signatário — PDF em background
       setSigned(true);
+      setSigning(false);
       toast({
         title: 'Contrato assinado!',
         description: 'O contrato foi assinado com sucesso',
       });
+
+      // PDF + upload + atividade (não bloqueia a tela)
+      void (async () => {
+        try {
+          type SigRow = {
+            signer_name: string;
+            signature_data: string;
+            signed_at: string;
+            signer_type?: 'user' | 'client';
+            ip_address?: string | null;
+            user_agent?: string | null;
+            signed_ip_country?: string | null;
+            validation_hash?: string | null;
+          };
+
+          const { data: allSigs } = await supabase
+            .from('contract_signatures')
+            .select(
+              'signer_name, signature_data, signed_at, signer_type, ip_address, user_agent, signed_ip_country, validation_hash',
+            )
+            .eq('contract_id', contract.id)
+            .order('signed_at', { ascending: true });
+
+          let allSignatures = (allSigs || []) as SigRow[];
+          if (
+            savedSignature &&
+            !allSignatures.some((s) => s.signature_data === savedSignature.signature_data)
+          ) {
+            allSignatures = [...allSignatures, savedSignature as SigRow];
+          }
+
+          const coverPageUrl = contract.template?.cover_page_url;
+          const signaturePositions = getSignaturePositions(contract.content || '');
+          const pdfBlob = await generateContractPDF({
+            content: contract.content,
+            contractNumber: contract.contract_number,
+            title: (contract as { title?: string }).title,
+            coverPageUrl,
+            signatures: allSignatures.map((sig) => ({
+              name: sig.signer_name,
+              signatureData: sig.signature_data,
+              signedAt: sig.signed_at,
+              signerType: sig.signer_type,
+              ipAddress: sig.ip_address || undefined,
+              userAgent: sig.user_agent || undefined,
+              signedIpCountry: sig.signed_ip_country || undefined,
+              validationHash: sig.validation_hash || undefined,
+            })),
+            signaturePositions,
+          });
+
+          const pdfBase64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const result = reader.result as string;
+              resolve(result.split(',')[1] || '');
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(pdfBlob);
+          });
+
+          const bothSigned =
+            allSignatures.some((s) => s.signer_type === 'user') &&
+            allSignatures.some((s) => s.signer_type === 'client');
+
+          const { data: uploadResult, error: uploadFnError } = await supabase.functions.invoke(
+            'upload-signed-contract-pdf',
+            {
+              body: {
+                contract_id: contract.id,
+                signature_token: token,
+                pdf_base64: pdfBase64,
+                update_status: bothSigned,
+                signed_at: bothSigned ? signedAt : undefined,
+              },
+            },
+          );
+
+          if (uploadFnError || uploadResult?.error) {
+            console.warn('PDF assinado em background falhou (assinatura já salva):', uploadFnError || uploadResult?.error);
+          }
+
+          await supabase.from('activities').insert({
+            lead_id: contract.lead.id,
+            type: 'contract_signed',
+            content: `Contrato ${contract.contract_number} assinado por ${signerName.trim()} (CPF verificado via OTP WhatsApp)`,
+            user_name: signerName.trim(),
+            direction: 'incoming',
+          });
+        } catch (bgErr) {
+          console.warn('Pós-assinatura (PDF/atividade) falhou em background:', bgErr);
+        }
+      })();
     } catch (err: unknown) {
       console.error('Erro ao assinar contrato:', err);
       toast({
@@ -604,7 +583,6 @@ export default function SignContract() {
         description: err instanceof Error ? err.message : 'Erro ao assinar contrato',
         variant: 'destructive',
       });
-    } finally {
       setSigning(false);
     }
   };
