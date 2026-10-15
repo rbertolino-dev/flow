@@ -58,10 +58,17 @@ export interface ContractSignature {
   signed_at: string;
   ip_address?: string;
   user_agent?: string; // Navegador/dispositivo usado
-  device_info?: Record<string, any>; // Informações do dispositivo (JSONB)
-  geolocation?: Record<string, any>; // Localização aproximada (JSONB, opcional)
+  device_info?: Record<string, unknown>; // Informações do dispositivo (JSONB)
+  geolocation?: Record<string, unknown>; // Localização aproximada (JSONB, opcional)
   validation_hash?: string; // Hash SHA-256 para validação de integridade
   signed_ip_country?: string; // País do IP de origem
+  /** CPF do signatário (apenas dígitos) */
+  signer_cpf?: string;
+  /** OTP WhatsApp verificado */
+  otp_verified?: boolean;
+  otp_verified_at?: string;
+  /** Ex: cpf_whatsapp_otp */
+  identity_verification_method?: string;
   created_at: string;
 }
 
@@ -69,11 +76,11 @@ export interface ContractStorageConfig {
   id: string;
   organization_id?: string;
   storage_type: StorageType; // Não usado mais (storage principal sempre é Supabase)
-  config: Record<string, any>; // Não usado mais (storage principal sempre é Supabase)
+  config: Record<string, unknown>; // Não usado mais (storage principal sempre é Supabase)
   is_active: boolean; // Não usado mais (storage principal sempre é Supabase)
   // Campos de backup storage (opcional)
   backup_storage_type?: StorageType;
-  backup_config?: Record<string, any>;
+  backup_config?: Record<string, unknown>;
   backup_is_active?: boolean;
   created_at: string;
   updated_at: string;
@@ -196,9 +203,9 @@ export interface ContractAuditLog {
   contract_id: string;
   user_id?: string; // null para ações públicas/anônimas
   action: AuditAction;
-  details: Record<string, any>; // Detalhes adicionais da ação
-  old_value?: Record<string, any>; // Valor anterior (para updates)
-  new_value?: Record<string, any>; // Valor novo (para updates)
+  details: Record<string, unknown>; // Detalhes adicionais da ação
+  old_value?: Record<string, unknown>; // Valor anterior (para updates)
+  new_value?: Record<string, unknown>; // Valor novo (para updates)
   ip_address?: string;
   user_agent?: string;
   timestamp: string;

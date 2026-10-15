@@ -328,6 +328,13 @@ verify_jwt = true
 [functions.send-contract-reminder]
 verify_jwt = false
 
+# OTP público na página de assinatura (valida signature_token no body)
+[functions.request-signature-otp]
+verify_jwt = false
+
+[functions.verify-signature-otp]
+verify_jwt = false
+
 [functions.google-drive-oauth]
 verify_jwt = false
 

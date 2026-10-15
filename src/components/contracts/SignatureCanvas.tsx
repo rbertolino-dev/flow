@@ -15,7 +15,7 @@ type SignatureMode = 'draw' | 'upload';
 export function SignatureCanvas({ onConfirm, onCancel, width = 600, height = 200 }: SignatureCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const isDrawingRef = useRef(false);
   const [hasSignature, setHasSignature] = useState(false);
   const [mode, setMode] = useState<SignatureMode>('draw');
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
@@ -36,12 +36,11 @@ export function SignatureCanvas({ onConfirm, onCancel, width = 600, height = 200
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || mode !== 'draw') return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Configurar canvas
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
@@ -60,14 +59,14 @@ export function SignatureCanvas({ onConfirm, onCancel, width = 600, height = 200
     };
 
     const startDrawing = (e: MouseEvent | TouchEvent) => {
-      setIsDrawing(true);
+      isDrawingRef.current = true;
       const { x, y } = getPos(e);
       ctx.beginPath();
       ctx.moveTo(x, y);
     };
 
     const draw = (e: MouseEvent | TouchEvent) => {
-      if (!isDrawing) return;
+      if (!isDrawingRef.current) return;
       e.preventDefault();
       const { x, y } = getPos(e);
       ctx.lineTo(x, y);
@@ -76,16 +75,13 @@ export function SignatureCanvas({ onConfirm, onCancel, width = 600, height = 200
     };
 
     const stopDrawing = () => {
-      setIsDrawing(false);
+      isDrawingRef.current = false;
     };
 
-    // Event listeners para mouse
     canvas.addEventListener('mousedown', startDrawing);
     canvas.addEventListener('mousemove', draw);
     canvas.addEventListener('mouseup', stopDrawing);
     canvas.addEventListener('mouseout', stopDrawing);
-
-    // Event listeners para touch
     canvas.addEventListener('touchstart', startDrawing, { passive: false });
     canvas.addEventListener('touchmove', draw, { passive: false });
     canvas.addEventListener('touchend', stopDrawing);
@@ -99,7 +95,7 @@ export function SignatureCanvas({ onConfirm, onCancel, width = 600, height = 200
       canvas.removeEventListener('touchmove', draw);
       canvas.removeEventListener('touchend', stopDrawing);
     };
-  }, [isDrawing, canvasWidth, canvasHeight]);
+  }, [canvasWidth, canvasHeight, mode]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

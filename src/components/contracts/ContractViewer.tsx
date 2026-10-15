@@ -6,7 +6,7 @@ import { Contract, ContractSignature, ContractTemplate } from '@/types/contract'
 import { format } from 'date-fns';
 import { ContractStatusBadge } from './ContractStatusBadge';
 import { useContractSignatures } from '@/hooks/useContractSignatures';
-import { Download, FileSignature, Send, X, MessageSquare, ChevronDown, ChevronUp, Shield, Globe, Monitor, Hash, FileText, Settings, Trash2, RefreshCw, Link2, Check, Copy, CalendarClock, Pencil } from 'lucide-react';
+import { Download, FileSignature, Send, X, MessageSquare, ChevronDown, ChevronUp, Shield, Globe, Monitor, Hash, FileText, Settings, Trash2, RefreshCw, Link2, Check, Copy, CalendarClock, Pencil, Smartphone } from 'lucide-react';
 import { GoogleDriveBackupButton } from './GoogleDriveBackupButton';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { maskCpf } from '@/lib/cpfValidator';
 import {
   Dialog,
   DialogContent,
@@ -545,14 +546,14 @@ export function ContractViewer({
           <CardContent>
             <div className="space-y-4">
               {signatures.map((signature) => {
-                const hasAuthData = !!(signature.ip_address || signature.user_agent || signature.validation_hash);
+                const hasAuthData = !!(signature.ip_address || signature.user_agent || signature.validation_hash || signature.signer_cpf || signature.otp_verified);
                 const isExpanded = expandedSignatures.has(signature.id);
                 
                 return (
                   <div key={signature.id} className="border rounded-lg overflow-hidden">
                     <div className="flex items-start gap-4 p-4">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <p className="font-medium">{signature.signer_name}</p>
                           <Badge variant="outline">
                             {signature.signer_type === 'user' ? 'Usuário' : 'Cliente'}
@@ -563,6 +564,12 @@ export function ContractViewer({
                               Autenticado
                             </Badge>
                           )}
+                          {signature.otp_verified && (
+                            <Badge variant="default" className="gap-1">
+                              <Smartphone className="h-3 w-3" />
+                              OTP WhatsApp verificado
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground mb-3">
                           Assinado em {format(new Date(signature.signed_at), 'dd/MM/yyyy HH:mm')}
@@ -571,6 +578,31 @@ export function ContractViewer({
                         {/* Dados de Autenticação ao lado da assinatura */}
                         {hasAuthData && (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 p-3 bg-muted/30 rounded-lg border border-muted">
+                            {signature.signer_cpf && (
+                              <div className="flex items-start gap-2">
+                                <Shield className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium text-muted-foreground">CPF</p>
+                                  <p className="text-sm font-mono">{maskCpf(signature.signer_cpf)}</p>
+                                </div>
+                              </div>
+                            )}
+                            {signature.otp_verified && (
+                              <div className="flex items-start gap-2">
+                                <Smartphone className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium text-muted-foreground">Verificação</p>
+                                  <p className="text-sm">
+                                    OTP WhatsApp
+                                    {signature.otp_verified_at && (
+                                      <span className="text-muted-foreground">
+                                        {' '}em {format(new Date(signature.otp_verified_at), 'dd/MM/yyyy HH:mm')}
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
                             {signature.ip_address && (
                               <div className="flex items-start gap-2">
                                 <Globe className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
