@@ -122,8 +122,8 @@ serve(async (req) => {
     const { data: contract, error: contractError } = await supabase
       .from("contracts")
       .select(`
-        id, organization_id, status, expires_at, signature_token,
-        lead:leads(id, name, phone)
+        id, organization_id, status, expires_at, signature_token, whatsapp_instance_id,
+        lead:leads(id, name, phone, source_instance_id)
       `)
       .eq("id", contractId)
       .eq("signature_token", signatureToken)
@@ -142,7 +142,12 @@ serve(async (req) => {
       return json(400, { error: "Este contrato expirou" });
     }
 
-    const lead = contract.lead as { id: string; name: string; phone: string } | null;
+    const lead = contract.lead as {
+      id: string;
+      name: string;
+      phone: string;
+      source_instance_id?: string | null;
+    } | null;
     if (!lead?.phone) {
       return json(400, {
         error: "Cliente sem telefone cadastrado. Não é possível enviar o código por WhatsApp.",
@@ -174,19 +179,60 @@ serve(async (req) => {
       });
     }
 
-    const { data: evolutionConfig, error: evoError } = await supabase
-      .from("evolution_config")
-      .select("api_url, api_key, instance_name, is_connected, organization_id")
-      .eq("organization_id", contract.organization_id)
-      .eq("is_connected", true)
-      .limit(1)
-      .maybeSingle();
+    // Instância correta: a do envio do contrato, senão a do lead (nunca aleatória)
+    const preferredInstanceId =
+      (contract as { whatsapp_instance_id?: string | null }).whatsapp_instance_id ||
+      lead.source_instance_id ||
+      null;
+
+    type EvoRow = {
+      id: string;
+      api_url: string;
+      api_key: string | null;
+      instance_name: string;
+      is_connected: boolean;
+      organization_id: string;
+    };
+
+    let evolutionConfig: EvoRow | null = null;
+
+    if (preferredInstanceId) {
+      const { data: preferred, error: preferredError } = await supabase
+        .from("evolution_config")
+        .select("id, api_url, api_key, instance_name, is_connected, organization_id")
+        .eq("id", preferredInstanceId)
+        .maybeSingle();
+
+      if (preferredError) {
+        console.error("Erro ao buscar instância preferida:", preferredError);
+      } else if (preferred) {
+        if (preferred.organization_id !== contract.organization_id) {
+          console.error("Instância não pertence à organização do contrato", {
+            preferredInstanceId,
+            instanceOrg: preferred.organization_id,
+            contractOrg: contract.organization_id,
+          });
+        } else {
+          evolutionConfig = preferred as EvoRow;
+        }
+      }
+    }
 
     const testMode = Deno.env.get("SIGNATURE_OTP_TEST_MODE") === "true";
 
-    if (!testMode && (evoError || !evolutionConfig?.api_url || !evolutionConfig.is_connected)) {
+    if (!testMode && !preferredInstanceId) {
+      return json(400, {
+        error:
+          "Não foi possível identificar a instância WhatsApp deste contrato. Reenvie o contrato pela instância correta e tente novamente.",
+      });
+    }
+
+    if (!testMode && (!evolutionConfig?.api_url || !evolutionConfig.is_connected)) {
       return json(503, {
-        error: "WhatsApp da empresa não está conectado. Tente novamente mais tarde.",
+        error: evolutionConfig && !evolutionConfig.is_connected
+          ? "A instância WhatsApp usada neste contrato está desconectada. Reconecte e tente novamente."
+          : "Instância WhatsApp do contrato não encontrada. Reenvie o contrato e tente novamente.",
+        instance_id: preferredInstanceId,
       });
     }
 

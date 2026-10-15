@@ -30,6 +30,8 @@ export interface Contract {
   signed_pdf_url?: string;
   signature_token?: string; // Token para acesso público à página de assinatura
   whatsapp_message_template?: string; // Template personalizado da mensagem WhatsApp
+  /** Instância Evolution usada no envio (OTP deve usar a mesma) */
+  whatsapp_instance_id?: string | null;
   status: ContractStatus;
   expires_at?: string;
   signed_at?: string;

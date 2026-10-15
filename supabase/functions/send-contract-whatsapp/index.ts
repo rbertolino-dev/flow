@@ -369,6 +369,7 @@ Ou você pode baixar o PDF anexado e assinar manualmente.`;
     }
 
     // Atualizar status + atividade em paralelo após sucesso
+    // Persistir instance_id para OTP/reenvios usarem a mesma instância
     const sentAt = new Date().toISOString();
     const statusUpdatePromise = supabase
       .from('contracts')
@@ -376,6 +377,7 @@ Ou você pode baixar o PDF anexado e assinar manualmente.`;
         status: 'sent',
         sent_at: sentAt,
         signature_token: signatureToken,
+        whatsapp_instance_id: instance_id,
       })
       .eq('id', contract_id);
 
