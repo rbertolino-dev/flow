@@ -28,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { useServices } from '@/hooks/useServices';
 import { useLeads } from '@/hooks/useLeads';
+import { useProducts } from '@/hooks/useProducts';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -98,6 +99,8 @@ export default function Budgets() {
   const [budgetExpiresFrom, setBudgetExpiresFrom] = useState<string>('');
   const [budgetExpiresTo, setBudgetExpiresTo] = useState<string>('');
   const [budgetStatusFilter, setBudgetStatusFilter] = useState<'all' | 'valid' | 'expired' | 'expiring_soon' | 'approved'>('all');
+  const [budgetProductCategoryFilter, setBudgetProductCategoryFilter] = useState<string>('all');
+  const [budgetProductFilter, setBudgetProductFilter] = useState<string>('all');
   const [budgetsPage, setBudgetsPage] = useState(1);
   
   // Estados para serviços
@@ -126,7 +129,35 @@ export default function Budgets() {
   const [newServiceImagePreview, setNewServiceImagePreview] = useState<string | null>(null);
   const [uploadingNewServiceImage, setUploadingNewServiceImage] = useState(false);
   const newServiceFileInputRef = useRef<HTMLInputElement>(null);
-  
+
+  const { configs: evolutionConfigs, loading: configsLoading } = useEvolutionConfigs();
+  const { services, loading: servicesLoading, createService, updateService, deleteService, createServicesBulk, categories } = useServices();
+  const { leads = [] } = useLeads();
+  const { products: stockProducts, getActiveProducts } = useProducts();
+  const { toast } = useToast();
+
+  const budgetProductCategories = useMemo(() => {
+    const names = new Set<string>();
+    stockProducts.forEach((product) => {
+      const category = (product.category || '').trim();
+      if (category) names.add(category);
+    });
+    return [...names].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [stockProducts]);
+
+  const budgetFilterProducts = useMemo(() => {
+    const listed = getActiveProducts();
+    if (budgetProductCategoryFilter === 'all') return listed;
+    return listed.filter((product) => product.category === budgetProductCategoryFilter);
+  }, [getActiveProducts, budgetProductCategoryFilter]);
+
+  const productIdsInSelectedCategory = useMemo(() => {
+    if (budgetProductCategoryFilter === 'all') return [];
+    return stockProducts
+      .filter((product) => product.category === budgetProductCategoryFilter)
+      .map((product) => product.id);
+  }, [stockProducts, budgetProductCategoryFilter]);
+
   const {
     budgets,
     loading,
@@ -149,6 +180,10 @@ export default function Budgets() {
     date_to: budgetDateTo || undefined,
     expires_from: budgetExpiresFrom || undefined,
     expires_to: budgetExpiresTo || undefined,
+    product_id: budgetProductFilter !== 'all' ? budgetProductFilter : undefined,
+    product_category: budgetProductCategoryFilter !== 'all' ? budgetProductCategoryFilter : undefined,
+    product_ids_in_category:
+      budgetProductCategoryFilter !== 'all' ? productIdsInSelectedCategory : undefined,
     page: budgetsPage,
     page_size: BUDGETS_PAGE_SIZE,
   });
@@ -164,6 +199,8 @@ export default function Budgets() {
     budgetExpiresFrom,
     budgetExpiresTo,
     budgetStatusFilter,
+    budgetProductCategoryFilter,
+    budgetProductFilter,
   ]);
 
   // Se a página atual ficar além do total (ex.: exclusão), ajustar
@@ -172,11 +209,7 @@ export default function Budgets() {
       setBudgetsPage(budgetsTotalPages);
     }
   }, [budgetsPage, budgetsTotalPages]);
-  const { configs: evolutionConfigs, loading: configsLoading } = useEvolutionConfigs();
-  const { services, loading: servicesLoading, createService, updateService, deleteService, createServicesBulk, categories } = useServices();
-  const { leads = [] } = useLeads();
-  const { toast } = useToast();
-  
+
   // Estado para confirmação de exclusão
   const [serviceToDelete, setServiceToDelete] = useState<Service | null>(null);
 
@@ -592,9 +625,16 @@ export default function Budgets() {
                     <Button variant="outline" className="h-10 rounded-xl border-slate-200 bg-white px-3 shadow-sm">
                       <SlidersHorizontal className="mr-2 h-4 w-4" />
                       Filtros
-                      {(budgetClientFilter !== 'all' || budgetDateFrom || budgetDateTo || budgetExpiresFrom || budgetExpiresTo || budgetStatusFilter !== 'all') && (
+                      {(budgetClientFilter !== 'all' || budgetDateFrom || budgetDateTo || budgetExpiresFrom || budgetExpiresTo || budgetStatusFilter !== 'all' || budgetProductCategoryFilter !== 'all' || budgetProductFilter !== 'all') && (
                         <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[11px] font-semibold text-white">
-                          {[budgetClientFilter !== 'all', budgetStatusFilter !== 'all', Boolean(budgetDateFrom || budgetDateTo), Boolean(budgetExpiresFrom || budgetExpiresTo)].filter(Boolean).length}
+                          {[
+                            budgetClientFilter !== 'all',
+                            budgetStatusFilter !== 'all',
+                            Boolean(budgetDateFrom || budgetDateTo),
+                            Boolean(budgetExpiresFrom || budgetExpiresTo),
+                            budgetProductCategoryFilter !== 'all',
+                            budgetProductFilter !== 'all',
+                          ].filter(Boolean).length}
                         </span>
                       )}
                     </Button>
@@ -631,6 +671,49 @@ export default function Budgets() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="budget-product-category-filter">Categoria do produto</Label>
+                      <Select
+                        value={budgetProductCategoryFilter}
+                        onValueChange={(value) => {
+                          setBudgetProductCategoryFilter(value);
+                          if (value !== 'all') {
+                            const stillVisible = stockProducts.some(
+                              (product) => product.id === budgetProductFilter && product.category === value
+                            );
+                            if (!stillVisible) setBudgetProductFilter('all');
+                          }
+                        }}
+                      >
+                        <SelectTrigger id="budget-product-category-filter">
+                          <SelectValue placeholder="Todas as categorias" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas as categorias</SelectItem>
+                          {budgetProductCategories.map((category) => (
+                            <SelectItem key={category} value={category}>
+                              {category}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="budget-product-filter">Produto no orçamento</Label>
+                      <Select value={budgetProductFilter} onValueChange={setBudgetProductFilter}>
+                        <SelectTrigger id="budget-product-filter">
+                          <SelectValue placeholder="Todos os produtos" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos os produtos</SelectItem>
+                          {budgetFilterProducts.map((product) => (
+                            <SelectItem key={product.id} value={product.id}>
+                              {product.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1.5">
                         <Label htmlFor="budget-date-from">Criação de</Label>
@@ -661,6 +744,8 @@ export default function Budgets() {
                         setBudgetExpiresFrom('');
                         setBudgetExpiresTo('');
                         setBudgetStatusFilter('all');
+                        setBudgetProductCategoryFilter('all');
+                        setBudgetProductFilter('all');
                       }}
                     >
                       <X className="mr-2 h-4 w-4" />

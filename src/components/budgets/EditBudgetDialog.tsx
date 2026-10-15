@@ -173,6 +173,7 @@ export function EditBudgetDialog({
     price: p.price,
     wholesale_price: p.wholesale_price ?? null,
     description: p.description || undefined,
+    category: p.category || undefined,
   }));
 
   if (!budget) {

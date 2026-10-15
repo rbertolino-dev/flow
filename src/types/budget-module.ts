@@ -4,6 +4,8 @@ export interface BudgetProduct {
   id: string;
   name: string;
   description?: string;
+  /** Categoria do produto no estoque (cópia no momento de incluir no orçamento). */
+  category?: string;
   price: number;
   quantity: number;
   subtotal: number;

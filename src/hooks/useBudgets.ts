@@ -25,9 +25,35 @@ interface BudgetFilters {
   date_to?: string;
   expires_from?: string;
   expires_to?: string;
+  /** Filtra orçamentos que incluem este produto (id do estoque). */
+  product_id?: string;
+  /** Filtra orçamentos com produto desta categoria (usa category no item ou ids do catálogo). */
+  product_category?: string;
+  /** Ids de produtos do estoque na categoria selecionada (fallback para orçamentos antigos). */
+  product_ids_in_category?: string[];
   /** Página 1-based; padrão 1 */
   page?: number;
   page_size?: number;
+}
+
+function budgetHasProduct(budget: Budget, productId: string): boolean {
+  const products = Array.isArray(budget.products) ? budget.products : [];
+  return products.some((item) => item?.id === productId);
+}
+
+function budgetHasProductCategory(
+  budget: Budget,
+  category: string,
+  productIdsInCategory: string[] = []
+): boolean {
+  const products = Array.isArray(budget.products) ? budget.products : [];
+  const categoryLower = category.toLowerCase();
+  const idSet = new Set(productIdsInCategory);
+  return products.some((item) => {
+    if (!item || item.isManual) return false;
+    if (item.category && item.category.toLowerCase() === categoryLower) return true;
+    return Boolean(item.id && idSet.has(item.id));
+  });
 }
 
 async function callBudgetStock(activeOrgId: string, body: Record<string, unknown>) {
@@ -246,6 +272,9 @@ export function useBudgets(filters?: BudgetFilters) {
     filters?.date_to,
     filters?.expires_from,
     filters?.expires_to,
+    filters?.product_id,
+    filters?.product_category,
+    filters?.product_ids_in_category?.join(','),
     page,
     pageSize,
   ]);
@@ -257,6 +286,7 @@ export function useBudgets(filters?: BudgetFilters) {
       setLoading(true);
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
+      const needsClientItemFilter = Boolean(filters?.product_id || filters?.product_category);
 
       // @ts-ignore - Tabela budgets existe
       let query = supabase
@@ -309,47 +339,56 @@ export function useBudgets(filters?: BudgetFilters) {
         query = query.lte('expires_at', filters.expires_to);
       }
 
-      // Todos os orçamentos (sem filtro de mês), paginados de pageSize em pageSize
-      query = query.order('created_at', { ascending: false }).range(from, to);
+      // Com filtro de produto/categoria, busca o conjunto filtrável e pagina no cliente
+      query = query.order('created_at', { ascending: false });
+      if (!needsClientItemFilter) {
+        query = query.range(from, to);
+      }
 
       const { data, error, count } = await query;
 
       if (error) throw error;
 
-      setTotalCount(count ?? 0);
-      
-      // Filtrar por nome do cliente se houver busca (client_data JSONB)
       let filteredData = (data || []) as Budget[];
+
       if (filters?.search) {
         const searchLower = filters.search.toLowerCase();
         filteredData = filteredData.filter((budget) => {
-          // Buscar no número do orçamento
           if (budget.budget_number?.toLowerCase().includes(searchLower)) return true;
-          
-          // Buscar nas observações
           if (budget.observations?.toLowerCase().includes(searchLower)) return true;
-          
-          // Buscar no nome do cliente (client_data JSONB)
           const clientData = budget.client_data as any;
           if (clientData?.name?.toLowerCase().includes(searchLower)) return true;
-          
-          // Buscar no telefone do cliente
           if (clientData?.phone?.toLowerCase().includes(searchLower)) return true;
-          
-          // Buscar no email do cliente
           if (clientData?.email?.toLowerCase().includes(searchLower)) return true;
-          
-          // Buscar na empresa do cliente
           if (clientData?.company?.toLowerCase().includes(searchLower)) return true;
-
           const totalText = String(budget.total ?? '');
           if (totalText.includes(searchLower.replace(/\s/g, '').replace(',', '.'))) return true;
           if (totalText.includes(searchLower)) return true;
-          
           return false;
         });
       }
-      
+
+      if (filters?.product_id) {
+        filteredData = filteredData.filter((budget) => budgetHasProduct(budget, filters.product_id!));
+      }
+
+      if (filters?.product_category) {
+        filteredData = filteredData.filter((budget) =>
+          budgetHasProductCategory(
+            budget,
+            filters.product_category!,
+            filters.product_ids_in_category || []
+          )
+        );
+      }
+
+      if (needsClientItemFilter) {
+        setTotalCount(filteredData.length);
+        filteredData = filteredData.slice(from, to + 1);
+      } else {
+        setTotalCount(count ?? 0);
+      }
+
       setBudgets(filteredData);
     } catch (error: any) {
       console.error('Erro ao carregar orçamentos:', error);

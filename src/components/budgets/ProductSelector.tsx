@@ -51,6 +51,7 @@ export function ProductSelector({ products, selectedProducts, onProductsChange }
       id: product.id,
       name: product.name,
       description: product.description || undefined,
+      category: product.category || undefined,
       price: price,
       quantity: qty,
       subtotal: subtotal,

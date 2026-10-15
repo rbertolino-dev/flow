@@ -22,6 +22,7 @@ export type AvailableBudgetProduct = {
   price: number;
   wholesale_price?: number | null;
   description?: string;
+  category?: string;
   image_url?: string;
   sku?: string | null;
   barcode?: string | null;
@@ -211,6 +212,7 @@ export function BudgetItemsEditor({
           id: product.id,
           name: product.name,
           description: product.description || '',
+          category: product.category || '',
           image_url: product.image_url,
           line_discount: 0,
           internal_notes: '',
