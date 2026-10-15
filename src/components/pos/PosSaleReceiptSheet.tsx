@@ -39,12 +39,20 @@ import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { supabase } from "@/integrations/supabase/client";
 import { PAYMENT_METHODS, getPaymentMethodLabel, type PaymentMethod } from "@/lib/paymentMethods";
 import { printPosA4, printPosCupom } from "@/lib/posPrint";
-import type { PosCartItem, PosSale, PosSaleItem, PosSaleLog } from "@/types/pos";
+import type { PosCartItem, PosFinanceEntryRef, PosSale, PosSaleItem, PosSaleLog } from "@/types/pos";
 import { PosReturnExchangeDialog, type PosReturnPayload } from "@/components/pos/PosReturnExchangeDialog";
 import { Loader2, Pencil, Printer, FileText } from "lucide-react";
 
 function formatMoney(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function formatDateBr(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const raw = String(iso).slice(0, 10);
+  const d = new Date(`${raw}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return raw;
+  return d.toLocaleDateString("pt-BR");
 }
 
 function formatDateTimeShort(iso: string | null | undefined) {
@@ -189,6 +197,13 @@ function saleToPrintPayload(
     tendered_amount: p.tendered_amount == null ? null : Number(p.tendered_amount),
     change_amount: Number(p.change_amount || 0),
   }));
+  const financeEntries = (sale.financial_entries || []).map((e) => ({
+    id: e.id,
+    amount: Number(e.amount),
+    due_date: String(e.due_date || "").slice(0, 10),
+    method: e.method || "",
+    status: e.status === "paid" ? ("paid" as const) : ("open" as const),
+  }));
   return {
     sale: {
       id: sale.id,
@@ -202,9 +217,11 @@ function saleToPrintPayload(
       sold_at: sale.sold_at || sale.created_at,
       sold_by_name: sale.sold_by_name,
       notes: sale.notes,
+      financial_entries: financeEntries,
     },
     items,
     payments,
+    financeEntries,
     organizationName: organization?.name || undefined,
     organization,
   };
@@ -238,6 +255,7 @@ export function PosSaleReceiptSheet({
   const [notes, setNotes] = useState("");
   const [notesDirty, setNotesDirty] = useState(false);
   const [paymentBusyId, setPaymentBusyId] = useState<string | null>(null);
+  const [financeBusyId, setFinanceBusyId] = useState<string | null>(null);
 
   const [editDateOpen, setEditDateOpen] = useState(false);
   const [soldAtLocal, setSoldAtLocal] = useState("");
@@ -369,6 +387,8 @@ export function PosSaleReceiptSheet({
             }
           : prev
       );
+      // Recarrega para alinhar lançamentos financeiros com a nova forma
+      await loadSale();
       onChanged?.();
     } catch {
       // toast já no hook
@@ -376,6 +396,56 @@ export function PosSaleReceiptSheet({
       setPaymentBusyId(null);
     }
   };
+
+  const handleReceiveFinance = async (entry: PosFinanceEntryRef) => {
+    if (!sale || !activeOrgId || entry.status === "paid" || sale.status === "cancelled") return;
+    setFinanceBusyId(entry.id);
+    try {
+      const client = supabase as unknown as {
+        rpc: (
+          fn: string,
+          args: Record<string, string>
+        ) => Promise<{ error: { message: string } | null }>;
+      };
+      const due = String(entry.due_date || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
+      const { error } = await client.rpc("set_financial_entry_status", {
+        p_organization_id: activeOrgId,
+        p_entry_id: entry.id,
+        p_status: "paid",
+        p_paid_at: `${due}T12:00:00`,
+      });
+      if (error) {
+        toast({
+          title: "Não foi possível receber",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+      setSale((prev) =>
+        prev
+          ? {
+              ...prev,
+              financial_entries: (prev.financial_entries || []).map((row) =>
+                row.id === entry.id ? { ...row, status: "paid" as const } : row
+              ),
+            }
+          : prev
+      );
+      toast({ title: "Recebimento registrado" });
+      onChanged?.();
+    } finally {
+      setFinanceBusyId(null);
+    }
+  };
+
+  const financeEntries = sale?.financial_entries || [];
+  const financeReceivedTotal = financeEntries
+    .filter((e) => e.status === "paid")
+    .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  const financePendingTotal = financeEntries
+    .filter((e) => e.status !== "paid")
+    .reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
   const openAlter = () => {
     if (!sale) return;
@@ -632,6 +702,65 @@ export function PosSaleReceiptSheet({
                     Ao alterar a forma, o financeiro é atualizado e a mudança fica registrada no log.
                   </p>
                 </div>
+
+                {financeEntries.length > 0 ? (
+                  <>
+                    <SectionHeader title="Recebimentos" />
+                    <div className="space-y-2 px-4 py-3">
+                      <div className="flex flex-wrap gap-3 text-sm">
+                        <span className="rounded-md bg-emerald-50 px-2.5 py-1 font-medium text-emerald-800">
+                          Recebido: {formatMoney(financeReceivedTotal)}
+                        </span>
+                        <span className="rounded-md bg-amber-50 px-2.5 py-1 font-medium text-amber-900">
+                          Pendente: {formatMoney(financePendingTotal)}
+                        </span>
+                      </div>
+                      {financeEntries.map((entry, index) => (
+                        <div
+                          key={entry.id}
+                          className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2"
+                        >
+                          <span className="text-xs text-muted-foreground">{index + 1}.</span>
+                          <span className="min-w-[88px] text-sm font-semibold tabular-nums text-slate-800">
+                            {formatMoney(Number(entry.amount))}
+                          </span>
+                          <span className="text-sm text-slate-700">
+                            {getPaymentMethodLabel((entry.method || "") as PaymentMethod) ||
+                              entry.method ||
+                              "—"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            Venc. {formatDateBr(entry.due_date)}
+                          </span>
+                          <span
+                            className={
+                              entry.status === "paid"
+                                ? "rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800"
+                                : "rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900"
+                            }
+                          >
+                            {entry.status === "paid" ? "Recebido" : "Pendente"}
+                          </span>
+                          {entry.status !== "paid" && sale.status !== "cancelled" ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="ml-auto bg-orange-500 text-white hover:bg-orange-600"
+                              disabled={financeBusyId === entry.id || !activeOrgId}
+                              onClick={() => void handleReceiveFinance(entry)}
+                            >
+                              {financeBusyId === entry.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "Marcar como recebido"
+                              )}
+                            </Button>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
 
                 {(sale.logs || []).length > 0 && (
                   <>

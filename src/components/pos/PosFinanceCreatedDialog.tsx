@@ -25,7 +25,7 @@ type Props = {
   open: boolean;
   description: string;
   entries: PosFinanceEntryRef[];
-  onDone: () => void;
+  onDone: (entries: PosFinanceEntryRef[]) => void;
 };
 
 function money(value: number) {
@@ -116,8 +116,10 @@ export function PosFinanceCreatedDialog({ open, description, entries, onDone }: 
     setRows((current) => current.map((item) => (item.id === row.id ? { ...item, status: "paid" } : item)));
   };
 
+  const finish = () => onDone(shown);
+
   return (
-    <Dialog open={open} onOpenChange={(next) => { if (!next) onDone(); }}>
+    <Dialog open={open} onOpenChange={(next) => { if (!next) finish(); }}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Lançamentos financeiros criados</DialogTitle>
@@ -176,7 +178,7 @@ export function PosFinanceCreatedDialog({ open, description, entries, onDone }: 
           ))}
         </div>
         <DialogFooter>
-          <Button type="button" onClick={onDone}>OK</Button>
+          <Button type="button" onClick={finish}>OK</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

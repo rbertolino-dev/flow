@@ -331,13 +331,22 @@ export function PosSaleSuccessDialog({
   if (!sale) return null;
 
   const services = items.filter((item) => item.item_type === "service");
+  const financeEntries = sale.financial_entries || [];
+  const financeReceivedTotal = financeEntries
+    .filter((e) => e.status === "paid")
+    .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  const financePendingTotal = financeEntries
+    .filter((e) => e.status !== "paid")
+    .reduce((sum, e) => sum + Number(e.amount || 0), 0);
   const printPayload = {
     sale: {
       ...sale,
       sold_at: sale.sold_at || new Date().toISOString(),
+      financial_entries: financeEntries,
     },
     items,
     payments,
+    financeEntries,
     organizationName,
     organization: organization || { name: organizationName },
   };
@@ -451,18 +460,78 @@ export function PosSaleSuccessDialog({
 
               <section className="rounded-xl border bg-card">
                 <h3 className="border-b px-4 py-3 text-sm font-semibold text-slate-700">Pagamento</h3>
-                <ul className="divide-y">
-                  {payments.map((payment) => (
-                    <li key={payment.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                      <span>{getPaymentMethodLabel(payment.method as PaymentMethod)}</span>
-                      <span className="font-medium tabular-nums">{money(payment.amount)}</span>
-                    </li>
-                  ))}
-                </ul>
-                <div className="flex items-center justify-between border-t bg-slate-50 px-4 py-3 text-sm font-semibold">
-                  <span>Total</span>
-                  <span className="tabular-nums">{money(Number(sale.total))}</span>
-                </div>
+                {financeEntries.length > 0 ? (
+                  <>
+                    <ul className="divide-y">
+                      {financeEntries.map((entry) => (
+                        <li
+                          key={entry.id}
+                          className="flex items-center justify-between gap-3 px-4 py-3"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-medium text-slate-900">
+                              {getPaymentMethodLabel((entry.method || "") as PaymentMethod) ||
+                                entry.method ||
+                                "—"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {entry.status === "paid" ? "Recebido" : "Pendente"}
+                              {entry.due_date
+                                ? ` · venc. ${String(entry.due_date).slice(0, 10).split("-").reverse().join("/")}`
+                                : ""}
+                            </p>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <span className="block font-medium tabular-nums">
+                              {money(Number(entry.amount))}
+                            </span>
+                            <span
+                              className={
+                                entry.status === "paid"
+                                  ? "text-xs font-semibold text-emerald-700"
+                                  : "text-xs font-semibold text-amber-700"
+                              }
+                            >
+                              {entry.status === "paid" ? "Recebido" : "Pendente"}
+                            </span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="space-y-1 border-t bg-slate-50 px-4 py-3 text-sm">
+                      <div className="flex justify-between font-medium text-emerald-800">
+                        <span>Recebido</span>
+                        <span className="tabular-nums">{money(financeReceivedTotal)}</span>
+                      </div>
+                      <div className="flex justify-between font-medium text-amber-900">
+                        <span>Pendente</span>
+                        <span className="tabular-nums">{money(financePendingTotal)}</span>
+                      </div>
+                      <div className="flex justify-between border-t pt-2 font-semibold">
+                        <span>Total</span>
+                        <span className="tabular-nums">{money(Number(sale.total))}</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <ul className="divide-y">
+                      {payments.map((payment) => (
+                        <li
+                          key={payment.id}
+                          className="flex items-center justify-between gap-3 px-4 py-3"
+                        >
+                          <span>{getPaymentMethodLabel(payment.method as PaymentMethod)}</span>
+                          <span className="font-medium tabular-nums">{money(payment.amount)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="flex items-center justify-between border-t bg-slate-50 px-4 py-3 text-sm font-semibold">
+                      <span>Total</span>
+                      <span className="tabular-nums">{money(Number(sale.total))}</span>
+                    </div>
+                  </>
+                )}
               </section>
             </div>
 

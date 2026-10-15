@@ -906,6 +906,17 @@ serve(async (req) => {
           LIMIT 50
         `;
 
+        let financialEntries: Awaited<ReturnType<typeof listSaleFinanceEntries>> = [];
+        try {
+          financialEntries = await listSaleFinanceEntries(
+            supabase as unknown as FinanceClient,
+            organizationId,
+            saleId,
+          );
+        } catch (financeListError) {
+          console.warn("[pos-sales] get_sale financial_entries:", financeListError);
+        }
+
         return json({
           data: {
             ...serializeRows([sale.rows[0] as Record<string, unknown>])[0],
@@ -913,6 +924,7 @@ serve(async (req) => {
             payments: serializeRows(payments.rows as Record<string, unknown>[]),
             returns,
             logs: serializeRows(logs.rows as Record<string, unknown>[]),
+            financial_entries: financialEntries,
           },
         });
       }

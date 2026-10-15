@@ -1,4 +1,4 @@
-import type { FinalizeSaleResult, PosCartItem, PosPaymentLine } from "@/types/pos";
+import type { FinalizeSaleResult, PosCartItem, PosFinanceEntryRef, PosPaymentLine } from "@/types/pos";
 import { getPaymentMethodLabel, type PaymentMethod } from "@/lib/paymentMethods";
 
 /** Valor no estilo Agilize: 30,00 (sem R$) */
@@ -39,6 +39,8 @@ export type PosPrintPayload = {
   };
   items: PosCartItem[];
   payments: PosPaymentLine[];
+  /** Situação financeira (recebido / pendente) quando a venda gera lançamentos. */
+  financeEntries?: PosFinanceEntryRef[];
   organizationName?: string;
   organization?: PosPrintOrgInfo;
 };
@@ -57,11 +59,12 @@ function itemLabel(item: PosCartItem) {
   return item.name;
 }
 
-function paymentLabels(payments: PosPaymentLine[]) {
-  if (!payments.length) return "—";
-  return payments
-    .map((p) => getPaymentMethodLabel(p.method as PaymentMethod) || p.method)
-    .join(", ");
+function formatDateBr(iso?: string | null) {
+  if (!iso) return "";
+  const raw = String(iso).slice(0, 10);
+  const d = new Date(`${raw}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return raw;
+  return d.toLocaleDateString("pt-BR");
 }
 
 function paymentCashLines(payments: PosPaymentLine[]) {
@@ -70,9 +73,58 @@ function paymentCashLines(payments: PosPaymentLine[]) {
     .map((payment) => {
       const received = Number(payment.tendered_amount);
       const change = Number(payment.change_amount ?? received - Number(payment.amount));
-      return `<div><strong>Recebido:</strong> ${escapeHtml(formatMoneyPlain(received))}</div><div><strong>Troco:</strong> ${escapeHtml(formatMoneyPlain(change))}</div>`;
+      return `<div><strong>Recebido (caixa):</strong> ${escapeHtml(formatMoneyPlain(received))}</div><div><strong>Troco:</strong> ${escapeHtml(formatMoneyPlain(change))}</div>`;
     })
     .join("");
+}
+
+/** Bloco de formas + situação (recebido / pendente) para cupom e A4. */
+function paymentSettlementBlock(payments: PosPaymentLine[], financeEntries?: PosFinanceEntryRef[]) {
+  const entries = financeEntries || [];
+  if (entries.length) {
+    const lines = entries
+      .map((entry) => {
+        const method =
+          getPaymentMethodLabel((entry.method || "") as PaymentMethod) || entry.method || "—";
+        const statusLabel = entry.status === "paid" ? "RECEBIDO" : "PENDENTE";
+        const due =
+          entry.status === "paid" || !entry.due_date
+            ? ""
+            : ` (venc. ${formatDateBr(entry.due_date)})`;
+        return `<div>${escapeHtml(method)} ........ ${escapeHtml(formatMoneyPlain(entry.amount))} — <strong>${statusLabel}</strong>${escapeHtml(due)}</div>`;
+      })
+      .join("");
+    const receivedTotal = entries
+      .filter((e) => e.status === "paid")
+      .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    const pendingTotal = entries
+      .filter((e) => e.status !== "paid")
+      .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    return `
+      <div><strong>Formas de pagamento:</strong></div>
+      ${lines}
+      <div style="margin-top:4px"><strong>Total recebido:</strong> ${escapeHtml(formatMoneyPlain(receivedTotal))}</div>
+      <div><strong>Total pendente:</strong> ${escapeHtml(formatMoneyPlain(pendingTotal))}</div>
+      ${paymentCashLines(payments)}
+    `;
+  }
+
+  if (!payments.length) {
+    return `<div><strong>Formas de pagamento:</strong> —</div>`;
+  }
+
+  const lines = payments
+    .map((p) => {
+      const method = getPaymentMethodLabel(p.method as PaymentMethod) || p.method;
+      return `<div>${escapeHtml(method)} ........ ${escapeHtml(formatMoneyPlain(p.amount))}</div>`;
+    })
+    .join("");
+
+  return `
+    <div><strong>Formas de pagamento:</strong></div>
+    ${lines}
+    ${paymentCashLines(payments)}
+  `;
 }
 
 /**
@@ -139,13 +191,17 @@ function orgHeader(payload: PosPrintPayload) {
 
 /** Cupom térmico ~80mm — layout igual ao Agilize Total (imprimir_recibo_venda) */
 export function printPosCupom(payload: PosPrintPayload) {
-  const { sale, items, payments } = payload;
+  const { sale, items, payments, financeEntries } = payload;
   const { name, cnpj, address } = orgHeader(payload);
   const subtotal = Number(sale.subtotal ?? sale.total);
   const total = Number(sale.total);
   const customerName = sale.customer_name || "venda avulsa";
   const customerPhone = sale.customer_phone || "";
   const seller = sale.sold_by_name || "";
+  const finance =
+    financeEntries ||
+    sale.financial_entries ||
+    [];
 
   const rows = items
     .map(
@@ -264,8 +320,7 @@ export function printPosCupom(payload: PosPrintPayload) {
     <div class="row bold"><span>Total R$</span><span>${formatMoneyPlain(total)}</span></div>
     <hr/>
     <div class="block">
-      <div><strong>Formas de pagamento:</strong> ${escapeHtml(paymentLabels(payments))}</div>
-      ${paymentCashLines(payments)}
+      ${paymentSettlementBlock(payments, finance)}
       <div><strong>Nome do cliente:</strong> ${escapeHtml(customerName)}</div>
       <div><strong>Telefone do cliente:</strong> ${escapeHtml(customerPhone)}</div>
     </div>
@@ -284,7 +339,11 @@ export function printPosCupom(payload: PosPrintPayload) {
 
 /** Folha A4 — mesmos dados do cupom, em formato página */
 export function printPosA4(payload: PosPrintPayload) {
-  const { sale, items, payments } = payload;
+  const { sale, items, payments, financeEntries } = payload;
+  const finance =
+    financeEntries ||
+    sale.financial_entries ||
+    [];
   const { name, cnpj, address } = orgHeader(payload);
   const subtotal = Number(sale.subtotal ?? sale.total);
   const total = Number(sale.total);
@@ -355,8 +414,7 @@ export function printPosA4(payload: PosPrintPayload) {
     <div class="row bold"><span>Total R$</span><span>${formatMoney(total)}</span></div>
     <hr/>
     <div class="block">
-      <div><strong>Formas de pagamento:</strong> ${escapeHtml(paymentLabels(payments))}</div>
-      ${paymentCashLines(payments)}
+      ${paymentSettlementBlock(payments, finance)}
       <div><strong>Nome do cliente:</strong> ${escapeHtml(sale.customer_name || "venda avulsa")}</div>
       <div><strong>Telefone do cliente:</strong> ${escapeHtml(sale.customer_phone || "")}</div>
       <div><strong>Vendedor:</strong> ${escapeHtml(sale.sold_by_name || "")}</div>

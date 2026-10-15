@@ -1978,8 +1978,12 @@ export default function Pos() {
         open={financeOpen}
         description={financeDescription}
         entries={financeEntries}
-        onDone={() => {
+        onDone={(entries) => {
           setFinanceOpen(false);
+          setFinanceEntries(entries);
+          setLastSale((prev) =>
+            prev ? { ...prev, financial_entries: entries } : prev
+          );
           setSuccessOpen(true);
         }}
       />

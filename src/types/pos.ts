@@ -133,6 +133,8 @@ export interface PosSale {
   payments?: PosSalePayment[];
   returns?: PosSaleReturn[];
   logs?: PosSaleLog[];
+  /** Lançamentos financeiros da venda (recebido / pendente). */
+  financial_entries?: PosFinanceEntryRef[];
   /** Valor pago na forma filtrada. Presente só quando o histórico filtra por forma de pagamento. */
   payment_amount?: number;
 }
