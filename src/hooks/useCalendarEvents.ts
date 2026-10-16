@@ -14,6 +14,7 @@ export interface CalendarEvent {
   end_datetime: string;
   location: string | null;
   html_link: string | null;
+  color_id: string | null;
   stage_id: string | null;
   status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
   completed_at: string | null;

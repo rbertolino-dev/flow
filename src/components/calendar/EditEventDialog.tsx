@@ -36,6 +36,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { GOOGLE_CALENDAR_COLORS } from "@/lib/googleCalendarColors";
 
 interface EditEventDialogProps {
   open: boolean;
@@ -95,7 +96,7 @@ export function EditEventDialog({
         duration: durationMinutes.toString(),
         description: event.description || "",
         location: event.location || "",
-        colorId: "",
+        colorId: event.color_id || "",
         stageId: event.stage_id || "",
         addGoogleMeet: false, // Verificar se já tem Meet link
         organizerUserId: (event as any).organizer_user_id || "",
@@ -130,19 +131,7 @@ export function EditEventDialog({
     }
   }, [event, organizationUsers]);
 
-  const calendarColors = [
-    { id: "1", name: "Lavanda", hex: "#7986CB" },
-    { id: "2", name: "Sage", hex: "#33B679" },
-    { id: "3", name: "Grape", hex: "#8E24AA" },
-    { id: "4", name: "Flamingo", hex: "#E67C73" },
-    { id: "5", name: "Banana", hex: "#F6BF26" },
-    { id: "6", name: "Tangerine", hex: "#F4511E" },
-    { id: "7", name: "Peacock", hex: "#039BE5" },
-    { id: "8", name: "Graphite", hex: "#616161" },
-    { id: "9", name: "Blueberry", hex: "#3F51B5" },
-    { id: "10", name: "Basil", hex: "#0B8043" },
-    { id: "11", name: "Tomato", hex: "#D50000" },
-  ];
+  const calendarColors = GOOGLE_CALENDAR_COLORS;
 
   const handleUpdateEvent = async () => {
     if (!event || !formData.summary || !formData.startDate || !formData.startTime) {

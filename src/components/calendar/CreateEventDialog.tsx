@@ -36,6 +36,7 @@ import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { formatSaoPauloDateTime, formatSaoPauloDate, parseSaoPauloDateTime } from "@/lib/dateUtils";
 import { DateTimePicker } from "./DateTimePicker";
+import { GOOGLE_CALENDAR_COLORS } from "@/lib/googleCalendarColors";
 
 interface CreateEventDialogProps {
   open: boolean;
@@ -138,20 +139,7 @@ export function CreateEventDialog({
     }
   }, [meetLink, formData.sendMessage]);
 
-  // Cores disponíveis do Google Calendar (1-11)
-  const calendarColors = [
-    { id: "1", name: "Lavanda", hex: "#7986CB" },
-    { id: "2", name: "Sage", hex: "#33B679" },
-    { id: "3", name: "Grape", hex: "#8E24AA" },
-    { id: "4", name: "Flamingo", hex: "#E67C73" },
-    { id: "5", name: "Banana", hex: "#F6BF26" },
-    { id: "6", name: "Tangerine", hex: "#F4511E" },
-    { id: "7", name: "Peacock", hex: "#039BE5" },
-    { id: "8", name: "Graphite", hex: "#616161" },
-    { id: "9", name: "Blueberry", hex: "#3F51B5" },
-    { id: "10", name: "Basil", hex: "#0B8043" },
-    { id: "11", name: "Tomato", hex: "#D50000" },
-  ];
+  const calendarColors = GOOGLE_CALENDAR_COLORS;
 
   useEffect(() => {
     if (defaultDate) {

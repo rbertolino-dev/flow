@@ -247,6 +247,7 @@ serve(async (req) => {
         end_datetime: new Date(eventEnd).toISOString(),
         location: updatedEvent.location || location || null,
         html_link: updatedEvent.htmlLink || null,
+        color_id: colorId !== undefined ? (colorId || null) : (updatedEvent.colorId || null),
         stage_id: stageId !== undefined ? (stageId || null) : undefined,
         organizer_user_id: organizerUserId !== undefined ? (organizerUserId || null) : undefined,
         attendees: attendees !== undefined ? (attendees.length > 0 ? attendees : null) : undefined,

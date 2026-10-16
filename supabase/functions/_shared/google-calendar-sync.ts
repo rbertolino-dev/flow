@@ -27,6 +27,7 @@ interface GoogleEvent {
   description?: string;
   location?: string;
   htmlLink?: string;
+  colorId?: string;
   start?: { dateTime?: string; date?: string; timeZone?: string };
   end?: { dateTime?: string; date?: string; timeZone?: string };
   attendees?: Array<{ email?: string; displayName?: string }>;
@@ -362,6 +363,7 @@ async function applyDelta(
       end_datetime: endDateTime,
       location: event.location || null,
       html_link: event.htmlLink || null,
+      color_id: event.colorId || null,
       attendees: Array.isArray(event.attendees)
         ? event.attendees
           .map((attendee) => ({

@@ -207,6 +207,7 @@ serve(async (req) => {
           end_datetime: new Date(eventEnd).toISOString(),
           location: eventData.location || location || null,
           html_link: eventData.htmlLink || null,
+          color_id: eventData.colorId || colorId || null,
           stage_id: stageId || null,
           organizer_user_id: organizerUserId || null,
           booked_by_user_id: bookedByUserId || null,

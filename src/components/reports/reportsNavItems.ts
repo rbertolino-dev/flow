@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ClipboardList, Percent, Users } from "lucide-react";
+import { CalendarDays, ClipboardList, Percent, Users } from "lucide-react";
 
 export type ReportsNavItem = {
   to: string;
@@ -27,6 +27,12 @@ export const REPORTS_NAV_ITEMS: ReportsNavItem[] = [
     label: "Comissões",
     icon: Users,
     description: "Comissões de vendas (PDV/orçamento) e ordens de serviço.",
+  },
+  {
+    to: "/relatorios/agendamentos",
+    label: "Agendamentos",
+    icon: CalendarDays,
+    description: "Reuniões do Google Meet/Calendar por cor, período e tempo.",
   },
 ];
 

@@ -76,6 +76,7 @@ const Reports = lazyWithRetry(() => import("./pages/Reports"));
 const ReportsMargins = lazyWithRetry(() => import("./pages/ReportsMargins"));
 const ReportsCommissions = lazyWithRetry(() => import("./pages/ReportsCommissions"));
 const ReportsServiceOrders = lazyWithRetry(() => import("./pages/ReportsServiceOrders"));
+const ReportsScheduling = lazyWithRetry(() => import("./pages/ReportsScheduling"));
 const Employees = lazyWithRetry(() => import("./pages/Employees"));
 const PublicSurvey = lazyWithRetry(() => import("./pages/PublicSurvey"));
 const PublicBooking = lazyWithRetry(() => import("./pages/PublicBooking"));
@@ -228,6 +229,7 @@ const App = () => {
                 <Route path="/relatorios/margens" element={<ReportsMargins />} />
                 <Route path="/relatorios/comissoes" element={<ReportsCommissions />} />
                 <Route path="/relatorios/ordens-servico" element={<ReportsServiceOrders />} />
+                <Route path="/relatorios/agendamentos" element={<ReportsScheduling />} />
                 <Route path="/budgets-module" element={<BudgetsModule />} />
                 <Route path="/employees" element={<Employees />} />
                 <Route path="/sign-contract/:contractId" element={<SignContract />} />
