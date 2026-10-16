@@ -218,9 +218,10 @@ export function CobrancasPage() {
               size="icon"
               onClick={() => setConfigOpen(true)}
               title="Integração Asaas"
+              aria-label="Integração Asaas"
               className="border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white"
             >
-              <Settings className="h-4 w-4" />
+              <Settings className="h-4 w-4" aria-hidden />
             </Button>
             <Button
               type="button"
@@ -229,9 +230,10 @@ export function CobrancasPage() {
               onClick={() => void handleSync()}
               disabled={isSyncingStatus}
               title="Sincronizar status"
+              aria-label="Sincronizar status"
               className="border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white"
             >
-              <RefreshCw className={cn("h-4 w-4", isSyncingStatus && "animate-spin")} />
+              <RefreshCw className={cn("h-4 w-4", isSyncingStatus && "animate-spin")} aria-hidden />
             </Button>
           </div>
         </div>
@@ -274,13 +276,13 @@ export function CobrancasPage() {
           <TabsList className="bg-slate-100/90 p-1 h-auto">
             <TabsTrigger
               value="todos"
-              className="data-[state=active]:bg-teal-600 data-[state=active]:text-white px-4"
+              className="data-[state=active]:bg-teal-800 data-[state=active]:text-white px-4"
             >
               Todos
             </TabsTrigger>
             <TabsTrigger
               value="parcelados"
-              className="data-[state=active]:bg-orange-500 data-[state=active]:text-white px-4"
+              className="data-[state=active]:bg-orange-700 data-[state=active]:text-white px-4"
             >
               Boletos Parcelados
             </TabsTrigger>
@@ -301,14 +303,31 @@ export function CobrancasPage() {
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-600">Filtrar por data de criação</Label>
                 <div className="flex items-center gap-2">
-                  <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-auto bg-slate-50" />
+                  <Input
+                    id="cob-filtro-data-de"
+                    type="date"
+                    aria-label="Data inicial"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="w-auto bg-slate-50"
+                  />
                   <span className="text-sm text-slate-400">a</span>
-                  <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-auto bg-slate-50" />
+                  <Input
+                    id="cob-filtro-data-ate"
+                    type="date"
+                    aria-label="Data final"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="w-auto bg-slate-50"
+                  />
                 </div>
               </div>
               <div className="space-y-1 flex-1 min-w-[180px]">
-                <Label className="text-xs font-medium text-slate-600">Buscar por cliente</Label>
+                <Label htmlFor="cob-filtro-cliente" className="text-xs font-medium text-slate-600">
+                  Buscar por cliente
+                </Label>
                 <Input
+                  id="cob-filtro-cliente"
                   value={clientSearch}
                   onChange={(e) => setClientSearch(e.target.value)}
                   placeholder="Nome, descrição, código..."
@@ -316,9 +335,11 @@ export function CobrancasPage() {
                 />
               </div>
               <div className="space-y-1 w-full sm:w-40">
-                <Label className="text-xs font-medium text-slate-600">Status</Label>
+                <Label htmlFor="cob-filtro-status" className="text-xs font-medium text-slate-600">
+                  Status
+                </Label>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="bg-slate-50">
+                  <SelectTrigger id="cob-filtro-status" className="bg-slate-50" aria-label="Filtrar por status">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -330,14 +351,18 @@ export function CobrancasPage() {
                 </Select>
               </div>
               <div className="space-y-1 w-full sm:w-36">
-                <Label className="text-xs font-medium text-slate-600">Valor mínimo</Label>
+                <Label htmlFor="cob-filtro-min" className="text-xs font-medium text-slate-600">
+                  Valor mínimo
+                </Label>
                 <Input
+                  id="cob-filtro-min"
                   type="number"
                   min={0}
                   step="0.01"
                   value={minValue}
                   onChange={(e) => setMinValue(Number(e.target.value) || 0)}
                   className="bg-slate-50"
+                  aria-label="Valor mínimo"
                 />
               </div>
               <Button
@@ -441,12 +466,13 @@ export function CobrancasPage() {
                                 variant="ghost"
                                 className="h-8 w-8 text-teal-700 hover:bg-teal-100 hover:text-teal-900"
                                 title="Sincronizar"
+                                aria-label="Sincronizar cobrança"
                                 onClick={() => {
                                   void handleSync();
                                   toast({ title: "Sincronizando status..." });
                                 }}
                               >
-                                <RefreshCw className="h-4 w-4" />
+                                <RefreshCw className="h-4 w-4" aria-hidden />
                               </Button>
                               <Button
                                 type="button"
@@ -455,9 +481,10 @@ export function CobrancasPage() {
                                 className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                                 disabled={isDeletingBoleto}
                                 title="Remover"
+                                aria-label="Remover cobrança"
                                 onClick={(e) => void handleDelete(boleto, e)}
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-4 w-4" aria-hidden />
                               </Button>
                             </div>
                           </TableCell>
