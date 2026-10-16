@@ -32,6 +32,12 @@ import { useWholesalePriceEnabled } from "@/hooks/useWholesalePriceEnabled";
 import { generateEan13Barcode } from "@/lib/productBarcode";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ImagePlus, Loader2, X, Dices, Plus, ChevronDown } from "lucide-react";
+import {
+  PRODUCT_UNITS,
+  isKnownProductUnit,
+  normalizeProductUnit,
+  productUnitLabel,
+} from "@/lib/productUnits";
 
 const FISCAL_ORIGINS = [
   { value: "0", label: "0 - Nacional" },
@@ -195,13 +201,15 @@ export function CreateProductDialog({
         min_stock: product.min_stock != null ? String(product.min_stock) : "",
         ideal_stock: product.ideal_stock != null ? String(product.ideal_stock) : "",
         stock_quantity: product.stock_quantity != null ? String(product.stock_quantity) : "0",
-        unit: product.unit || "un",
+        unit: normalizeProductUnit(product.unit),
         ncm: product.ncm || "",
         fiscal_origin: product.fiscal_origin || "0",
         cest: product.cest || "",
         tax_class_ref: product.tax_class_ref || "",
         fragment_enabled: Boolean(product.fragment_enabled),
-        fragment_unit: product.fragment_unit || "",
+        fragment_unit: product.fragment_unit
+          ? normalizeProductUnit(product.fragment_unit)
+          : "",
         fragment_qty: product.fragment_qty != null ? String(product.fragment_qty) : "",
         fragment_price: product.fragment_price != null ? String(product.fragment_price) : "",
         description: product.description || "",
@@ -224,7 +232,7 @@ export function CreateProductDialog({
       category: defaultCategory || "",
       name: initialDraft?.name || "",
       sku: initialDraft?.sku || "",
-      unit: initialDraft?.unit || "un",
+      unit: normalizeProductUnit(initialDraft?.unit),
       cost: initialDraft?.cost || "",
       ncm: initialDraft?.ncm || "",
       fiscal_origin: initialDraft?.fiscal_origin || "0",
@@ -324,13 +332,15 @@ export function CreateProductDialog({
       stock_quantity: form.stock_quantity === "" ? 0 : Number(form.stock_quantity),
       min_stock: Number(form.min_stock),
       ideal_stock: Number(form.ideal_stock),
-      unit: form.unit.trim() || "un",
+      unit: normalizeProductUnit(form.unit),
       ncm: form.ncm.trim() || null,
       fiscal_origin: form.fiscal_origin.trim() || null,
       cest: form.cest.trim() || null,
       tax_class_ref: form.tax_class_ref.trim() || null,
       fragment_enabled: form.fragment_enabled && Number(form.fragment_qty) > 0,
-      fragment_unit: form.fragment_enabled ? form.fragment_unit.trim() || null : null,
+      fragment_unit: form.fragment_enabled
+        ? normalizeProductUnit(form.fragment_unit) || null
+        : null,
       fragment_qty: form.fragment_enabled && Number(form.fragment_qty) > 0 ? Number(form.fragment_qty) : null,
       fragment_price:
         form.fragment_enabled && form.fragment_price !== "" ? Number(form.fragment_price) : null,
@@ -578,7 +588,41 @@ export function CreateProductDialog({
                 Use Gerar para criar um EAN-13 interno com dígito verificador (lê em qualquer leitor).
               </p>
             </div>
-            <Field label="Unidade padrão" placeholder="un, kg, cx" value={form.unit} onChange={(value) => setForm({ ...form, unit: value })} />
+            <div className="space-y-1.5">
+              <Label>Unidade de medida</Label>
+              <Select
+                value={normalizeProductUnit(form.unit)}
+                onValueChange={(value) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    unit: value,
+                    // Medida padrão = unidade do produto; não pode coincidir com a fragmentada
+                    fragment_unit:
+                      prev.fragment_unit &&
+                      normalizeProductUnit(prev.fragment_unit) === value
+                        ? ""
+                        : prev.fragment_unit,
+                  }))
+                }
+              >
+                <SelectTrigger className="bg-white">
+                  <SelectValue placeholder="Selecione a unidade" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRODUCT_UNITS.map((unit) => (
+                    <SelectItem key={unit.value} value={unit.value}>
+                      {unit.label}
+                    </SelectItem>
+                  ))}
+                  {!isKnownProductUnit(form.unit) && form.unit.trim() && (
+                    <SelectItem value={form.unit.trim()}>{form.unit.trim()}</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-slate-500">
+                Unidade em que o estoque é controlado (ex.: caixa, metro, kg).
+              </p>
+            </div>
             <CatalogField
               label="Categoria"
               value={form.category}
@@ -632,33 +676,70 @@ export function CreateProductDialog({
                   />
                 </div>
                 <p className="rounded-md bg-slate-50 p-2 text-xs text-slate-600">
-                  Exemplo: o estoque é controlado em <strong>caixa</strong> (unidade padrão) e 1 caixa = 12 unidades.
-                  Informe a unidade fracionada <strong>un</strong>, a quantidade <strong>12</strong> e o preço de cada un.
-                  No PDV você escolhe vender a caixa inteira ou por unidade; o estoque desconta 1/12 de caixa por unidade vendida.
+                  Exemplo: unidade do produto = <strong>Caixa (cx)</strong>. A medida padrão fica fixa em caixa.
+                  Informe a medida fragmentada <strong>Unidade (un)</strong>, quantidade <strong>12</strong> e o preço de cada un
+                  (ex.: 1 cx = 12 un). No PDV você vende a caixa inteira ou por unidade; o estoque desconta 1/12 de caixa por un vendida.
                 </p>
                 {form.fragment_enabled && (
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <Field
-                      label="Unidade fracionada"
-                      placeholder="un, g, ml"
-                      value={form.fragment_unit}
-                      onChange={(value) => setForm({ ...form, fragment_unit: value })}
-                    />
-                    <Field
-                      label={`Quantidade por ${form.unit || "unidade padrão"}`}
-                      type="number"
-                      placeholder="12"
-                      hint={`Quantas ${form.fragment_unit || "frações"} cabem em 1 ${form.unit || "unidade padrão"}.`}
-                      value={form.fragment_qty}
-                      onChange={(value) => setForm({ ...form, fragment_qty: value })}
-                    />
-                    <Field
-                      label="Preço da fração"
-                      type="number"
-                      hint="Vazio = preço de venda dividido pela quantidade."
-                      value={form.fragment_price}
-                      onChange={(value) => setForm({ ...form, fragment_price: value })}
-                    />
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-end gap-2">
+                      <div className="min-w-[180px] flex-1 space-y-1.5">
+                        <Label>Medida padrão</Label>
+                        <Input
+                          readOnly
+                          disabled
+                          className="h-10 bg-slate-100"
+                          value={productUnitLabel(form.unit)}
+                          title="Igual à unidade de medida do produto — não pode ser diferente"
+                        />
+                      </div>
+                      <p className="pb-2 text-sm font-medium text-slate-700">
+                        1 {normalizeProductUnit(form.unit)} =
+                      </p>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div className="space-y-1.5">
+                        <Label>Medida fragmentada</Label>
+                        <Select
+                          value={form.fragment_unit ? normalizeProductUnit(form.fragment_unit) : undefined}
+                          onValueChange={(value) => setForm({ ...form, fragment_unit: value })}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Selecione a medida" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PRODUCT_UNITS.filter(
+                              (unit) => unit.value !== normalizeProductUnit(form.unit)
+                            ).map((unit) => (
+                              <SelectItem key={unit.value} value={unit.value}>
+                                {unit.label}
+                              </SelectItem>
+                            ))}
+                            {form.fragment_unit &&
+                              !isKnownProductUnit(form.fragment_unit) && (
+                                <SelectItem value={form.fragment_unit}>
+                                  {form.fragment_unit}
+                                </SelectItem>
+                              )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Field
+                        label={`Quantidade em relação a ${normalizeProductUnit(form.unit)}`}
+                        type="number"
+                        placeholder="12"
+                        hint={`Quantas ${form.fragment_unit || "frações"} cabem em 1 ${normalizeProductUnit(form.unit)}.`}
+                        value={form.fragment_qty}
+                        onChange={(value) => setForm({ ...form, fragment_qty: value })}
+                      />
+                      <Field
+                        label={`Preço por ${form.fragment_unit || "fração"}`}
+                        type="number"
+                        hint="Vazio = preço de venda ÷ quantidade."
+                        value={form.fragment_price}
+                        onChange={(value) => setForm({ ...form, fragment_price: value })}
+                      />
+                    </div>
                   </div>
                 )}
               </CollapsibleContent>

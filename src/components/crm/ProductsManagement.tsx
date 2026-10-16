@@ -38,6 +38,7 @@ import { Plus, Edit, Trash2, Package, Search, ImagePlus, X, Loader2 } from "luci
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
+import { PRODUCT_UNITS } from "@/lib/productUnits";
 
 const BUCKET_ID = "whatsapp-workflow-media";
 
@@ -491,31 +492,20 @@ export function ProductsManagement() {
               <div className="space-y-2">
                 <Label htmlFor="unit">Unidade de Medida</Label>
                 <Select
-                  value={formData.unit || ""}
+                  value={formData.unit || "un"}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, unit: value || null })
+                    setFormData({ ...formData, unit: value || "un" })
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione a unidade (opcional)" />
+                    <SelectValue placeholder="Selecione a unidade" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Sem unidade</SelectItem>
-                    <SelectItem value="un">Unidade (un)</SelectItem>
-                    <SelectItem value="kg">Quilograma (kg)</SelectItem>
-                    <SelectItem value="g">Grama (g)</SelectItem>
-                    <SelectItem value="m">Metro (m)</SelectItem>
-                    <SelectItem value="m²">Metro quadrado (m²)</SelectItem>
-                    <SelectItem value="m³">Metro cúbico (m³)</SelectItem>
-                    <SelectItem value="l">Litro (l)</SelectItem>
-                    <SelectItem value="ml">Mililitro (ml)</SelectItem>
-                    <SelectItem value="h">Hora (h)</SelectItem>
-                    <SelectItem value="dia">Dia</SelectItem>
-                    <SelectItem value="mês">Mês</SelectItem>
-                    <SelectItem value="ano">Ano</SelectItem>
-                    <SelectItem value="cx">Caixa (cx)</SelectItem>
-                    <SelectItem value="pct">Pacote (pct)</SelectItem>
-                    <SelectItem value="fardo">Fardo</SelectItem>
+                    {PRODUCT_UNITS.map((unit) => (
+                      <SelectItem key={unit.value} value={unit.value}>
+                        {unit.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
