@@ -12,6 +12,7 @@ import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { fetchAllowDuplicatePhones } from "@/hooks/useOrganizationCrmSettings";
 
 interface BulkImportPanelProps {
   onImportComplete: () => void;
@@ -167,8 +168,11 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
       const orgId = await getUserOrganizationId();
       if (!orgId) throw new Error("Usuário não pertence a uma organização");
 
-      // Verificar duplicados se a opção estiver ativada
-      if (checkDuplicates) {
+      const allowDuplicatePhones = await fetchAllowDuplicatePhones(orgId);
+      const shouldSkipDuplicates = checkDuplicates && !allowDuplicatePhones;
+
+      // Verificar duplicados se a opção estiver ativada e a org exigir unicidade
+      if (shouldSkipDuplicates) {
         const phones = validContacts.map(c => c.phone);
         
         const { data: existingLeads } = await (supabase as any)
@@ -209,29 +213,30 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
 
       for (const contact of validContacts) {
         try {
-          // Verificar se o lead já existe
-          const { data: existingLead } = await (supabase as any)
-            .from('leads')
-            .select('id')
-            .eq('phone', contact.phone)
-            .eq('organization_id', orgId)
-            .is('deleted_at', null)
-            .maybeSingle();
+          let leadId: string | undefined;
 
-          let leadId: string;
+          if (!allowDuplicatePhones) {
+            const { data: existingLead } = await (supabase as any)
+              .from('leads')
+              .select('id')
+              .eq('phone', contact.phone)
+              .eq('organization_id', orgId)
+              .is('deleted_at', null)
+              .maybeSingle();
 
-          if (existingLead) {
-            leadId = existingLead.id;
-            
-            // Se tiver seletor de etapa, atualizar a etapa do lead existente
-            if (showStageSelector && selectedStageId) {
-              await (supabase as any)
-                .from('leads')
-                .update({ stage_id: selectedStageId })
-                .eq('id', leadId);
+            if (existingLead) {
+              leadId = existingLead.id;
+              
+              if (showStageSelector && selectedStageId) {
+                await (supabase as any)
+                  .from('leads')
+                  .update({ stage_id: selectedStageId })
+                  .eq('id', leadId);
+              }
             }
-          } else {
-            // Criar novo lead via RPC segura
+          }
+
+          if (!leadId) {
             const { data: newLeadId, error: leadError } = await supabase.rpc('create_lead_secure', {
               p_org_id: orgId,
               p_name: contact.name,

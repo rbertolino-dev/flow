@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { normalizePhone, isValidBrazilianPhone, formatBrazilianPhone } from "@/lib/phoneUtils";
 import { LidContact } from "@/hooks/useLidContacts";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { fetchAllowDuplicatePhones } from "@/hooks/useOrganizationCrmSettings";
 
 interface ConvertLidDialogProps {
   lidContact: LidContact | null;
@@ -45,23 +46,26 @@ export function ConvertLidDialog({ lidContact, open, onOpenChange, onConverted }
       if (!orgId) throw new Error("Usuário não pertence a uma organização");
 
       const normalizedPhone = normalizePhone(phone);
+      const allowDuplicatePhones = await fetchAllowDuplicatePhones(orgId);
 
-      // Verificar se já existe lead com este telefone na mesma organização
-      const { data: existingLead } = await supabase
-        .from('leads')
-        .select('id, name')
-        .eq('phone', normalizedPhone)
-        .eq('organization_id', orgId)
-        .maybeSingle();
+      if (!allowDuplicatePhones) {
+        const { data: existingLead } = await supabase
+          .from('leads')
+          .select('id, name')
+          .eq('phone', normalizedPhone)
+          .eq('organization_id', orgId)
+          .is('deleted_at', null)
+          .maybeSingle();
 
-      if (existingLead) {
-        toast({
-          title: "Telefone já cadastrado",
-          description: `Este telefone já pertence ao lead "${existingLead.name}"`,
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
+        if (existingLead) {
+          toast({
+            title: "Telefone já cadastrado",
+            description: `Este telefone já pertence ao lead "${existingLead.name}"`,
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
       }
 
       // Criar lead a partir do contato LID usando RPC segura

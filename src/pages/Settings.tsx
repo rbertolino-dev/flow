@@ -67,6 +67,7 @@ import { ConditionalIntegration } from "@/components/integrations/ConditionalInt
 import { useIntegrationAccess } from "@/hooks/useIntegrationAccess";
 import { LandingPageConfigurator } from "@/components/landing-page/LandingPageConfigurator";
 import { useLandingPageAccess } from "@/hooks/useLandingPageAccess";
+import { CrmSettingsCard } from "@/components/crm/CrmSettingsCard";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -698,6 +699,7 @@ export default function Settings() {
           {/* REMOVIDO: Facebook/Instagram não está mais disponível */}
 
           <TabsContent value="pipeline" className="space-y-6">
+            <CrmSettingsCard />
             <div className="grid gap-6 md:grid-cols-2">
               {/* Pipeline Stages */}
               <Card>

@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizePhone, isValidBrazilianPhone } from "@/lib/phoneUtils";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { fetchAllowDuplicatePhones } from "@/hooks/useOrganizationCrmSettings";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Upload, FileText, Copy, X, CheckCircle2, AlertCircle, Download, Info, Loader2 } from "lucide-react";
@@ -470,6 +471,9 @@ Ana Costa,41998765432,,Empresa DEF,500.00,Cliente VIP`;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
+      const allowDuplicatePhones = await fetchAllowDuplicatePhones(organizationId);
+      const shouldSkipDuplicates = checkDuplicates && !allowDuplicatePhones;
+
       // Processar em lotes de 10 para não sobrecarregar
       const batchSize = 10;
       const totalBatches = Math.ceil(valid.length / batchSize);
@@ -484,8 +488,8 @@ Ana Costa,41998765432,,Empresa DEF,500.00,Cliente VIP`;
           try {
             const normalizedPhone = normalizePhone(contact.phone);
 
-            // Verificar se lead já existe (se checkDuplicates estiver ativado)
-            if (checkDuplicates) {
+            // Verificar duplicata se a política da org exige unicidade e a opção local estiver ativa
+            if (shouldSkipDuplicates) {
               const { data: existingLead } = await supabase
                 .from('leads')
                 .select('id')

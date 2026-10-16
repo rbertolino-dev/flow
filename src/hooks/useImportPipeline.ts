@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { normalizePhone, isValidBrazilianPhone } from "@/lib/phoneUtils";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { useToast } from "@/hooks/use-toast";
+import { fetchAllowDuplicatePhones } from "@/hooks/useOrganizationCrmSettings";
 
 interface PipelineStage {
   id?: string;
@@ -345,6 +346,7 @@ export function useImportPipeline() {
         currentStep++;
         setProgress((currentStep / totalSteps) * 100);
 
+        const allowDuplicatePhones = await fetchAllowDuplicatePhones(organizationId);
         const batchSize = 50;
         const totalBatches = Math.ceil(jsonData.leads.length / batchSize);
 
@@ -368,18 +370,20 @@ export function useImportPipeline() {
                 return;
               }
 
-              // Verificar duplicata
-              const { data: existingLead } = await supabase
-                .from("leads")
-                .select("id")
-                .eq("organization_id", organizationId)
-                .eq("phone", normalizedPhone)
-                .is("deleted_at", null)
-                .maybeSingle();
+              // Verificar duplicata (respeita política da organização)
+              if (!allowDuplicatePhones) {
+                const { data: existingLead } = await supabase
+                  .from("leads")
+                  .select("id")
+                  .eq("organization_id", organizationId)
+                  .eq("phone", normalizedPhone)
+                  .is("deleted_at", null)
+                  .maybeSingle();
 
-              if (existingLead) {
-                result.skipped.leads++;
-                return;
+                if (existingLead) {
+                  result.skipped.leads++;
+                  return;
+                }
               }
 
               // Mapear stage_name para stage_id
