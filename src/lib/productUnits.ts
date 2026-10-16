@@ -5,27 +5,24 @@ export type ProductUnitOption = {
   label: string;
 };
 
+/** Só unidades físicas de produto — do mais ao menos usual. */
 export const PRODUCT_UNITS: ProductUnitOption[] = [
   { value: "un", label: "Unidade (un)" },
   { value: "cx", label: "Caixa (cx)" },
   { value: "pct", label: "Pacote (pct)" },
-  { value: "fardo", label: "Fardo" },
-  { value: "pc", label: "Peça (pc)" },
-  { value: "par", label: "Par" },
-  { value: "rolo", label: "Rolo" },
   { value: "kg", label: "Quilograma (kg)" },
   { value: "g", label: "Grama (g)" },
   { value: "m", label: "Metro (m)" },
-  { value: "cm", label: "Centímetro (cm)" },
-  { value: "mm", label: "Milímetro (mm)" },
-  { value: "m²", label: "Metro quadrado (m²)" },
-  { value: "m³", label: "Metro cúbico (m³)" },
   { value: "l", label: "Litro (l)" },
   { value: "ml", label: "Mililitro (ml)" },
-  { value: "h", label: "Hora (h)" },
-  { value: "dia", label: "Dia" },
-  { value: "mês", label: "Mês" },
-  { value: "ano", label: "Ano" },
+  { value: "pc", label: "Peça (pc)" },
+  { value: "m²", label: "Metro quadrado (m²)" },
+  { value: "cm", label: "Centímetro (cm)" },
+  { value: "mm", label: "Milímetro (mm)" },
+  { value: "m³", label: "Metro cúbico (m³)" },
+  { value: "fardo", label: "Fardo" },
+  { value: "par", label: "Par" },
+  { value: "rolo", label: "Rolo" },
 ];
 
 const UNIT_ALIASES: Record<string, string> = {
