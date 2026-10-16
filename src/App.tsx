@@ -34,6 +34,7 @@ const SuperAdminAgilizeProdutos = lazyWithRetry(() => import("./pages/SuperAdmin
 const SuperAdminAgilizeClientes = lazyWithRetry(() => import("./pages/SuperAdminAgilizeClientes"));
 const SuperAdminAgilizeServicos = lazyWithRetry(() => import("./pages/SuperAdminAgilizeServicos"));
 const SuperAdminAgilizeFalhasEstoque = lazyWithRetry(() => import("./pages/SuperAdminAgilizeFalhasEstoque"));
+const SuperAdminAgilizeMigracao = lazyWithRetry(() => import("./pages/SuperAdminAgilizeMigracao"));
 const SuperAdminChatwoot = lazyWithRetry(() => import("./pages/SuperAdminChatwoot"));
 const AgentsDashboard = lazyWithRetry(() => import("./pages/AgentsDashboard"));
 const RLSDiagnostics = lazyWithRetry(() => import("./pages/RLSDiagnostics"));
@@ -189,6 +190,7 @@ const App = () => {
                 <Route path="/superadmin/agilize-clientes" element={<SuperAdminAgilizeClientes />} />
                 <Route path="/superadmin/agilize-servicos" element={<SuperAdminAgilizeServicos />} />
                 <Route path="/superadmin/agilize-falhas-estoque" element={<SuperAdminAgilizeFalhasEstoque />} />
+                <Route path="/superadmin/agilize-migracao" element={<SuperAdminAgilizeMigracao />} />
                 <Route path="/superadmin/chatwoot" element={<SuperAdminChatwoot />} />
                 <Route path="/rls-diagnostics" element={<RLSDiagnostics />} />
                 <Route path="/lista-telefonica" element={<NovaFuncao />} />
