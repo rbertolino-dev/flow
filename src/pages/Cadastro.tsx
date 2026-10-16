@@ -10,6 +10,14 @@ import { ArrowRight } from "lucide-react";
 
 import { AGILIZE_LOGO_URL } from "@/constants/branding";
 
+type PublicSignupResponse = {
+  success?: boolean;
+  error?: string;
+  userId?: string;
+  email?: string;
+  message?: string;
+};
+
 export default function Cadastro() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,21 +27,19 @@ export default function Cadastro() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Verificar se já está autenticado ao carregar a página
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        navigate('/onboarding', { replace: true });
+        navigate("/onboarding", { replace: true });
       }
     };
-    
+
     checkSession();
 
-    // Escutar mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session && event === 'SIGNED_IN') {
-        navigate('/onboarding', { replace: true });
+      if (session && event === "SIGNED_IN") {
+        navigate("/onboarding", { replace: true });
       }
     });
 
@@ -44,10 +50,9 @@ export default function Cadastro() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Verificar cooldown (40 segundos entre tentativas)
+
     const now = Date.now();
-    if (lastAttemptTime && (now - lastAttemptTime) < 40000) {
+    if (lastAttemptTime && now - lastAttemptTime < 40000) {
       const remainingSeconds = Math.ceil((40000 - (now - lastAttemptTime)) / 1000);
       toast({
         title: "Aguarde um momento",
@@ -57,135 +62,173 @@ export default function Cadastro() {
       });
       return;
     }
-    
+
     setLoading(true);
     setLastAttemptTime(now);
 
     try {
       if (!email || !password || !fullName) {
-        throw new Error('Preencha todos os campos');
+        throw new Error("Preencha todos os campos");
       }
 
       if (password.length < 6) {
-        throw new Error('A senha deve ter pelo menos 6 caracteres');
+        throw new Error("A senha deve ter pelo menos 6 caracteres");
       }
 
-      // Validar formato de email
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        throw new Error('Por favor, insira um email válido');
+      const normalizedEmail = email.trim().toLowerCase();
+      if (!emailRegex.test(normalizedEmail)) {
+        throw new Error("Por favor, insira um email válido");
       }
 
-      // Fazer signup (se confirmação de email estiver desabilitada, já cria sessão)
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/onboarding`,
-          data: {
-            full_name: fullName,
+      // Preferir public-signup: cria usuário já confirmado (sem depender de e-mail)
+      const { data: signupFnData, error: signupFnError } = await supabase.functions.invoke(
+        "public-signup",
+        {
+          body: {
+            email: normalizedEmail,
+            password,
+            fullName: fullName.trim(),
           },
-        },
-      });
+        }
+      );
 
-      // Log signup attempt (não crítico se falhar)
-      supabase.functions.invoke('log-auth-attempt', {
-        body: {
-          email,
-          success: !signUpError,
-          error: signUpError?.message || null,
-          ip: null,
-          userAgent: navigator.userAgent,
-          method: 'signup',
-          userId: signUpData?.user?.id || null,
-        },
-      }).catch(() => {
-        // Ignorar silenciosamente - não é crítico
-      });
+      const signupResult = (signupFnData || {}) as PublicSignupResponse;
+      let createdViaPublicSignup = false;
 
-      if (signUpError) throw signUpError;
-      if (!signUpData?.user) throw new Error('Falha ao criar usuário');
-
-      // Se já houver sessão (confirmação desabilitada), usar ela
-      let session = signUpData.session;
-      
-      // Se não houver sessão, fazer login automático imediatamente
-      if (!session) {
-        // Aguardar um pouco para garantir que usuário foi criado
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: email.trim().toLowerCase(),
+      if (!signupFnError && signupResult.success) {
+        createdViaPublicSignup = true;
+      } else if (!signupFnError && signupResult.error) {
+        throw new Error(signupResult.error);
+      } else {
+        // Fallback: auth.signUp (pode exigir confirmação de e-mail)
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: normalizedEmail,
           password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/onboarding`,
+            data: { full_name: fullName.trim() },
+          },
         });
 
-        if (signInError) {
-          // Se falhar, tentar mais uma vez após 2 segundos
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          const { data: retrySignIn, error: retryError } = await supabase.auth.signInWithPassword({
-            email: email.trim().toLowerCase(),
-            password,
+        supabase.functions
+          .invoke("log-auth-attempt", {
+            body: {
+              email: normalizedEmail,
+              success: !signUpError,
+              error: signUpError?.message || null,
+              ip: null,
+              userAgent: navigator.userAgent,
+              method: "signup",
+              userId: signUpData?.user?.id || null,
+            },
+          })
+          .catch(() => undefined);
+
+        if (signUpError) throw signUpError;
+        if (!signUpData?.user) throw new Error("Falha ao criar usuário");
+
+        if (signUpData.session) {
+          toast({
+            title: "✅ Conta criada com sucesso!",
+            description: "Redirecionando para configuração...",
           });
-          
-          if (retryError) {
-            throw new Error('Conta criada, mas não foi possível fazer login automaticamente. Tente fazer login manualmente.');
-          }
-          
-          session = retrySignIn.session;
-        } else {
-          session = signInData.session;
+          window.location.href = "/onboarding";
+          return;
         }
       }
 
-      // Verificar sessão final
-      if (!session) {
-        throw new Error('Não foi possível criar sessão. Tente fazer login manualmente.');
+      // Login automático (public-signup já confirma e-mail; fallback pode falhar se exigir confirm)
+      const tryLogin = async () => {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
+        return { data, error };
+      };
+
+      let { data: signInData, error: signInError } = await tryLogin();
+
+      if (signInError) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        ({ data: signInData, error: signInError } = await tryLogin());
       }
 
-      // Login bem-sucedido - redirecionar
+      if (signInError || !signInData?.session) {
+        const lower = String(signInError?.message || "").toLowerCase();
+        if (lower.includes("email not confirmed") || lower.includes("not confirmed")) {
+          throw new Error(
+            "Conta criada. Verifique seu e-mail para confirmar antes de entrar, ou tente novamente em instantes."
+          );
+        }
+        if (createdViaPublicSignup) {
+          throw new Error(
+            "Conta criada, mas não foi possível fazer login automaticamente. Tente fazer login manualmente."
+          );
+        }
+        throw new Error(
+          signInError?.message ||
+            "Conta criada, mas não foi possível fazer login automaticamente. Tente fazer login manualmente."
+        );
+      }
+
+      supabase.functions
+        .invoke("log-auth-attempt", {
+          body: {
+            email: normalizedEmail,
+            success: true,
+            error: null,
+            ip: null,
+            userAgent: navigator.userAgent,
+            method: createdViaPublicSignup ? "public-signup" : "signup",
+            userId: signInData.user?.id || null,
+          },
+        })
+        .catch(() => undefined);
+
       toast({
         title: "✅ Conta criada com sucesso!",
         description: "Redirecionando para configuração...",
       });
 
-      // Redirecionar imediatamente
-      window.location.href = '/onboarding';
-    } catch (error: any) {
-      console.error('Signup error:', error);
-      
-      // Mensagens de erro mais amigáveis
-      let errorMessage = 'Erro desconhecido ao criar conta';
-      
-      if (error.message) {
-        const lowerMessage = error.message.toLowerCase();
-        
-        if (lowerMessage.includes('too many requests') || lowerMessage.includes('429') || lowerMessage.includes('after') && lowerMessage.includes('seconds')) {
-          // Extrair o tempo de espera se disponível
-          const secondsMatch = error.message.match(/(\d+)\s*seconds?/i);
-          const waitTime = secondsMatch ? secondsMatch[1] : '40';
+      window.location.href = "/onboarding";
+    } catch (error: unknown) {
+      console.error("Signup error:", error);
+
+      let errorMessage = "Erro desconhecido ao criar conta";
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error && "message" in error
+            ? String((error as { message: unknown }).message)
+            : String(error);
+
+      if (message) {
+        const lowerMessage = message.toLowerCase();
+
+        if (
+          lowerMessage.includes("too many requests") ||
+          lowerMessage.includes("429") ||
+          (lowerMessage.includes("after") && lowerMessage.includes("seconds"))
+        ) {
+          const secondsMatch = message.match(/(\d+)\s*seconds?/i);
+          const waitTime = secondsMatch ? secondsMatch[1] : "40";
           errorMessage = `Muitas tentativas. Por favor, aguarde ${waitTime} segundos antes de tentar novamente.`;
-        } else if (lowerMessage.includes('email') && lowerMessage.includes('invalid')) {
-          errorMessage = 'Por favor, insira um email válido';
-        } else if (lowerMessage.includes('already registered') || lowerMessage.includes('already exists')) {
-          errorMessage = 'Este email já está cadastrado. Tente fazer login.';
-        } else if (lowerMessage.includes('password')) {
-          errorMessage = 'A senha deve ter pelo menos 6 caracteres';
-        } else if (lowerMessage.includes('email not confirmed') || lowerMessage.includes('email not verified')) {
-          errorMessage = 'Verifique seu email para confirmar a conta antes de fazer login.';
-        } else if (lowerMessage.includes('signup') || lowerMessage.includes('sign up')) {
-          errorMessage = 'Não foi possível criar a conta. Verifique se o cadastro está habilitado.';
+        } else if (lowerMessage.includes("email") && lowerMessage.includes("invalid")) {
+          errorMessage = "Por favor, insira um email válido";
+        } else if (
+          lowerMessage.includes("already registered") ||
+          lowerMessage.includes("already exists") ||
+          lowerMessage.includes("já está cadastrado")
+        ) {
+          errorMessage = "Este email já está cadastrado. Tente fazer login.";
+        } else if (lowerMessage.includes("password") && lowerMessage.includes("6")) {
+          errorMessage = "A senha deve ter pelo menos 6 caracteres";
         } else {
-          errorMessage = error.message;
+          errorMessage = message;
         }
       }
-      
-      // Verificar se é erro 429 (rate limit)
-      if (error.status === 429 || error.message?.toLowerCase().includes('too many requests')) {
-        const secondsMatch = error.message?.match(/(\d+)\s*seconds?/i);
-        const waitTime = secondsMatch ? secondsMatch[1] : '40';
-        errorMessage = `Muitas tentativas. Por favor, aguarde ${waitTime} segundos antes de tentar novamente.`;
-      }
-      
+
       toast({
         title: "Erro ao criar conta",
         description: errorMessage,
@@ -208,7 +251,7 @@ export default function Cadastro() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSignUp} className="space-y-4">
+          <form onSubmit={handleSignUp} className="space-y-4" data-testid="cadastro-form">
             <div className="space-y-2">
               <Label htmlFor="fullName">Nome Completo</Label>
               <Input
@@ -218,6 +261,7 @@ export default function Cadastro() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
+                data-testid="cadastro-fullname"
               />
             </div>
             <div className="space-y-2">
@@ -229,6 +273,7 @@ export default function Cadastro() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                data-testid="cadastro-email"
               />
             </div>
             <div className="space-y-2">
@@ -241,10 +286,18 @@ export default function Cadastro() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
+                data-testid="cadastro-password"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Criando conta..." : (
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading}
+              data-testid="cadastro-submit"
+            >
+              {loading ? (
+                "Criando conta..."
+              ) : (
                 <>
                   Criar Conta
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -253,7 +306,7 @@ export default function Cadastro() {
             </Button>
             <div className="text-center text-sm text-muted-foreground">
               Já tem uma conta?{" "}
-              <Link to="/login" className="text-primary hover:underline">
+              <Link to="/login" className="text-primary hover:underline" data-testid="cadastro-login-link">
                 Fazer login
               </Link>
             </div>
@@ -263,5 +316,3 @@ export default function Cadastro() {
     </div>
   );
 }
-
-
