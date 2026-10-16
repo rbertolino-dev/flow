@@ -240,6 +240,16 @@ serve(async (req) => {
     const eventEnd = updatedEvent.end?.dateTime || updatedEvent.end?.date;
 
     if (eventStart && eventEnd) {
+      const resolvedColorId = colorId !== undefined ? (colorId || null) : (updatedEvent.colorId || null);
+      const { data: colorMap } = await supabase
+        .from('calendar_color_status_maps')
+        .select('status')
+        .eq('organization_id', config.organization_id)
+        .eq('color_id', resolvedColorId || 'none')
+        .maybeSingle();
+      const resolvedStatus = colorMap?.status || 'scheduled';
+      const isDone = resolvedStatus === 'completed' || resolvedStatus === 'closing';
+
       const updateData: any = {
         summary: updatedEvent.summary || summary,
         description: updatedEvent.description || description || null,
@@ -247,7 +257,9 @@ serve(async (req) => {
         end_datetime: new Date(eventEnd).toISOString(),
         location: updatedEvent.location || location || null,
         html_link: updatedEvent.htmlLink || null,
-        color_id: colorId !== undefined ? (colorId || null) : (updatedEvent.colorId || null),
+        color_id: resolvedColorId,
+        status: resolvedStatus,
+        completed_at: isDone ? new Date().toISOString() : null,
         stage_id: stageId !== undefined ? (stageId || null) : undefined,
         organizer_user_id: organizerUserId !== undefined ? (organizerUserId || null) : undefined,
         attendees: attendees !== undefined ? (attendees.length > 0 ? attendees : null) : undefined,

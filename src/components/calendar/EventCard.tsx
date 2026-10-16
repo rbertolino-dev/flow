@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { formatSaoPauloDateTime, formatSaoPauloTime, formatSaoPauloDate } from "@/lib/dateUtils";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getStatusLabel, statusBadgeClass } from "@/lib/calendarEventStatus";
+import { getGoogleCalendarColor } from "@/lib/googleCalendarColors";
 
 interface EventCardProps {
   event: CalendarEvent;
@@ -20,9 +22,11 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
   const startDate = new Date(event.start_datetime);
   const endDate = new Date(event.end_datetime);
   const isAllDay = !event.start_datetime.includes("T");
-  const isCompleted = event.status === 'completed';
+  const isCompleted = event.status === "completed" || event.status === "closing";
   const isPast = startDate < new Date();
   const [organizerName, setOrganizerName] = useState<string | null>(null);
+  const eventColor = getGoogleCalendarColor(event.color_id);
+  const statusLabel = getStatusLabel(event.status);
 
   // Buscar nome do organizador
   useEffect(() => {
@@ -41,7 +45,16 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
   }, [event.organizer_user_id]);
 
   return (
-    <Card className={`cursor-pointer hover:bg-accent transition-colors ${isCompleted ? 'border-green-500 bg-green-50/50' : ''}`} onClick={onClick}>
+    <Card
+      className={`cursor-pointer hover:bg-accent transition-colors ${
+        event.status === "closing"
+          ? "border-emerald-600 bg-emerald-50/50"
+          : event.status === "completed"
+            ? "border-green-500 bg-green-50/50"
+            : ""
+      }`}
+      onClick={onClick}
+    >
       <CardContent className="p-4">
         <div className="space-y-3">
           {/* Título do evento - sempre visível no topo com prioridade máxima */}
@@ -49,12 +62,19 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
             <h3 className="font-semibold text-base leading-normal mb-2 text-foreground break-words overflow-wrap-anywhere word-break-normal">
               {event.summary || "Sem título"}
             </h3>
-            {isCompleted && (
-              <Badge variant="outline" className="text-xs bg-green-100 text-green-800 border-green-300 mt-1">
-                <CheckCircle2 className="h-3 w-3 mr-1" />
-                Realizada
-              </Badge>
-            )}
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <span
+                className="inline-block h-3 w-3 rounded-full border border-slate-300"
+                style={{ backgroundColor: eventColor.hex }}
+                title={eventColor.name}
+              />
+              {event.status && event.status !== "scheduled" && (
+                <Badge variant="outline" className={`text-xs ${statusBadgeClass(event.status)}`}>
+                  <CheckCircle2 className="mr-1 h-3 w-3" />
+                  {statusLabel}
+                </Badge>
+              )}
+            </div>
           </div>
 
           {/* Botões de ação - abaixo do título */}

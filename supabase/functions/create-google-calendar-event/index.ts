@@ -192,6 +192,15 @@ serve(async (req) => {
 
     const eventStart = eventData.start?.dateTime || eventData.start?.date || utcStartDate.toISOString();
     const eventEnd = eventData.end?.dateTime || eventData.end?.date || utcEndDate.toISOString();
+    const resolvedColorId = eventData.colorId || colorId || null;
+    const { data: colorMap } = await supabase
+      .from('calendar_color_status_maps')
+      .select('status')
+      .eq('organization_id', config.organization_id)
+      .eq('color_id', resolvedColorId || 'none')
+      .maybeSingle();
+    const resolvedStatus = colorMap?.status || 'scheduled';
+    const isDone = resolvedStatus === 'completed' || resolvedStatus === 'closing';
 
     // Atualizar cache local na tabela calendar_events
     const { error: upsertError } = await supabase
@@ -207,7 +216,9 @@ serve(async (req) => {
           end_datetime: new Date(eventEnd).toISOString(),
           location: eventData.location || location || null,
           html_link: eventData.htmlLink || null,
-          color_id: eventData.colorId || colorId || null,
+          color_id: resolvedColorId,
+          status: resolvedStatus,
+          completed_at: isDone ? new Date().toISOString() : null,
           stage_id: stageId || null,
           organizer_user_id: organizerUserId || null,
           booked_by_user_id: bookedByUserId || null,

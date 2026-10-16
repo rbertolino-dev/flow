@@ -12,6 +12,7 @@ import { BookingApprovalQueue } from "@/components/calendar/BookingApprovalQueue
 import { BookingConfigPanel } from "@/components/calendar/BookingConfigPanel";
 import { UserAvailabilitySettings } from "@/components/calendar/UserAvailabilitySettings";
 import { BookingTemplatesSettings } from "@/components/calendar/BookingTemplatesSettings";
+import { CalendarColorStatusSettings } from "@/components/calendar/CalendarColorStatusSettings";
 
 export default function CalendarPage() {
   const [activeTab, setActiveTab] = useState("calendar");
@@ -103,7 +104,10 @@ export default function CalendarPage() {
               </TabsContent>
 
               <TabsContent value="integration" className="mt-6">
-                <GoogleCalendarIntegrationPanel />
+                <div className="space-y-6">
+                  <CalendarColorStatusSettings />
+                  <GoogleCalendarIntegrationPanel />
+                </div>
               </TabsContent>
             </Tabs>
           </div>

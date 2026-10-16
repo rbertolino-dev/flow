@@ -49,15 +49,15 @@ export default function ReportsScheduling() {
     const stamp = `${report.dateFrom}_${report.dateTo}`;
     downloadCsv(
       `agendamentos-por-cor-${stamp}.csv`,
-      ["Cor", "Título", "Início", "Fim", "Duração", "Local", "Status"],
+      ["Cor", "Status", "Título", "Início", "Fim", "Duração", "Local"],
       report.events.map((event) => [
         event.colorName,
+        event.statusLabel,
         event.summary,
         formatDateTime(event.startDatetime),
         formatDateTime(event.endDatetime),
         event.durationLabel,
         event.location || "",
-        event.status || "",
       ]),
     );
   };
@@ -71,9 +71,9 @@ export default function ReportsScheduling() {
           <div className="flex items-center gap-2 text-slate-700">
             <CalendarDays className="h-5 w-5 shrink-0" aria-hidden />
             <div>
-              <h1 className="text-lg font-semibold">Agendamentos por cor</h1>
+              <h1 className="text-lg font-semibold">Agendamentos por cor e status</h1>
               <p className="text-sm text-slate-500">
-                Reuniões do Google Calendar/Meet agrupadas pela cor, no período e com o tempo total.
+                Cada cor do Google representa um status (ex.: verde = realizada, verde escuro = fechamento).
               </p>
             </div>
           </div>
@@ -164,6 +164,7 @@ export default function ReportsScheduling() {
                         Cor
                       </span>
                     </TableHead>
+                    <TableHead className="font-semibold text-slate-700">Status</TableHead>
                     <TableHead className="text-right font-semibold text-slate-700">Reuniões</TableHead>
                     <TableHead className="text-right font-semibold text-slate-700">Tempo total</TableHead>
                   </TableRow>
@@ -171,7 +172,7 @@ export default function ReportsScheduling() {
                 <TableBody>
                   {report.colorSummaries.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={3} className="py-10 text-center text-sm text-slate-500">
+                      <TableCell colSpan={4} className="py-10 text-center text-sm text-slate-500">
                         Nenhum agendamento no período com os filtros atuais.
                       </TableCell>
                     </TableRow>
@@ -191,6 +192,7 @@ export default function ReportsScheduling() {
                             <span className="font-medium text-slate-800">{row.colorName}</span>
                           </button>
                         </TableCell>
+                        <TableCell className="text-slate-700">{row.statusLabel}</TableCell>
                         <TableCell className="text-right tabular-nums text-slate-700">{row.count}</TableCell>
                         <TableCell className="text-right tabular-nums text-slate-700">
                           {row.totalDurationLabel}
@@ -207,6 +209,7 @@ export default function ReportsScheduling() {
                 <TableHeader>
                   <TableRow className="bg-slate-100 hover:bg-slate-100">
                     <TableHead className="font-semibold text-slate-700">Cor</TableHead>
+                    <TableHead className="font-semibold text-slate-700">Status</TableHead>
                     <TableHead className="min-w-[220px] font-semibold text-slate-700">Título</TableHead>
                     <TableHead className="whitespace-nowrap font-semibold text-slate-700">Início</TableHead>
                     <TableHead className="whitespace-nowrap font-semibold text-slate-700">Fim</TableHead>
@@ -217,7 +220,7 @@ export default function ReportsScheduling() {
                 <TableBody>
                   {report.events.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="py-10 text-center text-sm text-slate-500">
+                      <TableCell colSpan={7} className="py-10 text-center text-sm text-slate-500">
                         Nenhuma reunião listada. Ajuste o período ou a cor.
                       </TableCell>
                     </TableRow>
@@ -233,6 +236,7 @@ export default function ReportsScheduling() {
                             <span className="text-slate-700">{event.colorName}</span>
                           </div>
                         </TableCell>
+                        <TableCell className="text-slate-700">{event.statusLabel}</TableCell>
                         <TableCell className="text-slate-800">
                           {event.htmlLink ? (
                             <a

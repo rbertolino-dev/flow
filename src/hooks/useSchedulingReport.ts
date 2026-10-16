@@ -8,6 +8,7 @@ import {
   getGoogleCalendarColor,
   NO_COLOR_ID,
 } from "@/lib/googleCalendarColors";
+import { getStatusLabel } from "@/lib/calendarEventStatus";
 
 function defaultDateRange() {
   const to = new Date();
@@ -37,6 +38,7 @@ export type SchedulingEventRow = {
   durationLabel: string;
   location: string | null;
   status: string | null;
+  statusLabel: string;
   htmlLink: string | null;
 };
 
@@ -44,6 +46,7 @@ export type SchedulingColorSummary = {
   colorId: string;
   colorName: string;
   colorHex: string;
+  statusLabel: string;
   count: number;
   totalMinutes: number;
   totalDurationLabel: string;
@@ -106,6 +109,7 @@ export function useSchedulingReport() {
             durationLabel: formatDurationMinutes(durationMinutes),
             location: item.location,
             status: item.status,
+            statusLabel: getStatusLabel(item.status),
             htmlLink: item.html_link,
           } satisfies SchedulingEventRow;
         });
@@ -150,6 +154,7 @@ export function useSchedulingReport() {
           colorId: key,
           colorName: event.colorName,
           colorHex: event.colorHex,
+          statusLabel: event.statusLabel,
           count: 1,
           totalMinutes: event.durationMinutes,
           totalDurationLabel: formatDurationMinutes(event.durationMinutes),

@@ -328,6 +328,35 @@ async function listEvents(calendarId: string, accessToken: string, syncToken: st
   return { events, complete: false, gone: false, nextSyncToken: undefined };
 }
 
+async function loadColorStatusMaps(
+  supabase: SupabaseClient,
+  organizationId: string,
+): Promise<Array<{ color_id: string; status: string }>> {
+  const { data, error } = await supabase
+    .from("calendar_color_status_maps")
+    .select("color_id, status")
+    .eq("organization_id", organizationId);
+  if (error) {
+    console.error("Erro ao carregar mapa de cores:", error);
+    return [];
+  }
+  return data || [];
+}
+
+function statusFromColor(
+  colorId: string | null | undefined,
+  maps: Array<{ color_id: string; status: string }>,
+) {
+  const key = colorId || "none";
+  const mapped = maps.find((item) => item.color_id === key);
+  const status = mapped?.status || "scheduled";
+  const isDone = status === "completed" || status === "closing";
+  return {
+    status,
+    completed_at: isDone ? new Date().toISOString() : null,
+  };
+}
+
 async function applyDelta(
   supabase: SupabaseClient,
   account: CalendarConfig,
@@ -339,6 +368,7 @@ async function applyDelta(
   const rows: Array<Record<string, unknown>> = [];
   const cancelledIds: string[] = [];
   const outsideIds: string[] = [];
+  const colorMaps = await loadColorStatusMaps(supabase, account.organization_id);
 
   for (const event of events) {
     if (!event.id) continue;
@@ -353,6 +383,8 @@ async function applyDelta(
       outsideIds.push(event.id);
       continue;
     }
+    const colorId = event.colorId || null;
+    const fromColor = statusFromColor(colorId, colorMaps);
     rows.push({
       google_calendar_config_id: account.id,
       organization_id: account.organization_id,
@@ -363,7 +395,9 @@ async function applyDelta(
       end_datetime: endDateTime,
       location: event.location || null,
       html_link: event.htmlLink || null,
-      color_id: event.colorId || null,
+      color_id: colorId,
+      status: fromColor.status,
+      completed_at: fromColor.completed_at,
       attendees: Array.isArray(event.attendees)
         ? event.attendees
           .map((attendee) => ({
