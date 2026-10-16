@@ -2,6 +2,10 @@
 
 API REST para integrações externas, com **isolamento estrito por organização**. Cada API key pertence a uma única organização e só acessa dados dessa org.
 
+**Documentação no site (somente leitura — não libera dados):** `/docs/api`
+
+A página de documentação **não substitui o token**. Toda chamada à API exige `Authorization: Bearer agz_live_...` da organização.
+
 ## Base URL
 
 ```

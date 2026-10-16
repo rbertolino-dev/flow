@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Copy, KeyRound, Loader2, Plus, Trash2 } from "lucide-react";
+import { BookOpen, Copy, ExternalLink, KeyRound, Loader2, Plus, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -239,14 +240,27 @@ export function OrganizationApiKeysPanel() {
           <pre className="text-xs bg-muted rounded-md p-3 overflow-x-auto whitespace-pre-wrap">
             {curlSnippet}
           </pre>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void copyText(curlSnippet, "Snippet")}
-          >
-            <Copy className="h-4 w-4 mr-2" />
-            Copiar curl
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void copyText(curlSnippet, "Snippet")}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Copiar curl
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/docs/api" target="_blank" rel="noreferrer">
+                <BookOpen className="h-4 w-4 mr-2" />
+                Documentação
+                <ExternalLink className="h-3 w-3 ml-1.5 opacity-70" />
+              </Link>
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            A documentação é pública e só explica o uso. Para acessar dados da API é
+            obrigatório o token desta organização.
+          </p>
         </CardContent>
       </Card>
 

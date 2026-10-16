@@ -1,0 +1,142 @@
+openapi: 3.0.3
+info:
+  title: Agilize CRM Public API
+  version: "1.0.0"
+  description: |
+    API pública v1 do Agilize CRM com isolamento por organização.
+    Autenticação via API key (`Authorization: Bearer agz_...`).
+servers:
+  - url: "{supabaseUrl}/functions/v1/api-v1"
+    variables:
+      supabaseUrl:
+        default: https://YOUR_PROJECT.supabase.co
+security:
+  - ApiKeyBearer: []
+paths:
+  /:
+    get:
+      summary: Metadados da API
+      responses:
+        "200":
+          description: OK
+  /leads:
+    get:
+      summary: Listar leads
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 35, maximum: 100 }
+        - in: query
+          name: stage_id
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Lista paginada
+        "401":
+          description: Não autorizado
+        "403":
+          description: Escopo insuficiente
+    post:
+      summary: Criar lead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeadCreate"
+      responses:
+        "201":
+          description: Criado
+        "400":
+          description: Validação
+        "409":
+          description: Telefone duplicado
+  /leads/{id}:
+    get:
+      summary: Obter lead
+      parameters:
+        - $ref: "#/components/parameters/LeadId"
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Não encontrado
+    patch:
+      summary: Atualizar lead
+      parameters:
+        - $ref: "#/components/parameters/LeadId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeadUpdate"
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Não encontrado
+    delete:
+      summary: Soft-delete lead
+      parameters:
+        - $ref: "#/components/parameters/LeadId"
+      responses:
+        "200":
+          description: Excluído
+        "404":
+          description: Não encontrado
+  /stages:
+    get:
+      summary: Listar etapas do funil
+      responses:
+        "200":
+          description: OK
+  /tags:
+    get:
+      summary: Listar etiquetas
+      responses:
+        "200":
+          description: OK
+components:
+  securitySchemes:
+    ApiKeyBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: agz_live
+      description: API key gerada em Configurações → API
+  parameters:
+    LeadId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    LeadCreate:
+      type: object
+      required: [name, phone]
+      properties:
+        name: { type: string }
+        phone: { type: string }
+        email: { type: string, nullable: true }
+        company: { type: string, nullable: true }
+        value: { type: number, nullable: true }
+        stage_id: { type: string, format: uuid, nullable: true }
+        notes: { type: string, nullable: true }
+        source: { type: string, nullable: true }
+    LeadUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        phone: { type: string }
+        email: { type: string, nullable: true }
+        company: { type: string, nullable: true }
+        value: { type: number, nullable: true }
+        stage_id: { type: string, format: uuid, nullable: true }
+        notes: { type: string, nullable: true }
+        status: { type: string, nullable: true }
+        source: { type: string, nullable: true }

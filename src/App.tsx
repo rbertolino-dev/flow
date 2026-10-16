@@ -87,6 +87,7 @@ const LandingPageAdmin = lazyWithRetry(() => import("./pages/LandingPageAdmin"))
 const LandingPagePublic = lazyWithRetry(() => import("./pages/LandingPagePublic"));
 const WordPressContent = lazyWithRetry(() => import("./pages/WordPressContent"));
 const AsaasBoletos = lazyWithRetry(() => import("./pages/AsaasBoletos"));
+const ApiDocs = lazyWithRetry(() => import("./pages/ApiDocs"));
 
 // QueryClient com cache apropriado — EVITA refetch a cada navegação entre páginas.
 // Antes: staleTime=0 → TODA troca de rota refazia todas as queries do zero (~200-500ms por tela).
@@ -243,6 +244,7 @@ const App = () => {
                 <Route path="/admin/landing-page" element={<LandingPageAdmin />} />
                 <Route path="/wordpress-conteudo" element={<WordPressContent />} />
                 <Route path="/p/:slug" element={<LandingPagePublic />} />
+                <Route path="/docs/api" element={<ApiDocs />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

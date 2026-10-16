@@ -16,6 +16,7 @@ const PUBLIC_PREFIXES = [
   "/p/",
   "/reconnect",
   "/contratos-digitais/assinar",
+  "/docs/api",
 ];
 
 function isPublicPath(path: string): boolean {
