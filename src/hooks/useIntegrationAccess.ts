@@ -1,4 +1,4 @@
-import { useOrganizationFeatures } from "./useOrganizationFeatures";
+import { useOrganizationFeatures, type FeatureKey } from "./useOrganizationFeatures";
 import { getIntegrationFeature } from "@/utils/integrationFeatures";
 
 /**
@@ -31,9 +31,14 @@ export function useIntegrationAccess(integrationId: string): boolean {
   if (!feature) {
     return true;
   }
+
+  // Asaas: aceita feature dedicada ou a antiga payment_integration
+  if (integrationId === "asaas") {
+    return hasFeature("asaas_boleto") || hasFeature("payment_integration");
+  }
   
   // Verificar se a funcionalidade está habilitada
-  return hasFeature(feature as any);
+  return hasFeature(feature as FeatureKey);
 }
 
 

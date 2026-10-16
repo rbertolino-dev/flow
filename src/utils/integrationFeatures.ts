@@ -10,7 +10,7 @@ export const INTEGRATION_FEATURES = {
   'google-calendar': 'calendar_integration',
   'gmail': 'gmail_integration',
   'mercado-pago': 'payment_integration',
-  'asaas': 'payment_integration',
+  'asaas': 'asaas_boleto',
   'bubble': 'bubble_integration',
   'hubspot': 'hubspot_integration',
   'facebook': 'facebook_integration',

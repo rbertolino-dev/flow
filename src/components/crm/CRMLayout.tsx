@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2, FileSignature, Receipt, Globe, PenLine, Store, ClipboardList, Warehouse, Wallet, FileBarChart, ChevronRight, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2, FileSignature, Receipt, Globe, PenLine, Store, ClipboardList, Warehouse, Wallet, FileBarChart, ChevronRight, ChevronDown, Banknote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,7 +49,8 @@ export type CRMView =
   | "landing-page"
   | "broadcast-2"
   | "wordpress-content"
-  | "nota-fiscal";
+  | "nota-fiscal"
+  | "asaas-boletos";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
@@ -176,6 +177,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
       navigate("/admin/landing-page");
     } else if (itemId === "wordpress-content") {
       navigate("/wordpress-conteudo");
+    } else if (itemId === "asaas-boletos") {
+      navigate("/boletos-asaas");
     } else if (itemId === "kanban" || itemId === "calls") {
       navigate("/", { state: { view: itemId } });
     }
@@ -226,6 +229,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     'employees': 'employees', // controlado por feature
     'landing-page': 'landing_page', // controlado por feature
     'wordpress-content': 'wordpress_content',
+    'asaas-boletos': 'asaas_boleto',
     'settings': null, // sempre visível
     'superadmin': null, // controlado por role
     'users': null, // sempre visível para admins
@@ -253,6 +257,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "estoque" as const, label: "Estoque", icon: Warehouse },
     { id: "service-orders" as const, label: "Ordem de Serviço", icon: ClipboardList },
     { id: "finance" as const, label: "Financeiro", icon: Wallet },
+    { id: "asaas-boletos" as const, label: "Boletos Asaas", icon: Banknote },
     { id: "reports" as const, label: "Relatórios", icon: FileBarChart },
     { id: "employees" as const, label: "Colaboradores", icon: Users },
     { id: "landing-page" as const, label: "Landing Page", icon: Globe },
@@ -278,9 +283,16 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
       filtered = allBaseMenuItems.filter(item => {
         const featureKey = menuToFeatureMap[item.id];
         if (featureKey === null) return true;
-        if (!hasFeature(featureKey)) return false;
+        // Boletos Asaas: feature dedicada ou payment_integration (legado)
+        const hasMenuFeature =
+          item.id === "asaas-boletos"
+            ? hasFeature("asaas_boleto") || hasFeature("payment_integration")
+            : hasFeature(featureKey);
+        if (!hasMenuFeature) return false;
         if (!restrictByUserPermission) return true;
-        return canViewFeature(featureKey);
+        return item.id === "asaas-boletos"
+          ? canViewFeature("asaas_boleto") || canViewFeature("payment_integration")
+          : canViewFeature(featureKey);
       });
     }
     

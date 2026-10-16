@@ -86,6 +86,7 @@ const DigitalContractSign = lazyWithRetry(() => import("./pages/DigitalContractS
 const LandingPageAdmin = lazyWithRetry(() => import("./pages/LandingPageAdmin"));
 const LandingPagePublic = lazyWithRetry(() => import("./pages/LandingPagePublic"));
 const WordPressContent = lazyWithRetry(() => import("./pages/WordPressContent"));
+const AsaasBoletos = lazyWithRetry(() => import("./pages/AsaasBoletos"));
 
 // QueryClient com cache apropriado — EVITA refetch a cada navegação entre páginas.
 // Antes: staleTime=0 → TODA troca de rota refazia todas as queries do zero (~200-500ms por tela).
@@ -221,6 +222,7 @@ const App = () => {
                 <Route path="/financeiro/dre" element={<FinanceDre />} />
                 <Route path="/financeiro/fluxo-de-caixa" element={<FinanceCashFlow />} />
                 <Route path="/financeiro/conciliacao" element={<FinanceReconciliation />} />
+                <Route path="/boletos-asaas" element={<AsaasBoletos />} />
                 <Route path="/relatorios" element={<Reports />} />
                 <Route path="/relatorios/margens" element={<ReportsMargins />} />
                 <Route path="/relatorios/comissoes" element={<ReportsCommissions />} />

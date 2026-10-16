@@ -83,6 +83,7 @@ export function useIntegrationStatus() {
       isConfigured: !!asaasConfig,
       isActive: !!asaasConfig,
       tabValue: "integrations",
+      navigateTo: "/boletos-asaas",
     },
     {
       id: "bubble",
