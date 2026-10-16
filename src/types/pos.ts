@@ -14,6 +14,8 @@ export interface PosCartItem {
   stock_quantity?: number | null;
   /** Quando a org tem preço de atacado: varejo | atacado. */
   price_tier?: "retail" | "wholesale";
+  /** standard = unidade padrão; fragment = medida fragmentada. */
+  sale_mode?: "standard" | "fragment";
 }
 
 export interface PosPaymentLine {
@@ -381,6 +383,7 @@ export interface FinalizeSalePayload {
     quantity: number;
     unit_price: number;
     discount_amount?: number;
+    sale_mode?: "standard" | "fragment";
   }>;
   payments: Array<{
     method: string;

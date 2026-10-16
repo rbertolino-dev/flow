@@ -3,6 +3,9 @@ export interface NfeItem {
   name: string;
   code: string;
   ncm: string;
+  /** Origem da mercadoria (0-8), vinda de ICMS/orig. */
+  fiscalOrigin?: string;
+  cest?: string;
   unit: string;
   quantity: number;
   unitPrice: number;
@@ -71,11 +74,16 @@ export function parseNfeXml(xml: string): NfeInvoice | null {
     const quantity = numberFrom(directText(prod, "qCom"));
     const unitPrice = numberFrom(directText(prod, "vUnCom"));
     const subtotal = numberFrom(directText(prod, "vProd")) || quantity * unitPrice;
+    const icms = elements(det, "imposto")[0];
+    const origNode = icms ? elements(icms, "orig")[0] : elements(det, "orig")[0];
+    const fiscalOrigin = (origNode?.textContent || "").trim();
     return [{
       index,
       name,
       code: directText(prod, "cProd"),
       ncm: directText(prod, "NCM"),
+      fiscalOrigin: /^[0-8]$/.test(fiscalOrigin) ? fiscalOrigin : undefined,
+      cest: directText(prod, "CEST") || undefined,
       unit: directText(prod, "uCom") || "UN",
       quantity,
       unitPrice,

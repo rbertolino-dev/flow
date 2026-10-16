@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/dialog";
 import { CreateProductDialog } from "@/components/shared/CreateProductDialog";
 import { useToast } from "@/hooks/use-toast";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
+import { supabase } from "@/integrations/supabase/client";
 import { Product } from "@/types/product";
 import {
   findProductByName,
@@ -50,6 +52,7 @@ export function StockXmlEntryDialog({
   onCatalogChanged,
 }: StockXmlEntryDialogProps) {
   const { toast } = useToast();
+  const { activeOrgId } = useActiveOrganization();
   const fileRef = useRef<HTMLInputElement>(null);
   const creatingRef = useRef(false);
   const [fileName, setFileName] = useState("");
@@ -59,7 +62,15 @@ export function StockXmlEntryDialog({
   const [lines, setLines] = useState<XmlLine[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [createKey, setCreateKey] = useState<string | null>(null);
-  const [draft, setDraft] = useState<{ name: string; sku: string; unit: string; cost: string } | null>(null);
+  const [draft, setDraft] = useState<{
+    name: string;
+    sku: string;
+    unit: string;
+    cost: string;
+    ncm?: string;
+    fiscal_origin?: string;
+    cest?: string;
+  } | null>(null);
 
   const reset = () => {
     setFileName("");
@@ -132,8 +143,43 @@ export function StockXmlEntryDialog({
       sku: line.code,
       unit: line.unit,
       cost: line.unitPrice > 0 ? String(line.unitPrice) : "",
+      ncm: line.ncm || "",
+      fiscal_origin: line.fiscalOrigin || "0",
+      cest: line.cest || "",
     });
     setCreateOpen(true);
+  };
+
+  /** Completa NCM/origem/CEST do produto vinculado com os dados do XML, sem sobrescrever o que já existe. */
+  const syncFiscalFromXml = async (line: XmlLine) => {
+    const target = products.find((product) => product.id === line.productId);
+    if (!target || !activeOrgId) return;
+    const patch: Record<string, string> = {};
+    if (!target.ncm && line.ncm) patch.ncm = line.ncm;
+    if (!target.fiscal_origin && line.fiscalOrigin) patch.fiscal_origin = line.fiscalOrigin;
+    if (!target.cest && line.cest) patch.cest = line.cest;
+    if (!Object.keys(patch).length) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/products/${target.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+          "X-Organization-Id": activeOrgId,
+        },
+        body: JSON.stringify(patch),
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        console.error("Erro ao sincronizar dados fiscais do XML:", result.error || response.statusText);
+        return;
+      }
+      onCatalogChanged?.();
+    } catch (error) {
+      console.error("Erro ao sincronizar dados fiscais do XML:", error);
+    }
   };
 
   const finalize = async () => {
@@ -170,6 +216,7 @@ export function StockXmlEntryDialog({
         return;
       }
       updateLine(line.key, { posted: true });
+      await syncFiscalFromXml(line);
     }
     const removedSome = lines.length < invoice.items.length;
     const keptAmount = lines.reduce((sum, line) => {
@@ -269,6 +316,8 @@ export function StockXmlEntryDialog({
                     <Info label="Nome" value={line.name} />
                     <Info label="Código" value={line.code || "—"} />
                     <Info label="NCM" value={line.ncm || "—"} />
+                    {line.fiscalOrigin && <Info label="Origem" value={line.fiscalOrigin} />}
+                    {line.cest && <Info label="CEST" value={line.cest} />}
                     <Info label="Medida" value={line.editingUnit ? "" : line.unit || "—"} />
                     {line.editingUnit && (
                       <Input

@@ -40,6 +40,14 @@ import {
   type PosPaymentLine,
   type PosSettings,
 } from "@/types/pos";
+import type { Product } from "@/types/product";
+import {
+  describeFragment,
+  getFragmentPrice,
+  getFragmentUnitLabel,
+  hasFragment,
+  type PosSaleMode,
+} from "@/lib/productFragment";
 import { PosConfirmSaleDialog, type PosConfirmSaleValues } from "@/components/pos/PosConfirmSaleDialog";
 import { PosFinanceCreatedDialog } from "@/components/pos/PosFinanceCreatedDialog";
 import { PosSaleSuccessDialog } from "@/components/pos/PosSaleSuccessDialog";
@@ -128,6 +136,7 @@ export default function Pos() {
   const [exactSearch, setExactSearch] = useState(false);
   const [catalogCategory, setCatalogCategory] = useState("");
   const [createProductOpen, setCreateProductOpen] = useState(false);
+  const [fragmentChoiceProduct, setFragmentChoiceProduct] = useState<Product | null>(null);
   const [createServiceOpen, setCreateServiceOpen] = useState(false);
   const [barcodeMode, setBarcodeMode] = useState(false);
   const [mobilePane, setMobilePane] = useState<"catalog" | "summary">("catalog");
@@ -441,54 +450,28 @@ export default function Pos() {
     return u?.full_name || u?.email || null;
   }, [orgMembers, commissionUserId]);
 
-  const addProductToCart = (productId: string) => {
-    const product = products.find((p) => p.id === productId);
-    if (!product || !isListedForSale(product)) return;
+  const pushProductToCart = (
+    product: {
+      id: string;
+      name: string;
+      sku?: string | null;
+      unit?: string | null;
+      category?: string | null;
+      price: number;
+      wholesale_price?: number | null;
+      stock_quantity?: number | null;
+      fragment_enabled?: boolean;
+      fragment_unit?: string | null;
+      fragment_qty?: number | null;
+      fragment_price?: number | null;
+    },
+    saleMode: PosSaleMode = "standard"
+  ) => {
+    const isFragment = saleMode === "fragment" && hasFragment(product);
     const tier: ProductPriceTier =
-      wholesaleEnabled && priceTier === "wholesale" ? "wholesale" : "retail";
-    const unitPrice = resolveProductUnitPrice(product, tier);
-    const lineKey = `product-${product.id}-${tier}`;
-    setCart((prev) => {
-      const existing = prev.find((i) => i.key === lineKey);
-      if (existing) {
-        return prev.map((i) =>
-          i.key === existing.key ? { ...i, quantity: i.quantity + 1 } : i
-        );
-      }
-      return [
-        ...prev,
-        {
-          key: lineKey,
-          item_type: "product",
-          item_id: product.id,
-          name: product.name,
-          sku: product.sku,
-          unit: product.unit || "un",
-          quantity: 1,
-          unit_price: unitPrice,
-          category: product.category || null,
-          discount_amount: 0,
-          stock_quantity: product.stock_quantity,
-          price_tier: tier,
-        },
-      ];
-    });
-  };
-
-  const pushProductToCart = (product: {
-    id: string;
-    name: string;
-    sku?: string | null;
-    unit?: string | null;
-    category?: string | null;
-    price: number;
-    wholesale_price?: number | null;
-    stock_quantity?: number | null;
-  }) => {
-    const tier: ProductPriceTier =
-      wholesaleEnabled && priceTier === "wholesale" ? "wholesale" : "retail";
-    const unitPrice = resolveProductUnitPrice(product, tier);
-    const lineKey = `product-${product.id}-${tier}`;
+      !isFragment && wholesaleEnabled && priceTier === "wholesale" ? "wholesale" : "retail";
+    const unitPrice = isFragment ? getFragmentPrice(product) : resolveProductUnitPrice(product, tier);
+    const lineKey = `product-${product.id}-${tier}${isFragment ? "-fragment" : ""}`;
     setCart((prev) => {
       const existing = prev.find((i) => i.key === lineKey);
       if (existing) {
@@ -504,16 +487,28 @@ export default function Pos() {
           item_id: product.id,
           name: product.name,
           sku: product.sku,
-          unit: product.unit || "un",
+          unit: isFragment ? getFragmentUnitLabel(product) : product.unit || "un",
           category: product.category || null,
           quantity: 1,
           unit_price: unitPrice,
           discount_amount: 0,
           stock_quantity: product.stock_quantity,
           price_tier: tier,
+          sale_mode: isFragment ? ("fragment" as const) : ("standard" as const),
         },
       ];
     });
+  };
+
+  /** Produto com medida fragmentada abre a escolha (padrão ou fração); os demais entram direto. */
+  const addProductToCart = (productId: string) => {
+    const product = products.find((p) => p.id === productId);
+    if (!product || !isListedForSale(product)) return;
+    if (hasFragment(product)) {
+      setFragmentChoiceProduct(product);
+      return;
+    }
+    pushProductToCart(product, "standard");
   };
 
   const addServiceToCart = (serviceId: string) => {
@@ -610,15 +605,19 @@ export default function Pos() {
       return;
     }
     setScannedIds((prev) => (prev.includes(product.id) ? prev : [...prev, product.id]));
-    pushProductToCart({
-      id: product.id,
-      name: product.name,
-      sku: product.sku,
-      unit: product.unit,
-      category: product.category,
-      price: Number(product.price),
-      stock_quantity: product.stock_quantity,
-    });
+    if (hasFragment(product)) {
+      setFragmentChoiceProduct(product);
+    } else {
+      pushProductToCart({
+        id: product.id,
+        name: product.name,
+        sku: product.sku,
+        unit: product.unit,
+        category: product.category,
+        price: Number(product.price),
+        stock_quantity: product.stock_quantity,
+      });
+    }
     setBarcodeDraft("");
   };
 
@@ -891,6 +890,7 @@ export default function Pos() {
           quantity: i.quantity,
           unit_price: i.unit_price,
           discount_amount: i.discount_amount,
+          sale_mode: i.sale_mode ?? "standard",
         })),
         payments: finalPayments.map((p) => ({
           method: p.method,
@@ -1316,6 +1316,9 @@ export default function Pos() {
                           <p className="shrink-0 text-sm font-medium text-slate-500">
                             {formatMoney(resolveProductUnitPrice(p, wholesaleEnabled ? priceTier : "retail"))}{" "}
                             {p.unit || "Un"}
+                            {hasFragment(p) && (
+                              <span className="block text-[11px] font-normal text-amber-600">+ fragmentada</span>
+                            )}
                           </p>
                         </button>
                       </li>
@@ -1494,6 +1497,11 @@ export default function Pos() {
                               {" "}
                               - {item.unit || "Un"}
                             </span>
+                            {item.sale_mode === "fragment" && (
+                              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-700">
+                                Fragmentada
+                              </span>
+                            )}
                             {item.price_tier === "wholesale" && (
                               <span className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-violet-700">
                                 Atacado
@@ -1879,20 +1887,76 @@ export default function Pos() {
         onOpenChange={setCreateProductOpen}
         onProductCreated={(product) => {
           void refetchProducts();
-          pushProductToCart({
-            id: product.id,
-            name: product.name,
-            sku: product.sku,
-            unit: product.unit,
-            price: Number(product.price),
-            stock_quantity: product.stock_quantity,
-          });
+          if (hasFragment(product)) {
+            setFragmentChoiceProduct(product);
+          } else {
+            pushProductToCart({
+              id: product.id,
+              name: product.name,
+              sku: product.sku,
+              unit: product.unit,
+              price: Number(product.price),
+              stock_quantity: product.stock_quantity,
+            });
+          }
           toast({
             title: "Produto cadastrado",
             description: `${product.name} adicionado à venda`,
           });
         }}
       />
+
+      <Dialog
+        open={!!fragmentChoiceProduct}
+        onOpenChange={(next) => {
+          if (!next) setFragmentChoiceProduct(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Como vender {fragmentChoiceProduct?.name}?</DialogTitle>
+          </DialogHeader>
+          {fragmentChoiceProduct && (
+            <div className="space-y-3">
+              <p className="text-sm text-slate-600">{describeFragment(fragmentChoiceProduct)}</p>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto w-full justify-between py-3"
+                onClick={() => {
+                  pushProductToCart(fragmentChoiceProduct, "standard");
+                  setFragmentChoiceProduct(null);
+                }}
+              >
+                <span>
+                  Unidade padrão ({fragmentChoiceProduct.unit || "un"})
+                </span>
+                <span className="font-semibold">
+                  {formatMoney(
+                    resolveProductUnitPrice(
+                      fragmentChoiceProduct,
+                      wholesaleEnabled ? priceTier : "retail"
+                    )
+                  )}
+                </span>
+              </Button>
+              <Button
+                type="button"
+                className="h-auto w-full justify-between py-3"
+                onClick={() => {
+                  pushProductToCart(fragmentChoiceProduct, "fragment");
+                  setFragmentChoiceProduct(null);
+                }}
+              >
+                <span>
+                  Fragmentada ({getFragmentUnitLabel(fragmentChoiceProduct)})
+                </span>
+                <span className="font-semibold">{formatMoney(getFragmentPrice(fragmentChoiceProduct))}</span>
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <PosCreateServiceDialog
         open={createServiceOpen}

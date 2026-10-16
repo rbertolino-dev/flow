@@ -30,7 +30,20 @@ import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { useWholesalePriceEnabled } from "@/hooks/useWholesalePriceEnabled";
 import { generateEan13Barcode } from "@/lib/productBarcode";
-import { ImagePlus, Loader2, X, Dices, Plus } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ImagePlus, Loader2, X, Dices, Plus, ChevronDown } from "lucide-react";
+
+const FISCAL_ORIGINS = [
+  { value: "0", label: "0 - Nacional" },
+  { value: "1", label: "1 - Estrangeira (importação direta)" },
+  { value: "2", label: "2 - Estrangeira (adquirida no mercado interno)" },
+  { value: "3", label: "3 - Nacional (importação > 40% e <= 70%)" },
+  { value: "4", label: "4 - Nacional (processos produtivos básicos)" },
+  { value: "5", label: "5 - Nacional (importação <= 40%)" },
+  { value: "6", label: "6 - Estrangeira (importação direta, sem similar)" },
+  { value: "7", label: "7 - Estrangeira (mercado interno, sem similar)" },
+  { value: "8", label: "8 - Nacional (importação > 70%)" },
+];
 
 const BUCKET_ID = "whatsapp-workflow-media";
 
@@ -47,6 +60,9 @@ interface CreateProductDialogProps {
     sku?: string;
     unit?: string;
     cost?: string;
+    ncm?: string;
+    fiscal_origin?: string;
+    cest?: string;
   } | null;
 }
 
@@ -65,7 +81,12 @@ const emptyForm = {
   unit: "un",
   ncm: "",
   fiscal_origin: "0",
+  cest: "",
   tax_class_ref: "",
+  fragment_enabled: false,
+  fragment_unit: "",
+  fragment_qty: "",
+  fragment_price: "",
   description: "",
   image_url: "" as string | null,
   is_supply: false,
@@ -177,7 +198,12 @@ export function CreateProductDialog({
         unit: product.unit || "un",
         ncm: product.ncm || "",
         fiscal_origin: product.fiscal_origin || "0",
+        cest: product.cest || "",
         tax_class_ref: product.tax_class_ref || "",
+        fragment_enabled: Boolean(product.fragment_enabled),
+        fragment_unit: product.fragment_unit || "",
+        fragment_qty: product.fragment_qty != null ? String(product.fragment_qty) : "",
+        fragment_price: product.fragment_price != null ? String(product.fragment_price) : "",
         description: product.description || "",
         image_url: product.image_url || null,
         is_supply: Boolean(product.is_supply),
@@ -200,6 +226,9 @@ export function CreateProductDialog({
       sku: initialDraft?.sku || "",
       unit: initialDraft?.unit || "un",
       cost: initialDraft?.cost || "",
+      ncm: initialDraft?.ncm || "",
+      fiscal_origin: initialDraft?.fiscal_origin || "0",
+      cest: initialDraft?.cest || "",
       stock_quantity: "0",
     });
     setImagePreview(null);
@@ -298,7 +327,13 @@ export function CreateProductDialog({
       unit: form.unit.trim() || "un",
       ncm: form.ncm.trim() || null,
       fiscal_origin: form.fiscal_origin.trim() || null,
+      cest: form.cest.trim() || null,
       tax_class_ref: form.tax_class_ref.trim() || null,
+      fragment_enabled: form.fragment_enabled && Number(form.fragment_qty) > 0,
+      fragment_unit: form.fragment_enabled ? form.fragment_unit.trim() || null : null,
+      fragment_qty: form.fragment_enabled && Number(form.fragment_qty) > 0 ? Number(form.fragment_qty) : null,
+      fragment_price:
+        form.fragment_enabled && form.fragment_price !== "" ? Number(form.fragment_price) : null,
       image_url: form.image_url || null,
       is_active: product?.is_active ?? true,
       is_supply: form.is_supply,
@@ -543,10 +578,7 @@ export function CreateProductDialog({
                 Use Gerar para criar um EAN-13 interno com dígito verificador (lê em qualquer leitor).
               </p>
             </div>
-            <Field label="Unidade" placeholder="un, kg, cx" value={form.unit} onChange={(value) => setForm({ ...form, unit: value })} />
-            <Field label="NCM" placeholder="8 dígitos" value={form.ncm} onChange={(value) => setForm({ ...form, ncm: value.replace(/\D/g, "").slice(0, 8) })} />
-            <Field label="Origem (0 a 8)" value={form.fiscal_origin} onChange={(value) => setForm({ ...form, fiscal_origin: value })} />
-            <Field label="Classe de imposto (ref Webmania)" placeholder="REF0000" value={form.tax_class_ref} onChange={(value) => setForm({ ...form, tax_class_ref: value })} />
+            <Field label="Unidade padrão" placeholder="un, kg, cx" value={form.unit} onChange={(value) => setForm({ ...form, unit: value })} />
             <CatalogField
               label="Categoria"
               value={form.category}
@@ -582,6 +614,82 @@ export function CreateProductDialog({
                 onCheckedChange={(checked) => setForm({ ...form, is_supply: checked })}
               />
             </div>
+            <Collapsible className="rounded-lg border border-slate-200 md:col-span-2">
+              <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 px-3 py-2 text-left">
+                <span>
+                  <span className="block text-sm font-medium text-slate-900">Medida fragmentada</span>
+                  <span className="block text-xs text-slate-500">Venda em frações da unidade padrão (opcional).</span>
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-slate-500 transition-transform group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 border-t border-slate-200 px-3 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="product-fragment">Permitir vender por fração</Label>
+                  <Switch
+                    id="product-fragment"
+                    checked={form.fragment_enabled}
+                    onCheckedChange={(checked) => setForm({ ...form, fragment_enabled: checked })}
+                  />
+                </div>
+                <p className="rounded-md bg-slate-50 p-2 text-xs text-slate-600">
+                  Exemplo: o estoque é controlado em <strong>caixa</strong> (unidade padrão) e 1 caixa = 12 unidades.
+                  Informe a unidade fracionada <strong>un</strong>, a quantidade <strong>12</strong> e o preço de cada un.
+                  No PDV você escolhe vender a caixa inteira ou por unidade; o estoque desconta 1/12 de caixa por unidade vendida.
+                </p>
+                {form.fragment_enabled && (
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <Field
+                      label="Unidade fracionada"
+                      placeholder="un, g, ml"
+                      value={form.fragment_unit}
+                      onChange={(value) => setForm({ ...form, fragment_unit: value })}
+                    />
+                    <Field
+                      label={`Quantidade por ${form.unit || "unidade padrão"}`}
+                      type="number"
+                      placeholder="12"
+                      hint={`Quantas ${form.fragment_unit || "frações"} cabem em 1 ${form.unit || "unidade padrão"}.`}
+                      value={form.fragment_qty}
+                      onChange={(value) => setForm({ ...form, fragment_qty: value })}
+                    />
+                    <Field
+                      label="Preço da fração"
+                      type="number"
+                      hint="Vazio = preço de venda dividido pela quantidade."
+                      value={form.fragment_price}
+                      onChange={(value) => setForm({ ...form, fragment_price: value })}
+                    />
+                  </div>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+            <Collapsible className="rounded-lg border border-slate-200 md:col-span-2">
+              <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 px-3 py-2 text-left">
+                <span>
+                  <span className="block text-sm font-medium text-slate-900">Informações tributárias</span>
+                  <span className="block text-xs text-slate-500">NCM, origem, CEST e classe de imposto para nota fiscal.</span>
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-slate-500 transition-transform group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="grid gap-3 border-t border-slate-200 px-3 py-3 md:grid-cols-2">
+                <Field label="NCM" placeholder="8 dígitos" value={form.ncm} onChange={(value) => setForm({ ...form, ncm: value.replace(/\D/g, "").slice(0, 8) })} />
+                <div className="space-y-1.5">
+                  <Label>Origem da mercadoria</Label>
+                  <Select value={form.fiscal_origin || "0"} onValueChange={(value) => setForm({ ...form, fiscal_origin: value })}>
+                    <SelectTrigger className="bg-white">
+                      <SelectValue placeholder="Selecione a origem" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FISCAL_ORIGINS.map((origin) => (
+                        <SelectItem key={origin.value} value={origin.value}>{origin.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Field label="CEST" placeholder="7 dígitos" value={form.cest} onChange={(value) => setForm({ ...form, cest: value.replace(/\D/g, "").slice(0, 7) })} />
+                <Field label="Classe de imposto (ref Webmania)" placeholder="REF0000" value={form.tax_class_ref} onChange={(value) => setForm({ ...form, tax_class_ref: value })} />
+              </CollapsibleContent>
+            </Collapsible>
             <div className="space-y-1.5 md:col-span-2">
               <Label>Descrição</Label>
               <Textarea

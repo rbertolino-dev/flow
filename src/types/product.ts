@@ -15,6 +15,11 @@ export interface Product {
   fiscal_origin?: string | null;
   cest?: string | null;
   tax_class_ref?: string | null;
+  /** Medida fragmentada: vender fração da unidade padrão (ex.: 1 caixa = 12 un). */
+  fragment_enabled?: boolean;
+  fragment_unit?: string | null;
+  fragment_qty?: number | null;
+  fragment_price?: number | null;
   stock_quantity?: number | null;
   min_stock?: number | null;
   ideal_stock?: number | null;
@@ -49,6 +54,11 @@ export interface ProductFormData {
   fiscal_origin?: string | null;
   cest?: string | null;
   tax_class_ref?: string | null;
+  /** Medida fragmentada: vender fração da unidade padrão (ex.: 1 caixa = 12 un). */
+  fragment_enabled?: boolean;
+  fragment_unit?: string | null;
+  fragment_qty?: number | null;
+  fragment_price?: number | null;
   stock_quantity?: number | null;
   min_stock?: number | null;
   ideal_stock?: number | null;

@@ -20,6 +20,10 @@ interface Product {
   fiscal_origin?: string | null;
   cest?: string | null;
   tax_class_ref?: string | null;
+  fragment_enabled?: boolean;
+  fragment_unit?: string | null;
+  fragment_qty?: number | null;
+  fragment_price?: number | null;
   price: number;
   wholesale_price?: number | null;
   cost?: number | null;
@@ -212,6 +216,10 @@ async function ensureStockSchema(client: any) {
   await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS fiscal_origin TEXT`);
   await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS cest TEXT`);
   await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS tax_class_ref TEXT`);
+  await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS fragment_enabled BOOLEAN NOT NULL DEFAULT false`);
+  await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS fragment_unit TEXT`);
+  await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS fragment_qty NUMERIC(14,4)`);
+  await client.queryArray(`ALTER TABLE products ADD COLUMN IF NOT EXISTS fragment_price NUMERIC(14,4)`);
   await client.queryArray(`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS budget_id UUID`);
   await client.queryArray(`ALTER TABLE pos_stock_movements ADD COLUMN IF NOT EXISTS service_order_id UUID`);
   await client.queryArray(`ALTER TABLE pos_sales ADD COLUMN IF NOT EXISTS client_request_id TEXT`);
@@ -1263,6 +1271,20 @@ serve(async (req) => {
         created.fiscal_origin = body.fiscal_origin ? String(body.fiscal_origin) : null;
         created.cest = body.cest ? String(body.cest) : null;
         created.tax_class_ref = body.tax_class_ref ? String(body.tax_class_ref) : null;
+        const fragEnabled = body.fragment_enabled === true && Number(body.fragment_qty) > 0;
+        const fragQty = fragEnabled ? Number(body.fragment_qty) : null;
+        const fragPrice = fragEnabled && body.fragment_price !== undefined && body.fragment_price !== null && body.fragment_price !== ''
+          ? Number(body.fragment_price)
+          : null;
+        const fragUnit = fragEnabled && body.fragment_unit ? String(body.fragment_unit) : null;
+        await client.queryArray(
+          `UPDATE products SET fragment_enabled = $1, fragment_unit = $2, fragment_qty = $3, fragment_price = $4 WHERE id = $5 AND organization_id = $6`,
+          [fragEnabled, fragUnit, fragQty, fragPrice, created.id, organizationId]
+        );
+        created.fragment_enabled = fragEnabled;
+        created.fragment_unit = fragUnit;
+        created.fragment_qty = fragQty;
+        created.fragment_price = fragPrice;
         await writeProductAudit(client, {
           organizationId,
           productId: created.id,
@@ -1380,7 +1402,8 @@ serve(async (req) => {
           'name', 'description', 'sku', 'barcode', 'price', 'wholesale_price', 'cost', 'category',
           'is_active', 'min_stock', 'ideal_stock', 'brand', 'unit', 'image_url',
           'commission_percentage', 'commission_fixed',
-          'ncm', 'fiscal_origin', 'cest', 'tax_class_ref'
+          'ncm', 'fiscal_origin', 'cest', 'tax_class_ref',
+          'fragment_enabled', 'fragment_unit', 'fragment_qty', 'fragment_price'
         ];
 
         for (const field of allowedFields) {

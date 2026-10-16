@@ -18,6 +18,7 @@ type SaleItemInput = {
   quantity: number;
   unit_price: number;
   discount_amount?: number;
+  sale_mode?: "standard" | "fragment";
 };
 
 type PaymentInput = {
@@ -1537,6 +1538,7 @@ serve(async (req) => {
             total_price: totalPrice,
             unit: item.unit || "un",
             item_type: item.item_type === "service" ? "service" : "product",
+            sale_mode: item.sale_mode === "fragment" ? "fragment" : "standard",
           };
         });
 
@@ -1733,8 +1735,12 @@ serve(async (req) => {
             `;
 
             if (applyStock && item.item_type === "product" && item.item_id) {
-              const stockRow = await tx.queryObject<{ stock_quantity: number | null }>`
-                SELECT stock_quantity FROM products
+              const stockRow = await tx.queryObject<{
+                stock_quantity: number | null;
+                fragment_enabled: boolean | null;
+                fragment_qty: number | null;
+              }>`
+                SELECT stock_quantity, fragment_enabled, fragment_qty FROM products
                 WHERE id = ${item.item_id} AND organization_id = ${organizationId}
                 FOR UPDATE
               `;
@@ -1743,7 +1749,12 @@ serve(async (req) => {
                 throw new HttpError(`Produto não encontrado nesta empresa: ${item.name}`, 400);
               }
               const before = Number(stockRow.rows[0].stock_quantity ?? 0);
-              const after = before - item.quantity;
+              const fragQty = Number(stockRow.rows[0].fragment_qty ?? 0);
+              const stockDelta =
+                item.sale_mode === "fragment" && stockRow.rows[0].fragment_enabled === true && fragQty > 0
+                  ? item.quantity / fragQty
+                  : item.quantity;
+              const after = before - stockDelta;
               if (blockStock && after < 0) {
                 throw new HttpError(`Estoque insuficiente para ${item.name}`, 400);
               }
@@ -1760,7 +1771,7 @@ serve(async (req) => {
                   quantity_delta, stock_before, stock_after, created_by
                 ) VALUES (
                   ${organizationId}, ${item.item_id}, ${saleId}, 'sale', 'sale',
-                  ${-item.quantity}, ${before}, ${after}, ${user.id}
+                  ${-stockDelta}, ${before}, ${after}, ${user.id}
                 )
               `;
             }
