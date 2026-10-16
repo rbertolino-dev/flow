@@ -1,5 +1,8 @@
 import { supabase } from '@/integrations/supabase/client';
 import { GET_SESSION_TIMEOUT_CACHED_MS, getSessionWithTimeout } from '@/lib/getSessionWithTimeout';
+import { extractOrganizationIdFromRpc } from '@/lib/extractOrganizationIdFromRpc';
+
+export { extractOrganizationIdFromRpc };
 
 const STORAGE_KEY = 'active_organization_id';
 const ORG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
@@ -102,13 +105,26 @@ export async function ensureUserOrganization(): Promise<string> {
   // Se não houver organização, cria uma padrão para o usuário atual
   const user = session.user;
   const friendlyName = `Organização de ${user.email?.split('@')[0] || 'Usuário'}`;
-  const { data: createdOrgId, error: createErr } = await supabase
+  const { data: created, error: createErr } = await supabase
     .rpc('create_organization_with_owner', { org_name: friendlyName });
 
   if (createErr) throw createErr;
-  if (!createdOrgId) throw new Error('Falha ao criar organização padrão');
 
-  const orgId = createdOrgId as string;
+  let orgId = extractOrganizationIdFromRpc(created);
+
+  // Fallback: membership recém-criada (RPC pode devolver JSON em vez de uuid)
+  if (!orgId) {
+    const { data: membership } = await supabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .limit(1)
+      .maybeSingle();
+    orgId = membership?.organization_id || null;
+  }
+
+  if (!orgId) throw new Error('Falha ao criar organização padrão');
+
   localStorage.setItem(STORAGE_KEY, orgId);
   _orgCache = { orgId, userId: user.id, verifiedAt: Date.now() };
 

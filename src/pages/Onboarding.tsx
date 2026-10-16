@@ -82,10 +82,10 @@ export default function Onboarding() {
         setTimeout(() => {
           navigate('/', { replace: true });
         }, 2000);
-      } catch (error: any) {
+      } catch (error: unknown) {
         toast({
           title: "Erro",
-          description: error.message || "Erro ao finalizar onboarding",
+          description: error instanceof Error ? error.message : "Erro ao finalizar onboarding",
           variant: "destructive",
         });
       } finally {
@@ -179,7 +179,7 @@ export default function Onboarding() {
                 {currentStep === 'users' && 'Usuários da Equipe'}
                 {currentStep === 'pipeline' && 'Funil de Vendas'}
                 {currentStep === 'products' && 'Produtos e Serviços'}
-                {currentStep === 'evolution' && 'Integração Evolution'}
+                {currentStep === 'evolution' && 'Integração WhatsApp'}
               </CardTitle>
               <CardDescription>
                 Etapa {currentStepIndex + 1} de {STEPS.length}
