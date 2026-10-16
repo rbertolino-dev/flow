@@ -61,10 +61,10 @@ export function OrganizationForm({ onComplete, initialData }: OrganizationFormPr
         });
         onComplete();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao salvar",
-        description: error.message || "Erro desconhecido",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
@@ -74,11 +74,14 @@ export function OrganizationForm({ onComplete, initialData }: OrganizationFormPr
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <p className="text-xs text-muted-foreground">
+        Campos com <span className="text-destructive font-medium">*</span> são obrigatórios; os demais são opcionais.
+      </p>
       <div className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="name" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
-            Nome da Organização *
+            Nome da Organização <span className="text-destructive">*</span>
           </Label>
           <Input
             id="name"
@@ -90,7 +93,7 @@ export function OrganizationForm({ onComplete, initialData }: OrganizationFormPr
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="company_profile">Perfil da Empresa *</Label>
+          <Label htmlFor="company_profile">Perfil da Empresa <span className="text-destructive">*</span></Label>
           <Select
             value={formData.company_profile}
             onValueChange={(value) => setFormData({ ...formData, company_profile: value })}
@@ -115,7 +118,7 @@ export function OrganizationForm({ onComplete, initialData }: OrganizationFormPr
           <div className="space-y-2">
             <Label htmlFor="state" className="flex items-center gap-2">
               <MapPin className="h-4 w-4" />
-              Estado *
+              Estado <span className="text-destructive">*</span>
             </Label>
             <Select
               value={formData.state}
@@ -136,7 +139,7 @@ export function OrganizationForm({ onComplete, initialData }: OrganizationFormPr
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="city">Cidade *</Label>
+            <Label htmlFor="city">Cidade <span className="text-destructive">*</span></Label>
             <Input
               id="city"
               placeholder="Digite a cidade"
@@ -148,7 +151,7 @@ export function OrganizationForm({ onComplete, initialData }: OrganizationFormPr
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="tax_regime">Regime Tributário *</Label>
+          <Label htmlFor="tax_regime">Regime Tributário <span className="text-destructive">*</span></Label>
           <Select
             value={formData.tax_regime}
             onValueChange={(value) => setFormData({ ...formData, tax_regime: value })}
@@ -170,7 +173,7 @@ export function OrganizationForm({ onComplete, initialData }: OrganizationFormPr
         <div className="space-y-2">
           <Label htmlFor="business_type" className="flex items-center gap-2">
             <Briefcase className="h-4 w-4" />
-            Tipo de Negócio *
+            Tipo de Negócio <span className="text-destructive">*</span>
           </Label>
           <Select
             value={formData.business_type}
@@ -191,7 +194,7 @@ export function OrganizationForm({ onComplete, initialData }: OrganizationFormPr
         <div className="space-y-2">
           <Label htmlFor="expectations" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
-            O que espera do sistema?
+            O que espera do sistema?{" "}<span className="text-muted-foreground font-normal">(opcional)</span>
           </Label>
           <Textarea
             id="expectations"

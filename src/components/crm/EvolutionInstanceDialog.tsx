@@ -90,9 +90,11 @@ export function EvolutionInstanceDialog({
       });
       // Buscar provider da organização quando abrir para criar nova instância
       if (open) {
-        fetchOrganizationProvider();
+        void fetchOrganizationProvider();
       }
     }
+    // fetchOrganizationProvider is stable for this dialog open cycle
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- evita loop ao abrir o dialog
   }, [editingConfig, open]);
 
   const fetchOrganizationProvider = async () => {
@@ -101,9 +103,9 @@ export function EvolutionInstanceDialog({
       const orgId = await getUserOrganizationId();
       if (!orgId) return;
 
-      const { data, error } = await supabase.rpc('get_organization_evolution_provider' as any, {
+      const { data, error } = await supabase.rpc('get_organization_evolution_provider' as never, {
         _org_id: orgId,
-      }) as { data: any[] | null; error: any };
+      }) as { data: Array<{ provider_id: string; provider_name: string; api_url: string; api_key: string }> | null; error: { code?: string; message?: string } | null };
 
       if (error && error.code !== 'PGRST116') {
         // Se for erro de permissão, apenas não definir provider
@@ -117,26 +119,21 @@ export function EvolutionInstanceDialog({
 
       if (data && data.length > 0) {
         setOrganizationProviders(data);
-        
-        // Se houver apenas um provider, selecionar automaticamente
-        if (data.length === 1) {
-          setSelectedProviderId(data[0].provider_id);
-          if (!editingConfig) {
-            setFormData(prev => ({
-              ...prev,
-              api_url: data[0].api_url,
-              api_key: data[0].api_key,
-            }));
-          }
-        } else if (data.length > 1 && !editingConfig) {
-          // Se houver múltiplos, não preencher automaticamente - usuário escolhe
-          setSelectedProviderId(null);
+        // Provider vem do Super Admin — nunca pedir escolha/URL ao usuário final
+        const primary = data[0];
+        setSelectedProviderId(primary.provider_id);
+        if (!editingConfig) {
+          setFormData((prev) => ({
+            ...prev,
+            api_url: primary.api_url,
+            api_key: primary.api_key,
+          }));
         }
       } else {
         setOrganizationProviders([]);
         setSelectedProviderId(null);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao buscar providers:', error);
       setOrganizationProviders([]);
       setSelectedProviderId(null);
@@ -166,7 +163,7 @@ export function EvolutionInstanceDialog({
     try {
       if (editingConfig && onUpdate) {
         // Modo edição - se há provider configurado, não permitir alterar URL/API key
-        const updateData: any = {
+        const updateData: Partial<EvolutionConfig> = {
           instance_name: formData.instance_name,
           proxy_host: formData.proxy_host.trim() || null,
           proxy_port: formData.proxy_port.trim() || null,
@@ -260,7 +257,7 @@ export function EvolutionInstanceDialog({
           setFormData({ api_url: "", api_key: "", instance_name: "", proxy_host: "", proxy_port: "", proxy_protocol: "", proxy_username: "", proxy_password: "" });
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro",
         description: error.message,
@@ -319,7 +316,7 @@ export function EvolutionInstanceDialog({
                     Criar com QR Code
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Gerar instância automaticamente via Evolution API
+                    Gerar instância automaticamente e exibir o QR Code
                   </p>
                 </div>
                 <Switch
@@ -330,51 +327,37 @@ export function EvolutionInstanceDialog({
               </div>
             )}
 
-            {organizationProviders.length > 0 && !editingConfig && (
-              <div className="space-y-2">
-                <Label htmlFor="provider-select">Selecione o Provider Evolution</Label>
-                <Select
-                  value={selectedProviderId || ''}
-                  onValueChange={(value) => setSelectedProviderId(value || null)}
-                  disabled={loadingProvider}
-                >
-                  <SelectTrigger id="provider-select">
-                    <SelectValue placeholder="Selecione um provider" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {organizationProviders.map((provider) => (
-                      <SelectItem key={provider.provider_id} value={provider.provider_id}>
-                        {provider.provider_name} ({provider.api_url})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedProviderId && (
-                  <div className="p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
-                    <p className="text-xs text-green-700 dark:text-green-300">
-                      O link e API key foram configurados automaticamente pela administração. 
-                      Você só precisa informar o nome da instância.
-                    </p>
-                  </div>
-                )}
+            {organizationProviders.length > 0 && (
+              <div className="p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <p className="text-sm font-medium text-green-900 dark:text-green-100">
+                  Conexão WhatsApp gerenciada pela administração
+                </p>
+                <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                  {loadingProvider
+                    ? "Carregando..."
+                    : "O servidor já foi definido pelo Super Admin. Informe só o nome da instância."}
+                </p>
               </div>
             )}
 
-            {/* Mostrar campos de URL e API Key quando não há provider selecionado ou quando não há providers configurados */}
-            {(!selectedProviderId || organizationProviders.length === 0) && (
+            {organizationProviders.length === 0 && !editingConfig && (
               <>
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <p className="text-xs text-amber-800 dark:text-amber-200">
+                    Nenhum servidor WhatsApp foi vinculado a esta empresa. Peça ao administrador geral
+                    para configurar no Super Admin, ou informe os dados abaixo (modo legado).
+                  </p>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="api_url">URL da API</Label>
                   <Input
                     id="api_url"
-                    placeholder="https://api.evolution.com"
+                    placeholder="https://api.exemplo.com"
                     value={formData.api_url}
                     onChange={(e) => setFormData({ ...formData, api_url: e.target.value })}
-                    required={!selectedProviderId}
-                    disabled={!!selectedProviderId}
+                    required
                   />
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="api_key">API Key</Label>
                   <Input
@@ -383,30 +366,16 @@ export function EvolutionInstanceDialog({
                     placeholder="Sua API Key"
                     value={formData.api_key}
                     onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
-                    required={!selectedProviderId}
-                    disabled={!!selectedProviderId}
+                    required
                   />
                 </div>
               </>
             )}
-            
-            {/* Mostrar aviso se há providers mas nenhum selecionado */}
-            {organizationProviders.length > 0 && !selectedProviderId && (
-              <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <p className="text-xs text-blue-700 dark:text-blue-300">
-                  Você pode selecionar um provider acima ou informar manualmente a URL e API Key abaixo.
-                </p>
-              </div>
-            )}
 
-            {organizationProviders.length > 0 && editingConfig && (
+            {organizationProviders.length === 0 && editingConfig && (
               <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-                  Provider gerenciado pela administração
-                </p>
-                <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
-                  A URL e API Key são gerenciadas pelo super admin e não podem ser alteradas. 
-                  Você pode editar apenas o nome da instância.
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  Peça ao Super Admin para vincular o servidor WhatsApp a esta organização.
                 </p>
               </div>
             )}

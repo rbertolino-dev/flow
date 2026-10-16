@@ -18,15 +18,14 @@ export function OnboardingBanner() {
     return null;
   }
 
-  const totalSteps = 5;
-  const completedSteps = status.completedSteps.length;
+  const totalSteps = 4;
+  const completedSteps = status.completedSteps.filter((s) => s !== 'evolution').length;
   const progress = (completedSteps / totalSteps) * 100;
 
   const getNextStep = () => {
     if (!status.progress.organization) return 'organization';
     if (!status.progress.pipeline) return 'pipeline';
     if (!status.progress.products && !status.completedSteps.includes('products')) return 'products';
-    if (!status.progress.evolution && !status.completedSteps.includes('evolution')) return 'evolution';
     return null;
   };
 
@@ -41,7 +40,6 @@ export function OnboardingBanner() {
     users: 'Usuários',
     pipeline: 'Funil de Vendas',
     products: 'Produtos/Serviços',
-    evolution: 'Integração WhatsApp',
   };
 
   return (

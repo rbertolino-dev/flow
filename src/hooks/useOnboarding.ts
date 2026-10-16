@@ -134,17 +134,18 @@ export function useOnboarding() {
         }
       }
 
-      // Verificar etapa de Evolution
-      const { data: evolutionInstances, error: evolutionError } = await supabase
-        .from('evolution_config')
-        .select('id')
-        .eq('organization_id', organizationId);
+      // WhatsApp/Evolution: configurado pelo Super Admin — não bloqueia onboarding
+      let evolutionInstancesCount = 0;
+      try {
+        const { data: evolutionInstances } = await supabase
+          .from('evolution_config')
+          .select('id')
+          .eq('organization_id', organizationId);
+        evolutionInstancesCount = evolutionInstances?.length || 0;
+      } catch {
+        // não crítico
+      }
 
-      if (evolutionError) throw evolutionError;
-      const evolutionInstancesCount = evolutionInstances?.length || 0;
-      const evolutionStepComplete = evolutionInstancesCount > 0 || completedSteps.includes('evolution');
-
-      // Verificar etapa de usuários (sempre opcional, mas verificamos se foi marcada)
       const usersStepComplete = completedSteps.includes('users');
 
       const progress: OnboardingProgress = {
@@ -152,22 +153,20 @@ export function useOnboarding() {
         users: usersStepComplete,
         pipeline: pipelineStepComplete,
         products: productsStepComplete,
-        evolution: evolutionStepComplete,
+        evolution: true,
       };
 
-      const allSteps: OnboardingStep[] = ['organization', 'users', 'pipeline', 'products', 'evolution'];
+      const allSteps: OnboardingStep[] = ['organization', 'users', 'pipeline', 'products'];
       const pendingSteps = allSteps.filter(step => {
         if (step === 'organization') return !orgStepComplete;
-        if (step === 'users') return false; // Sempre opcional
+        if (step === 'users') return false;
         if (step === 'pipeline') return !pipelineStepComplete;
         if (step === 'products') return !productsStepComplete;
-        if (step === 'evolution') return !evolutionStepComplete;
         return false;
       });
 
-      const isComplete = orgStepComplete && pipelineStepComplete && 
-                        (productsStepComplete || completedSteps.includes('products')) &&
-                        (evolutionStepComplete || completedSteps.includes('evolution'));
+      const isComplete = orgStepComplete && pipelineStepComplete &&
+                        (productsStepComplete || completedSteps.includes('products'));
 
       return {
         isComplete,

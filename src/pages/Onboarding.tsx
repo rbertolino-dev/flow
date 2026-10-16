@@ -6,7 +6,6 @@ import { OrganizationForm } from "@/components/onboarding/OrganizationForm";
 import { UsersStep } from "@/components/onboarding/UsersStep";
 import { PipelineStep } from "@/components/onboarding/PipelineStep";
 import { ProductsStep } from "@/components/onboarding/ProductsStep";
-import { EvolutionStep } from "@/components/onboarding/EvolutionStep";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +13,8 @@ import { Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AGILIZE_LOGO_URL } from "@/constants/branding";
 
-const STEPS: OnboardingStepType[] = ['organization', 'users', 'pipeline', 'products', 'evolution'];
+/** WhatsApp/Evolution não entra no onboarding — provider vem do Super Admin. */
+const STEPS: OnboardingStepType[] = ["organization", "users", "pipeline", "products"];
 
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -25,38 +25,33 @@ export default function Onboarding() {
   const [completedSteps, setCompletedSteps] = useState<OnboardingStepType[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Verificar step da URL
   useEffect(() => {
-    const stepParam = searchParams.get('step');
+    const stepParam = searchParams.get("step");
+    if (stepParam === "evolution") {
+      navigate("/onboarding?step=products", { replace: true });
+      return;
+    }
     if (stepParam) {
       const stepIndex = STEPS.indexOf(stepParam as OnboardingStepType);
-      if (stepIndex >= 0) {
-        setCurrentStepIndex(stepIndex);
-      }
+      if (stepIndex >= 0) setCurrentStepIndex(stepIndex);
     }
-  }, [searchParams]);
+  }, [searchParams, navigate]);
 
-  // Carregar status do onboarding
   useEffect(() => {
-    if (status) {
-      const completed: OnboardingStepType[] = [];
-      if (status.progress.organization) completed.push('organization');
-      if (status.progress.users) completed.push('users');
-      if (status.progress.pipeline) completed.push('pipeline');
-      if (status.progress.products) completed.push('products');
-      if (status.progress.evolution) completed.push('evolution');
-      setCompletedSteps(completed);
+    if (!status) return;
+    const completed: OnboardingStepType[] = [];
+    if (status.progress.organization) completed.push("organization");
+    if (status.progress.users) completed.push("users");
+    if (status.progress.pipeline) completed.push("pipeline");
+    if (status.progress.products) completed.push("products");
+    setCompletedSteps(completed);
 
-      // Se onboarding completo, redirecionar
-      if (status.isComplete) {
-        toast({
-          title: "Onboarding completo!",
-          description: "Redirecionando para o dashboard...",
-        });
-        setTimeout(() => {
-          navigate('/', { replace: true });
-        }, 1500);
-      }
+    if (status.isComplete) {
+      toast({
+        title: "Onboarding completo!",
+        description: "Redirecionando para o dashboard...",
+      });
+      setTimeout(() => navigate("/", { replace: true }), 1500);
     }
   }, [status, navigate, toast]);
 
@@ -65,23 +60,15 @@ export default function Onboarding() {
 
   const handleStepComplete = async () => {
     await refresh();
-    
     if (isLastStep) {
-      // Última etapa - finalizar onboarding
       setSaving(true);
       try {
-        // Aguardar um pouco para garantir que tudo foi salvo
-        await new Promise(resolve => setTimeout(resolve, 1000));
         await refresh();
-        
         toast({
           title: "Parabéns!",
           description: "Seu onboarding foi concluído com sucesso!",
         });
-
-        setTimeout(() => {
-          navigate('/', { replace: true });
-        }, 2000);
+        setTimeout(() => navigate("/", { replace: true }), 1200);
       } catch (error: unknown) {
         toast({
           title: "Erro",
@@ -92,31 +79,28 @@ export default function Onboarding() {
         setSaving(false);
       }
     } else {
-      // Avançar para próxima etapa
-      setCurrentStepIndex(currentStepIndex + 1);
-      // Atualizar URL sem recarregar
-      const nextStep = STEPS[currentStepIndex + 1];
-      navigate(`/onboarding?step=${nextStep}`, { replace: true });
+      const nextIndex = currentStepIndex + 1;
+      setCurrentStepIndex(nextIndex);
+      navigate(`/onboarding?step=${STEPS[nextIndex]}`, { replace: true });
     }
   };
 
   const handleStepSkip = async () => {
     await refresh();
-    
     if (isLastStep) {
-      handleStepComplete();
+      await handleStepComplete();
     } else {
-      setCurrentStepIndex(currentStepIndex + 1);
-      const nextStep = STEPS[currentStepIndex + 1];
-      navigate(`/onboarding?step=${nextStep}`, { replace: true });
+      const nextIndex = currentStepIndex + 1;
+      setCurrentStepIndex(nextIndex);
+      navigate(`/onboarding?step=${STEPS[nextIndex]}`, { replace: true });
     }
   };
 
   const handleBack = () => {
     if (currentStepIndex > 0) {
-      setCurrentStepIndex(currentStepIndex - 1);
-      const prevStep = STEPS[currentStepIndex - 1];
-      navigate(`/onboarding?step=${prevStep}`, { replace: true });
+      const prevIndex = currentStepIndex - 1;
+      setCurrentStepIndex(prevIndex);
+      navigate(`/onboarding?step=${STEPS[prevIndex]}`, { replace: true });
     }
   };
 
@@ -137,9 +121,7 @@ export default function Onboarding() {
               <CheckCircle2 className="h-16 w-16 text-green-600" />
             </div>
             <CardTitle className="text-2xl">Onboarding Completo!</CardTitle>
-            <CardDescription>
-              Redirecionando para o dashboard...
-            </CardDescription>
+            <CardDescription>Redirecionando para o dashboard...</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -150,87 +132,65 @@ export default function Onboarding() {
     <AuthGuard>
       <div className="min-h-screen bg-gradient-to-br from-background via-secondary/10 to-background p-4">
         <div className="max-w-4xl mx-auto py-8">
-          {/* Header */}
           <div className="mb-8 text-center">
             <div className="flex justify-center mb-4">
-              <img src={AGILIZE_LOGO_URL} alt="CRM Agilize" className="h-12 w-auto" />
+              <img
+                src={AGILIZE_LOGO_URL}
+                alt="CRM Agilize"
+                className="h-12 w-auto"
+                width={140}
+                height={48}
+                decoding="async"
+              />
             </div>
             <h1 className="text-3xl font-bold mb-2">Bem-vindo ao CRM Agilize</h1>
-            <p className="text-muted-foreground">
-              Vamos configurar seu sistema em poucos passos
-            </p>
+            <p className="text-muted-foreground">Vamos configurar seu sistema em poucos passos</p>
           </div>
 
-          {/* Stepper */}
           <Card className="mb-6">
             <CardContent className="pt-6">
-              <OnboardingStepper
-                currentStep={currentStep}
-                completedSteps={completedSteps}
-              />
+              <OnboardingStepper currentStep={currentStep} completedSteps={completedSteps} />
             </CardContent>
           </Card>
 
-          {/* Step Content */}
           <Card>
             <CardHeader>
               <CardTitle>
-                {currentStep === 'organization' && 'Dados da Organização'}
-                {currentStep === 'users' && 'Usuários da Equipe'}
-                {currentStep === 'pipeline' && 'Funil de Vendas'}
-                {currentStep === 'products' && 'Produtos e Serviços'}
-                {currentStep === 'evolution' && 'Integração WhatsApp'}
+                {currentStep === "organization" && "Dados da Organização"}
+                {currentStep === "users" && "Usuários da Equipe"}
+                {currentStep === "pipeline" && "Funil de Vendas"}
+                {currentStep === "products" && "Produtos e Serviços"}
               </CardTitle>
               <CardDescription>
                 Etapa {currentStepIndex + 1} de {STEPS.length}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {currentStep === 'organization' && (
+              {currentStep === "organization" && (
                 <OrganizationForm
                   onComplete={handleStepComplete}
                   initialData={status?.organizationData}
                 />
               )}
-
-              {currentStep === 'users' && (
-                <UsersStep
-                  onComplete={handleStepComplete}
-                  onSkip={handleStepSkip}
-                />
+              {currentStep === "users" && (
+                <UsersStep onComplete={handleStepComplete} onSkip={handleStepSkip} />
               )}
-
-              {currentStep === 'pipeline' && (
+              {currentStep === "pipeline" && (
                 <PipelineStep
                   onComplete={handleStepComplete}
                   businessType={status?.organizationData?.business_type}
                 />
               )}
-
-              {currentStep === 'products' && (
+              {currentStep === "products" && (
                 <ProductsStep
                   onComplete={handleStepComplete}
                   onSkip={handleStepSkip}
                   businessType={status?.organizationData?.business_type}
                 />
               )}
-
-              {currentStep === 'evolution' && (
-                <EvolutionStep
-                  onComplete={handleStepComplete}
-                  onSkip={handleStepSkip}
-                />
-              )}
-
-              {/* Navigation */}
-              {currentStep !== 'organization' && (
+              {currentStep !== "organization" && (
                 <div className="mt-6 pt-6 border-t">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleBack}
-                    disabled={saving}
-                  >
+                  <Button type="button" variant="outline" onClick={handleBack} disabled={saving}>
                     Voltar
                   </Button>
                 </div>
@@ -242,5 +202,3 @@ export default function Onboarding() {
     </AuthGuard>
   );
 }
-
-
