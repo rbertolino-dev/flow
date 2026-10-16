@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useEvolutionConfigs, EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2, Archive, Tag as TagIcon, Layers, Pencil, Trash2, MessageSquare, UserCog, User, Wifi, AlertTriangle, Globe, ListPlus } from "lucide-react";
+import { Plus, Loader2, Archive, Tag as TagIcon, Layers, Pencil, Trash2, MessageSquare, UserCog, User, Wifi, AlertTriangle, Globe, ListPlus, KeyRound } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EvolutionInstanceCard } from "@/components/crm/EvolutionInstanceCard";
 import { EvolutionInstanceDialog } from "@/components/crm/EvolutionInstanceDialog";
@@ -68,6 +68,7 @@ import { useIntegrationAccess } from "@/hooks/useIntegrationAccess";
 import { LandingPageConfigurator } from "@/components/landing-page/LandingPageConfigurator";
 import { useLandingPageAccess } from "@/hooks/useLandingPageAccess";
 import { CrmSettingsCard } from "@/components/crm/CrmSettingsCard";
+import { OrganizationApiKeysPanel } from "@/components/settings/OrganizationApiKeysPanel";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -398,6 +399,11 @@ export default function Settings() {
               <span className="sm:hidden">LP</span>
             </TabsTrigger>
             )}
+            <TabsTrigger value="api" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap min-w-fit">
+              <KeyRound className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 inline" />
+              <span className="hidden sm:inline">API</span>
+              <span className="sm:hidden">API</span>
+            </TabsTrigger>
           </TabsList>
           </div>
 
@@ -915,6 +921,10 @@ export default function Settings() {
 
           <TabsContent value="landing-page" className="space-y-6 mt-4 sm:mt-6">
             <LandingPageConfigurator />
+          </TabsContent>
+
+          <TabsContent value="api" className="space-y-6 mt-4 sm:mt-6">
+            <OrganizationApiKeysPanel />
           </TabsContent>
         </Tabs>
       </div>

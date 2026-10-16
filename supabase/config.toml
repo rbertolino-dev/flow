@@ -376,3 +376,10 @@ verify_jwt = false
 # ========== Monitor global conexões WhatsApp (ops, sem QR) ==========
 [functions.monitor-evolution-connections-cron]
 verify_jwt = false
+
+# ========== API pública v1 ==========
+[functions.api-v1]
+verify_jwt = false
+
+[functions.manage-organization-api-key]
+verify_jwt = true
