@@ -116,25 +116,84 @@ export function serviceOrderDeepLink(orderId: string): string {
   return `${window.location.origin}/service-orders?os=${orderId}`;
 }
 
-export async function captureGeolocation(): Promise<{
-  lat: number;
-  lng: number;
-  accuracy?: number;
-} | null> {
+/** Precisão máxima aceita no check-in manual "Estou no local" (metros). */
+export const MANUAL_CHECKIN_MAX_ACCURACY_M = 80;
+
+type GeoPoint = { lat: number; lng: number; accuracy?: number };
+
+const GEO_OPTIONS: PositionOptions = {
+  enableHighAccuracy: true,
+  /** Sem cache: evita ponto antigo de outro lugar. */
+  maximumAge: 0,
+  timeout: 25_000,
+};
+
+/**
+ * Captura GPS fresco. Amostra alguns segundos com watchPosition e fica
+ * com a leitura de melhor precisão (navegador costuma melhorar após o 1º fix).
+ */
+export async function captureGeolocation(options?: {
+  /** Se informado, rejeita se a melhor precisão for pior que isso (metros). */
+  maxAccuracyMeters?: number;
+  /** Tempo máximo amostrando o GPS (ms). */
+  sampleMs?: number;
+}): Promise<GeoPoint | null> {
   if (typeof navigator === 'undefined' || !navigator.geolocation) return null;
+
+  const sampleMs = options?.sampleMs ?? 8_000;
+  const maxAccuracyMeters = options?.maxAccuracyMeters;
+
   try {
-    const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: true,
-        timeout: 12000,
-        maximumAge: 60_000,
-      });
+    const best = await new Promise<GeoPoint>((resolve, reject) => {
+      let settled = false;
+      let bestSoFar: GeoPoint | null = null;
+      let watchId: number | null = null;
+      let sampleTimer: ReturnType<typeof setTimeout> | null = null;
+
+      const finish = (point: GeoPoint | null, error?: GeolocationPositionError) => {
+        if (settled) return;
+        settled = true;
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+        if (sampleTimer) clearTimeout(sampleTimer);
+        if (point) resolve(point);
+        else reject(error || new Error('geolocation unavailable'));
+      };
+
+      const consider = (position: GeolocationPosition) => {
+        const next: GeoPoint = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy:
+            typeof position.coords.accuracy === 'number' ? position.coords.accuracy : undefined,
+        };
+        if (
+          !bestSoFar ||
+          (typeof next.accuracy === 'number' &&
+            (typeof bestSoFar.accuracy !== 'number' || next.accuracy < bestSoFar.accuracy))
+        ) {
+          bestSoFar = next;
+        }
+        // Boa o suficiente: encerra antes do timeout
+        if (typeof next.accuracy === 'number' && next.accuracy <= 25) {
+          finish(bestSoFar);
+        }
+      };
+
+      watchId = navigator.geolocation.watchPosition(consider, (err) => finish(bestSoFar, err), GEO_OPTIONS);
+
+      // Fallback: uma leitura imediata sem cache
+      navigator.geolocation.getCurrentPosition(consider, () => {}, GEO_OPTIONS);
+
+      sampleTimer = setTimeout(() => finish(bestSoFar), sampleMs);
     });
-    return {
-      lat: position.coords.latitude,
-      lng: position.coords.longitude,
-      accuracy: position.coords.accuracy,
-    };
+
+    if (
+      typeof maxAccuracyMeters === 'number' &&
+      (typeof best.accuracy !== 'number' || best.accuracy > maxAccuracyMeters)
+    ) {
+      return null;
+    }
+    return best;
   } catch {
     return null;
   }

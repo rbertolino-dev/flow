@@ -10,7 +10,7 @@ import {
   ServiceOrderFieldCheckin,
   serviceOrderRequiredMessage,
 } from '@/types/serviceOrder';
-import { captureGeolocation } from '@/lib/serviceOrderMedia';
+import { captureGeolocation, MANUAL_CHECKIN_MAX_ACCURACY_M } from '@/lib/serviceOrderMedia';
 import {
   pickActiveFinanceEntry,
   type OsFinanceEntrySummary,
@@ -1108,8 +1108,22 @@ export function useServiceOrders(
   ): Promise<boolean> => {
     if (!activeOrgId) return false;
     try {
-      const position = coords === undefined ? await captureGeolocation() : coords;
+      const position =
+        coords === undefined
+          ? await captureGeolocation(
+              event === 'manual'
+                ? { maxAccuracyMeters: MANUAL_CHECKIN_MAX_ACCURACY_M, sampleMs: 10_000 }
+                : { sampleMs: 6_000 }
+            )
+          : coords;
       if (!position) return false;
+      // Check-in manual: não grava ponto grosso (ex.: Wi‑Fi/IP a km de distância)
+      if (
+        event === 'manual' &&
+        (typeof position.accuracy !== 'number' || position.accuracy > MANUAL_CHECKIN_MAX_ACCURACY_M)
+      ) {
+        return false;
+      }
 
       // @ts-expect-error tabela ainda nao tipada no client gerado
       const { data: existing } = await supabase

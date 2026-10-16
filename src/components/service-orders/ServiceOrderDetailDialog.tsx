@@ -452,16 +452,16 @@ export function ServiceOrderDetailDialog({
                         className="min-h-10"
                         disabled={checkingIn}
                         data-testid="os-detail-checkin"
-                        title="Usa o GPS do celular para registrar que você estava neste endereço (só uma vez)"
+                        title="Usa o GPS preciso do celular (sem cache). Pode levar alguns segundos. Só uma vez por OS."
                         onClick={() => {
                           setCheckingIn(true);
                           void Promise.resolve(onCheckIn(order))
                             .then((ok) => {
                               toast({
-                                title: ok ? 'Presença registrada' : 'GPS indisponível',
+                                title: ok ? 'Presença registrada' : 'GPS impreciso ou indisponível',
                                 description: ok
-                                  ? 'Salvamos que você estava no local. O botão some após este registro.'
-                                  : 'Permita a localização no navegador ou tente de novo.',
+                                  ? 'Salvamos a localização fresca do celular. O botão some após este registro.'
+                                  : 'O navegador não deu uma posição confiável (precisão precisa ser melhor que ~80 m). Ative a localização precisa, vá para área aberta e tente de novo — não use posição por Wi‑Fi/IP.',
                                 variant: ok ? 'default' : 'destructive',
                               });
                             })
