@@ -383,3 +383,6 @@ verify_jwt = false
 
 [functions.manage-organization-api-key]
 verify_jwt = true
+
+[functions.dispatch-organization-api-webhooks]
+verify_jwt = false

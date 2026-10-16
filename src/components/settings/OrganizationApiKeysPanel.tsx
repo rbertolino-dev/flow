@@ -33,13 +33,9 @@ import {
   useOrganizationApiKeys,
 } from "@/hooks/useOrganizationApiKeys";
 import { useIsActiveOrgAdmin } from "@/hooks/useOrgUserPermissions";
+import { API_SCOPE_OPTIONS, DEFAULT_API_SCOPES } from "@/lib/apiScopes";
 
-const SCOPE_OPTIONS = [
-  { id: "leads:read", label: "Leads — leitura" },
-  { id: "leads:write", label: "Leads — escrita" },
-  { id: "stages:read", label: "Funil — leitura" },
-  { id: "tags:read", label: "Etiquetas — leitura" },
-] as const;
+const SCOPE_OPTIONS = API_SCOPE_OPTIONS;
 
 function formatDate(value: string | null) {
   if (!value) return "—";
@@ -65,7 +61,7 @@ export function OrganizationApiKeysPanel() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [keyName, setKeyName] = useState("");
-  const [scopes, setScopes] = useState<string[]>(SCOPE_OPTIONS.map((s) => s.id));
+  const [scopes, setScopes] = useState<string[]>([...DEFAULT_API_SCOPES]);
   const [createdSecret, setCreatedSecret] = useState<CreatedApiKey | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<OrganizationApiKey | null>(null);
 
@@ -104,7 +100,7 @@ export function OrganizationApiKeysPanel() {
       setCreatedSecret(created);
       setCreateOpen(false);
       setKeyName("");
-      setScopes(SCOPE_OPTIONS.map((s) => s.id));
+      setScopes([...DEFAULT_API_SCOPES]);
     }
   };
 

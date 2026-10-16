@@ -6,33 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { getSupabasePublicBaseUrl } from "@/lib/supabasePublicUrl";
-
-const SCOPES = [
-  { id: "leads:read", label: "Listar e obter leads" },
-  { id: "leads:write", label: "Criar, atualizar e excluir leads" },
-  { id: "stages:read", label: "Listar etapas do funil" },
-  { id: "tags:read", label: "Listar etiquetas" },
-] as const;
-
-const ENDPOINTS = [
-  { method: "GET", path: "/", desc: "Metadados da API + organization_id da chave" },
-  { method: "GET", path: "/leads", desc: "Listar leads (page, limit, stage_id)" },
-  { method: "GET", path: "/leads/:id", desc: "Obter um lead" },
-  { method: "POST", path: "/leads", desc: "Criar lead (name e phone obrigatórios)" },
-  { method: "PATCH", path: "/leads/:id", desc: "Atualizar lead" },
-  { method: "DELETE", path: "/leads/:id", desc: "Soft-delete (deleted_at)" },
-  { method: "GET", path: "/stages", desc: "Listar etapas do funil" },
-  { method: "GET", path: "/tags", desc: "Listar etiquetas" },
-] as const;
-
-const ERRORS = [
-  { status: 401, code: "unauthorized", meaning: "Chave ausente, inválida, revogada ou expirada" },
-  { status: 403, code: "forbidden_scope", meaning: "Escopo insuficiente na chave" },
-  { status: 404, code: "not_found", meaning: "Recurso ou rota inexistente" },
-  { status: 409, code: "duplicate_phone", meaning: "Telefone já existe na organização" },
-  { status: 429, code: "rate_limited", meaning: "Mais de 60 req/min por chave" },
-  { status: 400, code: "validation_error", meaning: "Payload inválido" },
-] as const;
+import { apiDocsGenerated } from "@/lib/api-docs/generated";
+import { API_SCOPE_OPTIONS } from "@/lib/apiScopes";
 
 function methodClass(method: string) {
   if (method === "GET") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200";
@@ -45,14 +20,10 @@ function methodClass(method: string) {
 export default function ApiDocs() {
   const { toast } = useToast();
   const apiBase = `${getSupabasePublicBaseUrl()}/functions/v1/api-v1`;
+  const docs = apiDocsGenerated;
 
   const curlList = `curl -sS "${apiBase}/leads?limit=10" \\
   -H "Authorization: Bearer agz_live_SUA_CHAVE"`;
-
-  const curlCreate = `curl -sS -X POST "${apiBase}/leads" \\
-  -H "Authorization: Bearer agz_live_SUA_CHAVE" \\
-  -H "Content-Type: application/json" \\
-  -d '{"name":"Maria","phone":"11988887777","source":"api"}'`;
 
   const copyText = async (text: string, label: string) => {
     try {
@@ -70,11 +41,11 @@ export default function ApiDocs() {
           <div className="flex items-center gap-2 min-w-0">
             <BookOpen className="h-5 w-5 shrink-0 text-primary" />
             <div className="min-w-0">
-              <h1 className="text-lg font-semibold truncate">Agilize CRM — API v1</h1>
-              <p className="text-xs text-muted-foreground">Documentação pública</p>
+              <h1 className="text-lg font-semibold truncate">{docs.title}</h1>
+              <p className="text-xs text-muted-foreground">Documentação pública (gerada do OpenAPI)</p>
             </div>
           </div>
-          <Badge variant="secondary">v1</Badge>
+          <Badge variant="secondary">v{docs.version}</Badge>
         </div>
       </header>
 
@@ -88,9 +59,8 @@ export default function ApiDocs() {
               nenhuma organização.
             </p>
             <p>
-              Toda chamada à API exige um <strong>token (API key) da organização</strong>, gerado
-              em Configurações → API por um owner/admin. Sem o token, a API responde{" "}
-              <code className="text-xs">401 unauthorized</code>.
+              Toda chamada exige um <strong>token (API key) da organização</strong>. Sem o token,
+              a API responde <code className="text-xs">401 unauthorized</code>.
             </p>
           </AlertDescription>
         </Alert>
@@ -107,10 +77,12 @@ export default function ApiDocs() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-              <li>Entre no Agilize CRM com um usuário owner ou admin da organização</li>
-              <li>Abra Configurações → aba API</li>
-              <li>Crie uma chave e copie o secret (mostrado só uma vez)</li>
-              <li>Use no header: <code className="text-foreground">Authorization: Bearer agz_live_...</code></li>
+              <li>Entre no CRM como owner/admin</li>
+              <li>Configurações → aba API</li>
+              <li>Crie uma chave e copie o secret (uma vez)</li>
+              <li>
+                Header: <code className="text-foreground">Authorization: Bearer agz_live_...</code>
+              </li>
             </ol>
             <Button asChild variant="outline" size="sm">
               <Link to="/settings">Ir para Configurações</Link>
@@ -126,11 +98,7 @@ export default function ApiDocs() {
             <pre className="text-xs bg-muted rounded-md p-3 overflow-x-auto break-all">
               {apiBase}
             </pre>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void copyText(apiBase, "Base URL")}
-            >
+            <Button variant="outline" size="sm" onClick={() => void copyText(apiBase, "Base URL")}>
               <Copy className="h-4 w-4 mr-2" />
               Copiar base URL
             </Button>
@@ -141,46 +109,28 @@ export default function ApiDocs() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Shield className="h-4 w-4" />
-              Autenticação e privacidade
+              Escopos
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <div>
-              <p className="font-medium mb-1">Header obrigatório</p>
-              <pre className="text-xs bg-muted rounded-md p-3 overflow-x-auto">
-{`Authorization: Bearer agz_live_...
-# ou
-x-api-key: agz_live_...`}
-              </pre>
-            </div>
-            <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-              <li>A organização é resolvida só pela chave (ignore qualquer organization_id no body)</li>
-              <li>Leads com soft-delete não aparecem nas listagens</li>
-              <li>Rate limit: 60 requisições por minuto por chave</li>
-            </ul>
-            <div>
-              <p className="font-medium mb-2">Escopos</p>
-              <div className="space-y-2">
-                {SCOPES.map((s) => (
-                  <div key={s.id} className="flex items-start gap-2">
-                    <Badge variant="outline" className="font-mono text-[10px] shrink-0">
-                      {s.id}
-                    </Badge>
-                    <span className="text-muted-foreground">{s.label}</span>
-                  </div>
-                ))}
+          <CardContent className="space-y-2">
+            {API_SCOPE_OPTIONS.map((s) => (
+              <div key={s.id} className="flex items-start gap-2 text-sm">
+                <Badge variant="outline" className="font-mono text-[10px] shrink-0">
+                  {s.id}
+                </Badge>
+                <span className="text-muted-foreground">{s.label}</span>
               </div>
-            </div>
+            ))}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Endpoints</CardTitle>
-            <CardDescription>Todos os caminhos são relativos à base URL acima.</CardDescription>
+            <CardTitle className="text-base">Endpoints ({docs.endpoints.length})</CardTitle>
+            <CardDescription>Gerados a partir do OpenAPI {docs.version}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {ENDPOINTS.map((ep) => (
+          <CardContent className="space-y-2 max-h-[28rem] overflow-y-auto">
+            {docs.endpoints.map((ep) => (
               <div
                 key={`${ep.method}-${ep.path}`}
                 className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-md border p-2.5"
@@ -191,7 +141,7 @@ x-api-key: agz_live_...`}
                   {ep.method}
                 </span>
                 <code className="text-xs font-mono shrink-0">{ep.path}</code>
-                <span className="text-xs text-muted-foreground sm:ml-auto">{ep.desc}</span>
+                <span className="text-xs text-muted-foreground sm:ml-auto">{ep.summary}</span>
               </div>
             ))}
           </CardContent>
@@ -199,96 +149,38 @@ x-api-key: agz_live_...`}
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">POST /leads — body</CardTitle>
+            <CardTitle className="text-base">Exemplo curl</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <pre className="text-xs bg-muted rounded-md p-3 overflow-x-auto whitespace-pre-wrap">
-{`{
-  "name": "João Silva",
-  "phone": "11999998888",
-  "email": "joao@email.com",
-  "company": "Empresa X",
-  "value": 1500,
-  "stage_id": "uuid-da-etapa",
-  "notes": "Lead via integração",
-  "source": "erp"
-}`}
+              {curlList}
             </pre>
-            <p className="text-xs text-muted-foreground mt-2">
-              <code>name</code> e <code>phone</code> são obrigatórios. Telefone é normalizado
-              (somente dígitos).
-            </p>
+            <Button variant="outline" size="sm" onClick={() => void copyText(curlList, "Curl")}>
+              <Copy className="h-4 w-4 mr-2" />
+              Copiar
+            </Button>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Exemplos curl</CardTitle>
-            <CardDescription>
-              Substitua <code>agz_live_SUA_CHAVE</code> pelo token real da sua organização.
-            </CardDescription>
+            <CardTitle className="text-base">Changelog</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Listar leads</p>
-              <pre className="text-xs bg-muted rounded-md p-3 overflow-x-auto whitespace-pre-wrap">
-                {curlList}
-              </pre>
-              <Button variant="outline" size="sm" onClick={() => void copyText(curlList, "Curl")}>
-                <Copy className="h-4 w-4 mr-2" />
-                Copiar
-              </Button>
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Criar lead</p>
-              <pre className="text-xs bg-muted rounded-md p-3 overflow-x-auto whitespace-pre-wrap">
-                {curlCreate}
-              </pre>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void copyText(curlCreate, "Curl")}
-              >
-                <Copy className="h-4 w-4 mr-2" />
-                Copiar
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Respostas e erros</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <pre className="text-xs bg-muted rounded-md p-3 overflow-x-auto whitespace-pre-wrap">
-{`// sucesso
-{ "data": { ... } }
-
-// lista
-{ "data": [...], "meta": { "page": 1, "limit": 35, "total": 100, "has_more": true } }
-
-// erro
-{ "error": { "code": "unauthorized", "message": "..." } }`}
-            </pre>
-            <div className="space-y-2">
-              {ERRORS.map((e) => (
-                <div key={e.code} className="flex flex-wrap items-baseline gap-2 text-xs">
-                  <Badge variant="secondary">{e.status}</Badge>
-                  <code>{e.code}</code>
-                  <span className="text-muted-foreground">{e.meaning}</span>
-                </div>
-              ))}
-            </div>
+          <CardContent className="space-y-2 text-sm">
+            {docs.changelog.map((c) => (
+              <div key={c.version}>
+                <Badge variant="secondary" className="mr-2">
+                  {c.version}
+                </Badge>
+                <span className="text-muted-foreground">{c.notes}</span>
+              </div>
+            ))}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle className="text-base">OpenAPI</CardTitle>
-            <CardDescription>
-              Importe no Postman ou Insomnia. O arquivo não contém tokens.
-            </CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild variant="outline" size="sm">
@@ -300,7 +192,7 @@ x-api-key: agz_live_...`}
         </Card>
 
         <p className="text-center text-xs text-muted-foreground pb-8">
-          Agilize CRM · API pública v1 · acesso aos dados somente com token por organização
+          Agilize CRM · API v{docs.version} · acesso somente com token por organização
         </p>
       </main>
     </div>

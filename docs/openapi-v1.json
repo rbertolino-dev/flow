@@ -1,0 +1,1551 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Agilize CRM Public API",
+    "version": "2.0.0",
+    "description": "API pública org-scoped. Documentação ≠ acesso: toda chamada exige Authorization: Bearer agz_live_... da organização. Ver também /docs/api no site.",
+    "x-changelog": [
+      {
+        "version": "1.0.0",
+        "notes": "Leads CRUD, stages/tags read"
+      },
+      {
+        "version": "1.1.0",
+        "notes": "Tags write, activities, products, budgets, OS, members, broadcasts read"
+      },
+      {
+        "version": "1.2.0",
+        "notes": "Finance, POS read, Asaas wrap"
+      },
+      {
+        "version": "2.0.0",
+        "notes": "Bookings, calendar events, outbound webhooks (HMAC X-Agilize-Signature)"
+      }
+    ]
+  },
+  "servers": [
+    {
+      "url": "{supabaseUrl}/functions/v1/api-v1",
+      "variables": {
+        "supabaseUrl": {
+          "default": "https://YOUR_PROJECT.supabase.co"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyBearer": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "agz_live",
+        "description": "API key gerada em Configurações → API"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Lead": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organization_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "company": {
+            "type": "string",
+            "nullable": true
+          },
+          "value": {
+            "type": "number",
+            "nullable": true
+          },
+          "stage_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "assigned_to": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      },
+      "LeadCreate": {
+        "type": "object",
+        "required": [
+          "name",
+          "phone"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "company": {
+            "type": "string",
+            "nullable": true
+          },
+          "value": {
+            "type": "number",
+            "nullable": true
+          },
+          "stage_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "price": {
+            "type": "number"
+          },
+          "category": {
+            "type": "string",
+            "nullable": true
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "sale_paused": {
+            "type": "boolean"
+          },
+          "commission_percentage": {
+            "type": "number",
+            "nullable": true
+          },
+          "commission_fixed": {
+            "type": "number",
+            "nullable": true
+          }
+        }
+      },
+      "Budget": {
+        "type": "object"
+      },
+      "ServiceOrder": {
+        "type": "object"
+      },
+      "FinancialEntry": {
+        "type": "object"
+      },
+      "Webhook": {
+        "type": "object"
+      }
+    }
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Metadados da API + organization_id + scopes",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads": {
+      "get": {
+        "summary": "Listar leads (phone, email, stage_id, q, updated_since, page, limit)",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "leads:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Criar lead",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "leads:write"
+        ],
+        "responses": {
+          "201": {
+            "description": "Criado"
+          },
+          "409": {
+            "description": "Telefone duplicado"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads/{id}": {
+      "get": {
+        "summary": "Obter lead",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "leads:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Atualizar lead",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "leads:write"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Soft-delete lead",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "leads:write"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads/{id}/tags": {
+      "get": {
+        "summary": "Etiquetas do lead",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "tags:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Associar etiqueta (tag_id ou name)",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "tags:write"
+        ],
+        "responses": {
+          "201": {
+            "description": "Associado"
+          }
+        }
+      }
+    },
+    "/leads/{id}/tags/{tagId}": {
+      "delete": {
+        "summary": "Remover etiqueta do lead",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "tags:write"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads/{id}/activities": {
+      "get": {
+        "summary": "Listar atividades",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "activities:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Append atividade",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "activities:write"
+        ],
+        "responses": {
+          "201": {
+            "description": "Criado"
+          }
+        }
+      }
+    },
+    "/stages": {
+      "get": {
+        "summary": "Listar etapas do funil",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "stages:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tags": {
+      "get": {
+        "summary": "Listar etiquetas",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "tags:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Criar etiqueta",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "tags:write"
+        ],
+        "responses": {
+          "201": {
+            "description": "Criado"
+          }
+        }
+      }
+    },
+    "/products": {
+      "get": {
+        "summary": "Listar produtos",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "products:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Criar produto",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "products:write"
+        ],
+        "responses": {
+          "201": {
+            "description": "Criado"
+          }
+        }
+      }
+    },
+    "/products/{id}": {
+      "get": {
+        "summary": "Obter produto",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "products:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Atualizar produto",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "products:write"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/budgets": {
+      "get": {
+        "summary": "Listar orçamentos",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "budgets:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Criar orçamento",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "budgets:write"
+        ],
+        "responses": {
+          "201": {
+            "description": "Criado"
+          }
+        }
+      }
+    },
+    "/budgets/{id}": {
+      "get": {
+        "summary": "Obter orçamento",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "budgets:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Atualizar orçamento",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "budgets:write"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/service-orders": {
+      "get": {
+        "summary": "Listar OS",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "service_orders:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Criar OS",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "service_orders:write"
+        ],
+        "responses": {
+          "201": {
+            "description": "Criado"
+          }
+        }
+      }
+    },
+    "/service-orders/{id}": {
+      "get": {
+        "summary": "Obter OS",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "service_orders:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Atualizar OS",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "service_orders:write"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/members": {
+      "get": {
+        "summary": "Listar membros da organização",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "members:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/broadcasts": {
+      "get": {
+        "summary": "Listar campanhas (status)",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "comms:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/broadcasts/{id}": {
+      "get": {
+        "summary": "Status de campanha",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "comms:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/financial/entries": {
+      "get": {
+        "summary": "Listar lançamentos",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "finance:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Criar lançamento",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "finance:write"
+        ],
+        "responses": {
+          "201": {
+            "description": "Criado"
+          }
+        }
+      }
+    },
+    "/financial/entries/{id}": {
+      "get": {
+        "summary": "Obter lançamento",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "finance:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/financial/entries/{id}/settle": {
+      "patch": {
+        "summary": "Baixar lançamento",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "finance:write"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/financial/accounts": {
+      "get": {
+        "summary": "Contas financeiras",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "finance:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/financial/categories": {
+      "get": {
+        "summary": "Categorias financeiras",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "finance:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pos/sales": {
+      "get": {
+        "summary": "Listar vendas PDV",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "pos:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pos/sales/{id}": {
+      "get": {
+        "summary": "Detalhe venda PDV + itens",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "pos:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/asaas/boletos": {
+      "post": {
+        "summary": "Criar boleto Asaas (proxy)",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "asaas:write"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "201": {
+            "description": "Criado"
+          }
+        }
+      }
+    },
+    "/asaas/charges": {
+      "post": {
+        "summary": "Criar cobrança Asaas (proxy)",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "asaas:write"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "201": {
+            "description": "Criado"
+          }
+        }
+      }
+    },
+    "/bookings": {
+      "get": {
+        "summary": "Listar agendamentos",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "bookings:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Criar agendamento",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "bookings:write"
+        ],
+        "responses": {
+          "201": {
+            "description": "Criado"
+          }
+        }
+      }
+    },
+    "/bookings/{id}": {
+      "get": {
+        "summary": "Obter agendamento",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "bookings:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/calendar/events": {
+      "get": {
+        "summary": "Listar eventos",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "calendar:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Criar evento",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "calendar:write"
+        ],
+        "responses": {
+          "201": {
+            "description": "Criado"
+          }
+        }
+      }
+    },
+    "/calendar/events/{id}": {
+      "get": {
+        "summary": "Obter evento",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "calendar:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks": {
+      "get": {
+        "summary": "Listar webhooks",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "webhooks:write"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Criar webhook (secret exibido uma vez)",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "webhooks:write"
+        ],
+        "responses": {
+          "201": {
+            "description": "Criado"
+          }
+        }
+      }
+    },
+    "/webhooks/{id}": {
+      "patch": {
+        "summary": "Atualizar webhook",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "webhooks:write"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Desativar webhook",
+        "security": [
+          {
+            "ApiKeyBearer": []
+          }
+        ],
+        "x-required-scopes": [
+          "webhooks:write"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

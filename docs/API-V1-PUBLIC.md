@@ -1,156 +1,78 @@
-# Agilize CRM — API pública v1
+# Agilize CRM Public API
 
-API REST para integrações externas, com **isolamento estrito por organização**. Cada API key pertence a uma única organização e só acessa dados dessa org.
+Versão **2.0.0** (gerado em 2026-10-16T17:25:13.190Z)
 
-**Documentação no site (somente leitura — não libera dados):** `/docs/api`
+API pública org-scoped. Documentação ≠ acesso: toda chamada exige Authorization: Bearer agz_live_... da organização. Ver também /docs/api no site.
 
-A página de documentação **não substitui o token**. Toda chamada à API exige `Authorization: Bearer agz_live_...` da organização.
-
-## Base URL
-
-```
-{SUPABASE_URL}/functions/v1/api-v1
-```
-
-Exemplo:
-
-```
-https://SEU_PROJETO.supabase.co/functions/v1/api-v1
-```
+**Documentação no site:** `/docs/api`
 
 ## Autenticação
-
-Envie a chave no header:
 
 ```http
 Authorization: Bearer agz_live_...
 ```
 
-Alternativa:
+A documentação **não libera dados**. Cada organização precisa do próprio token.
 
-```http
-x-api-key: agz_live_...
-```
+## Changelog
 
-Chaves são geradas em **Configurações → API** (apenas owner/admin da organização). O secret completo é mostrado **uma única vez**.
-
-### Escopos
-
-| Escopo | Permite |
-|--------|---------|
-| `leads:read` | Listar e obter leads |
-| `leads:write` | Criar, atualizar e soft-delete de leads |
-| `stages:read` | Listar etapas do funil |
-| `tags:read` | Listar etiquetas |
-
-## Privacidade
-
-- A organização é resolvida **só pela API key** (nunca pelo body/query).
-- Leads excluídos (`deleted_at`) não aparecem nas listagens.
-- Rate limit: **60 requisições/minuto** por chave (HTTP 429).
-
-## Formato de resposta
-
-Sucesso:
-
-```json
-{ "data": { ... } }
-```
-
-Lista paginada:
-
-```json
-{
-  "data": [ ... ],
-  "meta": { "page": 1, "limit": 35, "total": 100, "has_more": true }
-}
-```
-
-Erro:
-
-```json
-{ "error": { "code": "unauthorized", "message": "..." } }
-```
+- **1.0.0**: Leads CRUD, stages/tags read
+- **1.1.0**: Tags write, activities, products, budgets, OS, members, broadcasts read
+- **1.2.0**: Finance, POS read, Asaas wrap
+- **2.0.0**: Bookings, calendar events, outbound webhooks (HMAC X-Agilize-Signature)
 
 ## Endpoints
 
-### `GET /`
-
-Metadados da API + `organization_id` da chave.
-
-### `GET /leads`
-
-Query: `page` (default 1), `limit` (default 35, máx 100), `stage_id` (opcional).
-
-### `GET /leads/:id`
-
-### `POST /leads`
-
-Body:
-
-```json
-{
-  "name": "João Silva",
-  "phone": "11999998888",
-  "email": "joao@email.com",
-  "company": "Empresa X",
-  "value": 1500,
-  "stage_id": "uuid-da-etapa",
-  "notes": "Lead via integração",
-  "source": "erp"
-}
-```
-
-`name` e `phone` são obrigatórios. Telefone é normalizado (somente dígitos). Respeita a política de telefones duplicados da organização.
-
-### `PATCH /leads/:id`
-
-Campos opcionais: `name`, `phone`, `email`, `company`, `value`, `stage_id`, `notes`, `status`, `source`.
-
-### `DELETE /leads/:id`
-
-Soft delete (`deleted_at`).
-
-### `GET /stages`
-
-Lista etapas do funil da organização.
-
-### `GET /tags`
-
-Lista etiquetas da organização.
-
-## Exemplos curl
-
-```bash
-export API_BASE="https://SEU_PROJETO.supabase.co/functions/v1/api-v1"
-export API_KEY="agz_live_..."
-
-# Listar leads
-curl -sS "$API_BASE/leads?limit=10" \
-  -H "Authorization: Bearer $API_KEY"
-
-# Criar lead
-curl -sS -X POST "$API_BASE/leads" \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Maria","phone":"11988887777","source":"api"}'
-
-# Etapas
-curl -sS "$API_BASE/stages" \
-  -H "Authorization: Bearer $API_KEY"
-```
-
-## Códigos HTTP comuns
-
-| Status | Código | Significado |
-|--------|--------|-------------|
-| 401 | `unauthorized` | Chave ausente, inválida, revogada ou expirada |
-| 403 | `forbidden_scope` | Escopo insuficiente |
-| 404 | `not_found` | Recurso ou rota inexistente |
-| 409 | `duplicate_phone` | Telefone já existe (quando duplicatas não são permitidas) |
-| 429 | `rate_limited` | Limite de taxa excedido |
-| 400 | `validation_error` | Payload inválido |
+- `GET /` — Metadados da API + organization_id + scopes
+- `POST /asaas/boletos` — Criar boleto Asaas (proxy) (scopes: `asaas:write`)
+- `POST /asaas/charges` — Criar cobrança Asaas (proxy) (scopes: `asaas:write`)
+- `GET /bookings` — Listar agendamentos (scopes: `bookings:read`)
+- `POST /bookings` — Criar agendamento (scopes: `bookings:write`)
+- `GET /bookings/{id}` — Obter agendamento (scopes: `bookings:read`)
+- `GET /broadcasts` — Listar campanhas (status) (scopes: `comms:read`)
+- `GET /broadcasts/{id}` — Status de campanha (scopes: `comms:read`)
+- `GET /budgets` — Listar orçamentos (scopes: `budgets:read`)
+- `POST /budgets` — Criar orçamento (scopes: `budgets:write`)
+- `GET /budgets/{id}` — Obter orçamento (scopes: `budgets:read`)
+- `PATCH /budgets/{id}` — Atualizar orçamento (scopes: `budgets:write`)
+- `GET /calendar/events` — Listar eventos (scopes: `calendar:read`)
+- `POST /calendar/events` — Criar evento (scopes: `calendar:write`)
+- `GET /calendar/events/{id}` — Obter evento (scopes: `calendar:read`)
+- `GET /financial/accounts` — Contas financeiras (scopes: `finance:read`)
+- `GET /financial/categories` — Categorias financeiras (scopes: `finance:read`)
+- `GET /financial/entries` — Listar lançamentos (scopes: `finance:read`)
+- `POST /financial/entries` — Criar lançamento (scopes: `finance:write`)
+- `GET /financial/entries/{id}` — Obter lançamento (scopes: `finance:read`)
+- `PATCH /financial/entries/{id}/settle` — Baixar lançamento (scopes: `finance:write`)
+- `GET /leads` — Listar leads (phone, email, stage_id, q, updated_since, page, limit) (scopes: `leads:read`)
+- `POST /leads` — Criar lead (scopes: `leads:write`)
+- `DELETE /leads/{id}` — Soft-delete lead (scopes: `leads:write`)
+- `GET /leads/{id}` — Obter lead (scopes: `leads:read`)
+- `PATCH /leads/{id}` — Atualizar lead (scopes: `leads:write`)
+- `GET /leads/{id}/activities` — Listar atividades (scopes: `activities:read`)
+- `POST /leads/{id}/activities` — Append atividade (scopes: `activities:write`)
+- `GET /leads/{id}/tags` — Etiquetas do lead (scopes: `tags:read`)
+- `POST /leads/{id}/tags` — Associar etiqueta (tag_id ou name) (scopes: `tags:write`)
+- `DELETE /leads/{id}/tags/{tagId}` — Remover etiqueta do lead (scopes: `tags:write`)
+- `GET /members` — Listar membros da organização (scopes: `members:read`)
+- `GET /pos/sales` — Listar vendas PDV (scopes: `pos:read`)
+- `GET /pos/sales/{id}` — Detalhe venda PDV + itens (scopes: `pos:read`)
+- `GET /products` — Listar produtos (scopes: `products:read`)
+- `POST /products` — Criar produto (scopes: `products:write`)
+- `GET /products/{id}` — Obter produto (scopes: `products:read`)
+- `PATCH /products/{id}` — Atualizar produto (scopes: `products:write`)
+- `GET /service-orders` — Listar OS (scopes: `service_orders:read`)
+- `POST /service-orders` — Criar OS (scopes: `service_orders:write`)
+- `GET /service-orders/{id}` — Obter OS (scopes: `service_orders:read`)
+- `PATCH /service-orders/{id}` — Atualizar OS (scopes: `service_orders:write`)
+- `GET /stages` — Listar etapas do funil (scopes: `stages:read`)
+- `GET /tags` — Listar etiquetas (scopes: `tags:read`)
+- `POST /tags` — Criar etiqueta (scopes: `tags:write`)
+- `GET /webhooks` — Listar webhooks (scopes: `webhooks:write`)
+- `POST /webhooks` — Criar webhook (secret exibido uma vez) (scopes: `webhooks:write`)
+- `DELETE /webhooks/{id}` — Desativar webhook (scopes: `webhooks:write`)
+- `PATCH /webhooks/{id}` — Atualizar webhook (scopes: `webhooks:write`)
 
 ## OpenAPI
 
-Ver [openapi-v1.yaml](./openapi-v1.yaml) para importar no Postman/Insomnia.
+Ver [openapi-v1.yaml](./openapi-v1.yaml).

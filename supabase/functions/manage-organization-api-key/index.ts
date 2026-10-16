@@ -12,9 +12,31 @@ const DEFAULT_SCOPES = [
   "leads:write",
   "stages:read",
   "tags:read",
+  "tags:write",
+  "activities:read",
+  "activities:write",
+  "products:read",
+  "products:write",
+  "budgets:read",
+  "budgets:write",
+  "service_orders:read",
+  "service_orders:write",
+  "members:read",
+  "comms:read",
 ];
 
-const ALLOWED_SCOPES = new Set(DEFAULT_SCOPES);
+const ALLOWED_SCOPES = new Set([
+  ...DEFAULT_SCOPES,
+  "finance:read",
+  "finance:write",
+  "pos:read",
+  "asaas:write",
+  "bookings:read",
+  "bookings:write",
+  "calendar:read",
+  "calendar:write",
+  "webhooks:write",
+]);
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
