@@ -5,6 +5,7 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CalendarView } from "@/components/calendar/CalendarView";
 import { GoogleCalendarIntegrationPanel } from "@/components/calendar/GoogleCalendarIntegrationPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Link } from "react-router-dom";
 import {
   Calendar,
   Settings,
@@ -14,6 +15,7 @@ import {
   Link as LinkIcon,
   Clock,
   Palette,
+  ExternalLink,
 } from "lucide-react";
 import { CalendarEventsReport } from "@/components/calendar/CalendarEventsReport";
 import { BookedMeetingsReport } from "@/components/calendar/BookedMeetingsReport";
@@ -23,6 +25,8 @@ import { BookingConfigPanel } from "@/components/calendar/BookingConfigPanel";
 import { UserAvailabilitySettings } from "@/components/calendar/UserAvailabilitySettings";
 import { BookingTemplatesSettings } from "@/components/calendar/BookingTemplatesSettings";
 import { CalendarColorStatusSettings } from "@/components/calendar/CalendarColorStatusSettings";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const VALID_TABS = new Set([
   "calendar",
@@ -122,6 +126,30 @@ export default function CalendarPage() {
 
               <TabsContent value="reports" className="mt-6">
                 <div className="space-y-6">
+                  <Card className="border-sky-200 bg-sky-50/60">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Palette className="h-4 w-4 text-sky-600" />
+                        Relatório por cor e status
+                      </CardTitle>
+                      <CardDescription>
+                        Veja reuniões agrupadas pela cor do Google (ex.: verde = realizada, verde
+                        escuro = fechamento), com período e tempo total.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-2">
+                      <Button asChild>
+                        <Link to="/relatorios/agendamentos">
+                          Abrir relatório por cor
+                          <ExternalLink className="ml-2 h-4 w-4" />
+                        </Link>
+                      </Button>
+                      <Button asChild variant="outline">
+                        <Link to="/calendar?tab=cores-status">Configurar cores e status</Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+
                   <Tabs defaultValue="by-person" className="w-full">
                     <TabsList>
                       <TabsTrigger value="by-person">Por Pessoa</TabsTrigger>

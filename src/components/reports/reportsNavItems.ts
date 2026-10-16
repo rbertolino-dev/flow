@@ -30,9 +30,9 @@ export const REPORTS_NAV_ITEMS: ReportsNavItem[] = [
   },
   {
     to: "/relatorios/agendamentos",
-    label: "Agendamentos",
+    label: "Agendamentos por cor",
     icon: CalendarDays,
-    description: "Reuniões do Google Meet/Calendar por cor, período e tempo.",
+    description: "Reuniões do Google Meet/Calendar por cor, status, período e tempo.",
   },
 ];
 

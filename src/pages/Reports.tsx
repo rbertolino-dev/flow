@@ -11,7 +11,9 @@ export default function Reports() {
         <ReportsSubnav />
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-slate-700">Relatórios</h1>
-          <p className="text-sm text-slate-500">Análises de vendas, margens e desempenho.</p>
+          <p className="text-sm text-slate-500">
+            Análises de vendas, margens, OS, comissões e agendamentos por cor.
+          </p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
