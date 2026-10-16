@@ -145,23 +145,22 @@ export function UltimosOrcamentosDialog({
               return (
                 <div
                   key={budget.id}
-                  className="flex items-center justify-between gap-3 rounded-lg bg-slate-800 text-white px-4 py-3"
+                  className="flex items-center justify-between gap-3 rounded-xl bg-gradient-to-r from-teal-800 to-cyan-800 text-white px-4 py-3 shadow-sm"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="font-medium truncate">
                       {name}
                       {summary ? ` - ${summary}` : ""}
                     </p>
-                    <p className="text-xs text-slate-300">
+                    <p className="text-xs text-teal-100/90">
                       #{budget.budget_number} · {formatMoney(Number(budget.total) || 0)}
                       {created ? ` · em ${created}` : ""}
                     </p>
                   </div>
                   <Button
                     type="button"
-                    variant="secondary"
                     size="sm"
-                    className="shrink-0 rounded-full"
+                    className="shrink-0 rounded-full bg-amber-400 text-slate-900 hover:bg-amber-300"
                     disabled={loadingLead === budget.id}
                     onClick={() => handleGerar(budget)}
                   >

@@ -158,22 +158,21 @@ export function UltimasVendasDialog({
               return (
                 <div
                   key={sale.id}
-                  className="flex items-center justify-between gap-3 rounded-lg bg-slate-800 text-white px-4 py-3"
+                  className="flex items-center justify-between gap-3 rounded-xl bg-gradient-to-r from-sky-800 to-teal-800 text-white px-4 py-3 shadow-sm"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="font-medium truncate">
                       Venda {sale.sale_number} — {name}
                     </p>
-                    <p className="text-xs text-slate-300">
+                    <p className="text-xs text-sky-100/90">
                       {formatMoney(valor)}
                       {created ? ` · em ${created}` : ""}
                     </p>
                   </div>
                   <Button
                     type="button"
-                    variant="secondary"
                     size="sm"
-                    className="shrink-0 rounded-full"
+                    className="shrink-0 rounded-full bg-amber-400 text-slate-900 hover:bg-amber-300"
                     disabled={loadingSale === sale.id}
                     onClick={() => handleGerar(sale)}
                   >

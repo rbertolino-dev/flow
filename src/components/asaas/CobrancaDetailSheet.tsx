@@ -60,31 +60,40 @@ export function CobrancaDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-        <SheetHeader className="space-y-3 text-left">
-          <div className="flex items-start justify-between gap-2">
-            <SheetTitle>Detalhes da Cobrança</SheetTitle>
-            <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="flex items-start gap-3">
-            <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-              <User className="h-5 w-5 text-muted-foreground" />
+      <SheetContent className="w-full sm:max-w-md overflow-y-auto p-0">
+        <div className="bg-gradient-to-br from-teal-700 to-cyan-800 text-white px-4 pt-4 pb-5">
+          <SheetHeader className="space-y-3 text-left">
+            <div className="flex items-start justify-between gap-2">
+              <SheetTitle className="text-white">Detalhes da Cobrança</SheetTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-white hover:bg-white/15 hover:text-white"
+                onClick={() => onOpenChange(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="font-medium leading-snug break-words">
-                {boleto.descricao || "Cobrança"}
-              </p>
-              <p className="text-lg font-semibold mt-1">{formatMoney(Number(boleto.valor) || 0)}</p>
+            <div className="flex items-start gap-3">
+              <div className="h-11 w-11 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                <User className="h-5 w-5 text-amber-200" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium leading-snug break-words text-teal-50">
+                  {boleto.descricao || "Cobrança"}
+                </p>
+                <p className="text-2xl font-bold mt-1 tracking-tight">
+                  {formatMoney(Number(boleto.valor) || 0)}
+                </p>
+              </div>
             </div>
-          </div>
-        </SheetHeader>
-
-        <Tabs defaultValue="geral" className="mt-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="geral">Geral</TabsTrigger>
-            <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
+          </SheetHeader>
+        </div>
+        <div className="px-4 pb-6 pt-2">
+        <Tabs defaultValue="geral" className="mt-4">
+          <TabsList className="grid w-full grid-cols-2 bg-slate-100">
+            <TabsTrigger value="geral" className="data-[state=active]:bg-teal-600 data-[state=active]:text-white">Geral</TabsTrigger>
+            <TabsTrigger value="financeiro" className="data-[state=active]:bg-teal-600 data-[state=active]:text-white">Financeiro</TabsTrigger>
           </TabsList>
 
           <TabsContent value="geral" className="space-y-4 mt-4">
@@ -133,7 +142,7 @@ export function CobrancaDetailSheet({
                   <FileText className="h-4 w-4" /> Boleto
                 </span>
                 {boletoLink ? (
-                  <Button asChild size="sm" variant="default">
+                  <Button asChild size="sm" className="bg-teal-600 hover:bg-teal-700">
                     <a href={boletoLink} target="_blank" rel="noreferrer">
                       Acessar <ExternalLink className="h-3 w-3 ml-1" />
                     </a>
@@ -145,7 +154,7 @@ export function CobrancaDetailSheet({
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm">Link de pagamento Asaas</span>
                 {paymentLink ? (
-                  <Button asChild size="sm" variant="default">
+                  <Button asChild size="sm" className="bg-sky-600 hover:bg-sky-700">
                     <a href={paymentLink} target="_blank" rel="noreferrer">
                       Acessar <ExternalLink className="h-3 w-3 ml-1" />
                     </a>
@@ -221,6 +230,7 @@ export function CobrancaDetailSheet({
             )}
           </TabsContent>
         </Tabs>
+        </div>
       </SheetContent>
     </Sheet>
   );

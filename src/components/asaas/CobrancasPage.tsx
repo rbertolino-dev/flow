@@ -40,7 +40,9 @@ import {
   type CobrancaFormPrefill,
 } from "./cobrancaTypes";
 import {
+  Banknote,
   FileText,
+  Hash,
   Loader2,
   Plus,
   Receipt,
@@ -48,6 +50,7 @@ import {
   Settings,
   ShoppingCart,
   Trash2,
+  Wallet,
 } from "lucide-react";
 import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -124,7 +127,13 @@ export function CobrancasPage() {
 
   const totals = useMemo(() => {
     const total = filtered.reduce((sum, b) => sum + (Number(b.valor) || 0), 0);
-    return { total, quantity: filtered.length };
+    const paid = filtered
+      .filter((b) => (b.status || "").toLowerCase() === "paid")
+      .reduce((sum, b) => sum + (Number(b.valor) || 0), 0);
+    const open = filtered
+      .filter((b) => ["pending", "open", "overdue"].includes((b.status || "").toLowerCase()))
+      .reduce((sum, b) => sum + (Number(b.valor) || 0), 0);
+    return { total, quantity: filtered.length, paid, open };
   }, [filtered]);
 
   const openNova = (data?: CobrancaFormPrefill | null) => {
@@ -162,208 +171,303 @@ export function CobrancasPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <FileText className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl sm:text-3xl font-bold">Cobranças</h1>
+    <div className="space-y-5">
+      {/* Hero header */}
+      <div className="relative overflow-hidden rounded-2xl border border-teal-200/70 bg-gradient-to-br from-teal-700 via-cyan-700 to-sky-800 text-white shadow-md">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-30"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 12% 20%, rgba(255,255,255,0.35), transparent 42%), radial-gradient(circle at 88% 10%, rgba(251,191,36,0.28), transparent 38%), radial-gradient(circle at 70% 90%, rgba(255,255,255,0.12), transparent 45%)",
+          }}
+        />
+        <div className="relative p-5 sm:p-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-1.5 min-w-0">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur-sm">
+              <Banknote className="h-3.5 w-3.5 text-amber-200" />
+              Asaas · Boletos
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
+              <FileText className="h-7 w-7 text-amber-200 shrink-0" />
+              Cobranças
+            </h1>
+            <p className="text-sm text-teal-50/90 max-w-xl">
+              Gere boletos, acompanhe status e transforme orçamentos e vendas em cobrança com poucos cliques.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              onClick={() => setOrcamentosOpen(true)}
+              className="bg-white text-teal-800 hover:bg-teal-50 border-0 shadow-sm"
+            >
+              <Receipt className="h-4 w-4 mr-2 text-teal-600" />
+              Últimos Orçamentos
+            </Button>
+            <Button
+              type="button"
+              onClick={() => setVendasOpen(true)}
+              className="bg-sky-400/95 text-slate-900 hover:bg-sky-300 border-0 shadow-sm"
+            >
+              <ShoppingCart className="h-4 w-4 mr-2" />
+              Últimas Vendas
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => setConfigOpen(true)}
+              title="Integração Asaas"
+              className="border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => void handleSync()}
+              disabled={isSyncingStatus}
+              title="Sincronizar status"
+              className="border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+            >
+              <RefreshCw className={cn("h-4 w-4", isSyncingStatus && "animate-spin")} />
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="default" onClick={() => setOrcamentosOpen(true)}>
-            <Receipt className="h-4 w-4 mr-2" />
-            Últimos Orçamentos
-          </Button>
-          <Button type="button" variant="default" onClick={() => setVendasOpen(true)}>
-            <ShoppingCart className="h-4 w-4 mr-2" />
-            Últimas Vendas
-          </Button>
-          <Button type="button" variant="outline" size="icon" onClick={() => setConfigOpen(true)} title="Integração Asaas">
-            <Settings className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={() => void handleSync()}
-            disabled={isSyncingStatus}
-            title="Sincronizar status"
-          >
-            <RefreshCw className={cn("h-4 w-4", isSyncingStatus && "animate-spin")} />
-          </Button>
+      </div>
+
+      {/* Metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="rounded-xl border border-teal-200 bg-gradient-to-br from-teal-50 to-white p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-teal-700">Total</span>
+            <Wallet className="h-4 w-4 text-teal-600" />
+          </div>
+          <p className="text-xl font-bold text-teal-900 tabular-nums">{formatMoney(totals.total)}</p>
+        </div>
+        <div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">Quantidade</span>
+            <Hash className="h-4 w-4 text-amber-600" />
+          </div>
+          <p className="text-xl font-bold text-amber-900 tabular-nums">{totals.quantity}</p>
+        </div>
+        <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Pago</span>
+            <Banknote className="h-4 w-4 text-emerald-600" />
+          </div>
+          <p className="text-xl font-bold text-emerald-900 tabular-nums">{formatMoney(totals.paid)}</p>
+        </div>
+        <div className="rounded-xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-sky-700">Em aberto</span>
+            <FileText className="h-4 w-4 text-sky-600" />
+          </div>
+          <p className="text-xl font-bold text-sky-900 tabular-nums">{formatMoney(totals.open)}</p>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="todos">Todos</TabsTrigger>
-          <TabsTrigger value="parcelados">Boletos Parcelados</TabsTrigger>
-        </TabsList>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <TabsList className="bg-slate-100/90 p-1 h-auto">
+            <TabsTrigger
+              value="todos"
+              className="data-[state=active]:bg-teal-600 data-[state=active]:text-white px-4"
+            >
+              Todos
+            </TabsTrigger>
+            <TabsTrigger
+              value="parcelados"
+              className="data-[state=active]:bg-orange-500 data-[state=active]:text-white px-4"
+            >
+              Boletos Parcelados
+            </TabsTrigger>
+          </TabsList>
+          <Button
+            type="button"
+            onClick={() => openNova(null)}
+            className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold shadow-sm"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Nova cobrança
+          </Button>
+        </div>
 
         <TabsContent value={activeTab} className="mt-4 space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-end gap-3 flex-wrap">
-            <div className="space-y-1">
-              <Label className="text-xs">Filtrar por data de criação</Label>
-              <div className="flex items-center gap-2">
-                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-auto" />
-                <span className="text-sm text-muted-foreground">a</span>
-                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-auto" />
+          <div className="rounded-xl border border-slate-200 bg-white/90 p-3 sm:p-4 shadow-sm space-y-3">
+            <div className="flex flex-col lg:flex-row lg:items-end gap-3 flex-wrap">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-600">Filtrar por data de criação</Label>
+                <div className="flex items-center gap-2">
+                  <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-auto bg-slate-50" />
+                  <span className="text-sm text-slate-400">a</span>
+                  <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-auto bg-slate-50" />
+                </div>
               </div>
+              <div className="space-y-1 flex-1 min-w-[180px]">
+                <Label className="text-xs font-medium text-slate-600">Buscar por cliente</Label>
+                <Input
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  placeholder="Nome, descrição, código..."
+                  className="bg-slate-50"
+                />
+              </div>
+              <div className="space-y-1 w-full sm:w-40">
+                <Label className="text-xs font-medium text-slate-600">Status</Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="bg-slate-50">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1 w-full sm:w-36">
+                <Label className="text-xs font-medium text-slate-600">Valor mínimo</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={minValue}
+                  onChange={(e) => setMinValue(Number(e.target.value) || 0)}
+                  className="bg-slate-50"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void handleRefresh()}
+                disabled={refreshing}
+                className="border-teal-200 text-teal-800 hover:bg-teal-50"
+              >
+                {refreshing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                Atualizar
+              </Button>
             </div>
-            <div className="space-y-1 flex-1 min-w-[180px]">
-              <Label className="text-xs">Buscar por cliente</Label>
-              <Input
-                value={clientSearch}
-                onChange={(e) => setClientSearch(e.target.value)}
-                placeholder="Nome, descrição, código..."
-              />
-            </div>
-            <div className="space-y-1 w-full sm:w-40">
-              <Label className="text-xs">Status</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1 w-full sm:w-36">
-              <Label className="text-xs">Valor mínimo</Label>
-              <Input
-                type="number"
-                min={0}
-                step="0.01"
-                value={minValue}
-                onChange={(e) => setMinValue(Number(e.target.value) || 0)}
-              />
-            </div>
-            <Button type="button" onClick={() => openNova(null)} className="shrink-0">
-              <Plus className="h-4 w-4 mr-2" />
-              Nova cobrança
-            </Button>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <div className="rounded-lg border bg-muted/40 px-4 py-2 text-sm">
-              <span className="text-muted-foreground">Total: </span>
-              <strong>{formatMoney(totals.total)}</strong>
-            </div>
-            <div className="rounded-lg border bg-muted/40 px-4 py-2 text-sm">
-              <span className="text-muted-foreground">Quantidade: </span>
-              <strong>{totals.quantity}</strong>
-            </div>
-            <Button type="button" variant="ghost" size="sm" onClick={() => void handleRefresh()} disabled={refreshing}>
-              {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Atualizar lista"}
-            </Button>
-          </div>
-
-          <div className="rounded-lg border overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Descrição</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Criado em</TableHead>
-                  <TableHead>Vencimento</TableHead>
-                  <TableHead className="w-[90px]" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoadingBoletos ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
-                      <Loader2 className="h-5 w-5 animate-spin inline mr-2" />
-                      Carregando cobranças...
-                    </TableCell>
+          <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm bg-white">
+            <div className="h-1.5 bg-gradient-to-r from-teal-500 via-cyan-500 to-amber-400" />
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50/90 hover:bg-slate-50/90">
+                    <TableHead className="text-slate-600 font-semibold">Código</TableHead>
+                    <TableHead className="text-slate-600 font-semibold">Descrição</TableHead>
+                    <TableHead className="text-slate-600 font-semibold">Cliente</TableHead>
+                    <TableHead className="text-right text-slate-600 font-semibold">Valor</TableHead>
+                    <TableHead className="text-slate-600 font-semibold">Status</TableHead>
+                    <TableHead className="text-slate-600 font-semibold">Criado em</TableHead>
+                    <TableHead className="text-slate-600 font-semibold">Vencimento</TableHead>
+                    <TableHead className="w-[90px]" />
                   </TableRow>
-                ) : filtered.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
-                      Nenhuma cobrança encontrada.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filtered.map((boleto) => {
-                    const status = (boleto.status || "pending").toLowerCase();
-                    const isParcel = Number(boleto.installment_count) > 1 || !!boleto.installment_group_id;
-                    return (
-                      <TableRow
-                        key={boleto.id}
-                        className={cn(
-                          "cursor-pointer",
-                          isParcel && activeTab === "parcelados" && "bg-orange-50 hover:bg-orange-100/80",
-                        )}
-                        onClick={() => openDetail(boleto)}
-                      >
-                        <TableCell className="font-mono text-xs">
-                          {shortPaymentCode(boleto.asaas_payment_id)}
-                        </TableCell>
-                        <TableCell className="max-w-[220px] truncate">
-                          {boleto.descricao || "—"}
-                        </TableCell>
-                        <TableCell>{boleto.customer_name || "—"}</TableCell>
-                        <TableCell className="text-right">
-                          {(Number(boleto.valor) || 0).toLocaleString("pt-BR", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={cn(STATUS_CLASSES[status])}>
-                            {STATUS_LABELS[status] || boleto.status || "—"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm">
-                          {boleto.created_at
-                            ? format(parseISO(boleto.created_at), "dd/MM/yyyy")
-                            : "—"}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm">
-                          {boleto.data_vencimento
-                            ? format(parseDateOnly(boleto.data_vencimento), "dd/MM/yyyy")
-                            : "—"}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8 text-primary"
-                              title="Sincronizar"
-                              onClick={() => {
-                                void handleSync();
-                                toast({ title: "Sincronizando status..." });
-                              }}
-                            >
-                              <RefreshCw className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8 text-destructive"
-                              disabled={isDeletingBoleto}
-                              title="Remover"
-                              onClick={(e) => void handleDelete(boleto, e)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                </TableHeader>
+                <TableBody>
+                  {isLoadingBoletos ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin inline mr-2 text-teal-600" />
+                        Carregando cobranças...
+                      </TableCell>
+                    </TableRow>
+                  ) : filtered.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-12">
+                        <div className="inline-flex flex-col items-center gap-2 text-slate-500">
+                          <div className="h-12 w-12 rounded-full bg-teal-50 flex items-center justify-center">
+                            <Banknote className="h-6 w-6 text-teal-600" />
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
+                          <p className="font-medium text-slate-700">Nenhuma cobrança encontrada</p>
+                          <p className="text-sm">Ajuste os filtros ou crie uma nova cobrança.</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filtered.map((boleto) => {
+                      const status = (boleto.status || "pending").toLowerCase();
+                      const isParcel = Number(boleto.installment_count) > 1 || !!boleto.installment_group_id;
+                      return (
+                        <TableRow
+                          key={boleto.id}
+                          className={cn(
+                            "cursor-pointer transition-colors",
+                            isParcel && activeTab === "parcelados"
+                              ? "bg-orange-50/80 hover:bg-orange-100/90"
+                              : "hover:bg-teal-50/50",
+                          )}
+                          onClick={() => openDetail(boleto)}
+                        >
+                          <TableCell className="font-mono text-xs text-teal-800">
+                            {shortPaymentCode(boleto.asaas_payment_id)}
+                          </TableCell>
+                          <TableCell className="max-w-[220px] truncate font-medium text-slate-800">
+                            {boleto.descricao || "—"}
+                          </TableCell>
+                          <TableCell className="text-slate-700">{boleto.customer_name || "—"}</TableCell>
+                          <TableCell className="text-right font-semibold tabular-nums text-slate-900">
+                            {(Number(boleto.valor) || 0).toLocaleString("pt-BR", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={cn(STATUS_CLASSES[status])}>
+                              {STATUS_LABELS[status] || boleto.status || "—"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-sm text-slate-600">
+                            {boleto.created_at
+                              ? format(parseISO(boleto.created_at), "dd/MM/yyyy")
+                              : "—"}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-sm text-slate-600">
+                            {boleto.data_vencimento
+                              ? format(parseDateOnly(boleto.data_vencimento), "dd/MM/yyyy")
+                              : "—"}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-teal-700 hover:bg-teal-100 hover:text-teal-900"
+                                title="Sincronizar"
+                                onClick={() => {
+                                  void handleSync();
+                                  toast({ title: "Sincronizando status..." });
+                                }}
+                              >
+                                <RefreshCw className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                                disabled={isDeletingBoleto}
+                                title="Remover"
+                                onClick={(e) => void handleDelete(boleto, e)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </TabsContent>
       </Tabs>

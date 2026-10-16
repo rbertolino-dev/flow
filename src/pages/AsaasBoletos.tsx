@@ -12,7 +12,7 @@ export default function AsaasBoletos() {
   return (
     <AuthGuard>
       <CRMLayout activeView="asaas-boletos" onViewChange={() => {}}>
-        <div className="flex-1 overflow-auto p-4 sm:p-6">
+        <div className="flex-1 overflow-auto p-4 sm:p-6 bg-gradient-to-b from-slate-50 via-teal-50/30 to-background">
           <div className="max-w-7xl mx-auto">
             {loading ? (
               <div className="flex items-center justify-center py-16 text-muted-foreground">
