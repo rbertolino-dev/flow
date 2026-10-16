@@ -227,7 +227,7 @@ function PosServiceOrderEditor({
 }) {
   const { statuses } = useServiceOrderStatuses();
   const { templates } = useServiceOrderTemplates();
-  const { products } = useProducts();
+  const { products, refetch: refetchProducts } = useProducts();
   const { leads } = useLeads();
   const { updateOrder } = useServiceOrders(undefined, { enabled: false });
 
@@ -241,6 +241,7 @@ function PosServiceOrderEditor({
       leads={leads || []}
       nextCode={order.code}
       editingOrder={order}
+      onProductsRefresh={() => void refetchProducts()}
       onSubmit={async (data: ServiceOrderFormData) => {
         const ok = await updateOrder(order.id, {
           ...data,
@@ -269,7 +270,7 @@ function PosServiceOrderFromSale({
 }) {
   const { statuses } = useServiceOrderStatuses();
   const { templates } = useServiceOrderTemplates();
-  const { products } = useProducts();
+  const { products, refetch: refetchProducts } = useProducts();
   const { leads } = useLeads();
   const { createOrder } = useServiceOrders(undefined, { enabled: false });
 
@@ -283,6 +284,7 @@ function PosServiceOrderFromSale({
       leads={leads || []}
       nextCode={nextCode}
       initialDraft={draft}
+      onProductsRefresh={() => void refetchProducts()}
       onSubmit={async (data: ServiceOrderFormData) => {
         const order = await createOrder({
           ...data,

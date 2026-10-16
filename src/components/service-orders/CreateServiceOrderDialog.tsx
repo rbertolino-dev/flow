@@ -55,6 +55,7 @@ import {
   compressServiceOrderImage,
   uploadServiceOrderMedia,
 } from '@/lib/serviceOrderMedia';
+import { CreateServiceDialog } from '@/components/shared/CreateServiceDialog';
 
 interface CreateServiceOrderDialogProps {
   open: boolean;
@@ -68,6 +69,8 @@ interface CreateServiceOrderDialogProps {
   /** Pré-preenche uma OS nova (ex.: venda do PDV) sem pular a escolha do modelo. */
   initialDraft?: Partial<ServiceOrderFormData> | null;
   onSubmit: (data: ServiceOrderFormData) => Promise<boolean>;
+  /** Recarrega produtos após cadastro rápido no passo 2. */
+  onProductsRefresh?: () => void | Promise<void>;
 }
 
 const STANDARD_KEYS = new Set([
@@ -138,6 +141,7 @@ export function CreateServiceOrderDialog({
   editingOrder,
   initialDraft,
   onSubmit,
+  onProductsRefresh,
 }: CreateServiceOrderDialogProps) {
   const defaultTemplate = templates.find((t) => t.is_default) || templates[0];
   const defaultStatus =
@@ -171,6 +175,7 @@ export function CreateServiceOrderDialog({
   const hasActiveGoogleCalendar = googleCalendarConfigs.some((c) => c.is_active);
   const [orgUsers, setOrgUsers] = useState<Array<{ id: string; name: string }>>([]);
   const [uploadingBeforePhoto, setUploadingBeforePhoto] = useState(false);
+  const [createServiceOpen, setCreateServiceOpen] = useState(false);
   const draftMediaId = useRef(`draft-${crypto.randomUUID()}`);
   const beforePhotoInputRef = useRef<HTMLInputElement>(null);
 
@@ -653,11 +658,21 @@ export function CreateServiceOrderDialog({
               ))}
             </SelectContent>
           </Select>
-          {activeServices.length === 0 && (
-            <p className="text-xs text-muted-foreground">
-              Nenhum serviço ativo cadastrado. Cadastre em Produtos e Serviços.
-            </p>
-          )}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {activeServices.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Nenhum serviço ativo cadastrado.</p>
+            ) : (
+              <span />
+            )}
+            <button
+              type="button"
+              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              data-testid="os-create-service-link"
+              onClick={() => setCreateServiceOpen(true)}
+            >
+              + Novo serviço
+            </button>
+          </div>
         </div>
       );
     }
@@ -916,6 +931,7 @@ export function CreateServiceOrderDialog({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={`${osDialogContentClass} sm:max-w-3xl`}>
         <DialogHeader>
@@ -1134,6 +1150,7 @@ export function CreateServiceOrderDialog({
               items={items}
               onChange={setItems}
               orderCode={nextCode}
+              onProductsRefresh={onProductsRefresh}
             />
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
@@ -1393,5 +1410,15 @@ export function CreateServiceOrderDialog({
         )}
       </DialogContent>
     </Dialog>
+
+    <CreateServiceDialog
+      open={createServiceOpen}
+      onOpenChange={setCreateServiceOpen}
+      onCreated={(service) => {
+        setField('service_id', service.id, false);
+        setField('service_name', service.name, false);
+      }}
+    />
+    </>
   );
 }

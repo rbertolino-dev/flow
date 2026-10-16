@@ -111,12 +111,14 @@ export function ProductSelector({ products, selectedProducts, onProductsChange }
               </div>
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
+                size="sm"
                 onClick={() => setCreateProductDialogOpen(true)}
-                className="h-12 px-4 text-base font-semibold"
+                className="h-12 px-3 text-sm text-muted-foreground"
+                data-testid="budget-create-product-btn"
               >
-                <Plus className="w-5 h-5 mr-2" />
-                Criar Produto
+                <Plus className="w-4 h-4 mr-1" />
+                Novo
               </Button>
             </div>
 

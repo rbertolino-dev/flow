@@ -8,12 +8,15 @@ import { Product } from '@/types/product';
 import { ServiceOrderItem } from '@/types/serviceOrder';
 import { cn } from '@/lib/utils';
 import { isListedForSale } from '@/lib/productAvailability';
+import { CreateProductDialog } from '@/components/shared/CreateProductDialog';
 
 interface ServiceOrderProductsStepProps {
   products: Product[];
   items: ServiceOrderItem[];
   onChange: (items: ServiceOrderItem[]) => void;
   orderCode?: string;
+  /** Atualiza o catálogo de produtos no pai após criar. */
+  onProductsRefresh?: () => void | Promise<void>;
 }
 
 function asNumber(value: unknown): number {
@@ -57,10 +60,12 @@ export function ServiceOrderProductsStep({
   items,
   onChange,
   orderCode,
+  onProductsRefresh,
 }: ServiceOrderProductsStepProps) {
   const [search, setSearch] = useState('');
   const [supplySearch, setSupplySearch] = useState('');
   const [priceMode, setPriceMode] = useState<'price' | 'cost'>('price');
+  const [createProductOpen, setCreateProductOpen] = useState(false);
 
   const activeProducts = useMemo(
     () => products.filter((product) => isListedForSale(product)),
@@ -211,9 +216,19 @@ export function ServiceOrderProductsStep({
             onChange={(e) => setSearch(e.target.value)}
             data-testid="os-product-search"
           />
-          <p className="text-xs text-muted-foreground mt-1">
-            Esta busca retorna até 10 produtos por pesquisa
-          </p>
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              Esta busca retorna até 10 produtos por pesquisa
+            </p>
+            <button
+              type="button"
+              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              data-testid="os-create-product-link"
+              onClick={() => setCreateProductOpen(true)}
+            >
+              + Novo produto
+            </button>
+          </div>
         </div>
         <div className="flex gap-1">
           <Button
@@ -423,6 +438,16 @@ export function ServiceOrderProductsStep({
           )}
         </div>
       </div>
+
+      <CreateProductDialog
+        open={createProductOpen}
+        onOpenChange={setCreateProductOpen}
+        autoSelectAfterCreate
+        onProductCreated={(product) => {
+          void onProductsRefresh?.();
+          addProduct(product);
+        }}
+      />
     </div>
   );
 }

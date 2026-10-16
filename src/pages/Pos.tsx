@@ -52,7 +52,7 @@ import { PosConfirmSaleDialog, type PosConfirmSaleValues } from "@/components/po
 import { PosFinanceCreatedDialog } from "@/components/pos/PosFinanceCreatedDialog";
 import { PosSaleSuccessDialog } from "@/components/pos/PosSaleSuccessDialog";
 import { PosCreateClientDialog } from "@/components/pos/PosCreateClientDialog";
-import { PosCreateServiceDialog } from "@/components/pos/PosCreateServiceDialog";
+import { CreateServiceDialog } from "@/components/shared/CreateServiceDialog";
 import { CreateProductDialog } from "@/components/shared/CreateProductDialog";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -1958,7 +1958,7 @@ export default function Pos() {
         </DialogContent>
       </Dialog>
 
-      <PosCreateServiceDialog
+      <CreateServiceDialog
         open={createServiceOpen}
         onOpenChange={setCreateServiceOpen}
         onCreated={(service) => {
