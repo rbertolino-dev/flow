@@ -32,6 +32,8 @@ interface KanbanColumnProps {
   onStageChange: (leadId: string, newStageId: string) => void;
   instanceMap?: Map<string, string>;
   onDeleteLead?: (leadId: string) => void;
+  onDuplicateLead?: (lead: Lead) => Promise<void>;
+  allowDuplicateLead?: boolean;
   columnWidth: ColumnWidth;
   onRefetch?: () => void;
   onEditLeadName?: (leadId: string, newName: string) => Promise<void>;
@@ -60,6 +62,8 @@ export const KanbanColumn = memo(function KanbanColumn({
   onStageChange,
   instanceMap,
   onDeleteLead,
+  onDuplicateLead,
+  allowDuplicateLead = false,
   columnWidth,
   onRefetch,
   onEditLeadName,
@@ -293,6 +297,8 @@ export const KanbanColumn = memo(function KanbanColumn({
                       }
                       instanceName={instanceName}
                       onDelete={onDeleteLead}
+                      onDuplicateLead={onDuplicateLead}
+                      allowDuplicateLead={allowDuplicateLead}
                       onRefetch={onRefetch}
                       onEditName={onEditLeadName}
                       compact={compact}

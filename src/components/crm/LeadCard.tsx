@@ -40,6 +40,8 @@ interface LeadCardProps {
   onToggleSelection?: () => void;
   instanceName?: string;
   onDelete?: (leadId: string) => void;
+  onDuplicateLead?: (lead: Lead) => Promise<void>;
+  allowDuplicateLead?: boolean;
   onRefetch?: () => void;
   onEditName?: (leadId: string, newName: string) => Promise<void>;
   compact?: boolean;
@@ -64,6 +66,8 @@ export const LeadCard = memo(function LeadCard({
   onToggleSelection,
   instanceName,
   onDelete,
+  onDuplicateLead,
+  allowDuplicateLead = false,
   onRefetch,
   onEditName,
   compact = false,
@@ -350,6 +354,8 @@ export const LeadCard = memo(function LeadCard({
               pendingScheduledCount={pendingScheduledCount}
               onScheduleLead={onScheduleLead}
               onDelete={onDelete}
+              onDuplicate={onDuplicateLead}
+              allowDuplicateLead={allowDuplicateLead}
               onRefetch={onRefetch}
               orgTagsApi={orgTagsApi}
               showHeavyAssignees={showHeavyContent}
@@ -575,6 +581,8 @@ export const LeadCard = memo(function LeadCard({
             pendingScheduledCount={pendingScheduledCount}
             onScheduleLead={onScheduleLead}
             onDelete={onDelete}
+            onDuplicate={onDuplicateLead}
+            allowDuplicateLead={allowDuplicateLead}
             onRefetch={onRefetch}
             orgTagsApi={orgTagsApi}
             showHeavyAssignees={showHeavyContent}

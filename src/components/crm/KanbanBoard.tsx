@@ -32,6 +32,8 @@ import { useViewPreference } from "@/hooks/useViewPreference";
 import { useTags } from "@/hooks/useTags";
 import { useKanbanHorizontalPan } from "@/hooks/useKanbanHorizontalPan";
 import { markFunnelKanbanInteraction } from "@/utils/funnelInteractionGate";
+import { useOrganizationCrmSettings } from "@/hooks/useOrganizationCrmSettings";
+import { duplicateLeadCadastral } from "@/lib/duplicateLeadCadastral";
 
 /** Observa viewport horizontal do scroll do Kanban — evita montar colunas off-screen. */
 const KanbanHorizontalColumnGate = memo(function KanbanHorizontalColumnGate({
@@ -112,6 +114,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   const { stages, loading: stagesLoading } = usePipelineStages();
   const { configs } = useEvolutionConfigs();
   const { columnWidth, updateColumnWidth } = useKanbanSettings();
+  const { allowDuplicatePhones } = useOrganizationCrmSettings();
   const { cardSize, toggleCardSize } = useViewPreference();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   useKanbanHorizontalPan(scrollContainerRef, { enabled: !stagesLoading });
@@ -893,6 +896,29 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
                   horizontalInView={horizontalInView}
                   panelActive={panelActive}
                   draggingLeadId={activeId}
+                  allowDuplicateLead={allowDuplicatePhones}
+                  onDuplicateLead={async (lead) => {
+                    try {
+                      await duplicateLeadCadastral(lead);
+                      toast({
+                        title: "Lead duplicado",
+                        description:
+                          "Novo card criado com os mesmos dados cadastrais. Comentários e orçamentos não foram copiados.",
+                      });
+                      onRefetch();
+                    } catch (err: unknown) {
+                      const message =
+                        err instanceof Error
+                          ? err.message
+                          : (err as { message?: string })?.message ||
+                            "Não foi possível duplicar o lead";
+                      toast({
+                        title: "Erro ao duplicar",
+                        description: message,
+                        variant: "destructive",
+                      });
+                    }
+                  }}
                   onDeleteLead={async (leadId) => {
                     await supabase
                       .from('leads')

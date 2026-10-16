@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { Lead } from "@/types/lead";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,6 +7,8 @@ import {
   Trash2,
   ArrowRightCircle,
   Clock,
+  Copy,
+  Loader2,
 } from "lucide-react";
 import { LeadAssigneesPopover } from "./LeadAssigneesPopover";
 import { LeadTagsPopover } from "./LeadTagsPopover";
@@ -19,6 +21,8 @@ interface LeadCardActionsBarProps {
   pendingScheduledCount: number;
   onScheduleLead?: (lead: Lead) => void;
   onDelete?: (leadId: string) => void;
+  onDuplicate?: (lead: Lead) => Promise<void>;
+  allowDuplicateLead?: boolean;
   onRefetch?: () => void;
   orgTagsApi: LeadOrgTagsPickerApi;
   showHeavyAssignees: boolean;
@@ -31,11 +35,15 @@ export const LeadCardActionsBar = memo(function LeadCardActionsBar({
   pendingScheduledCount,
   onScheduleLead,
   onDelete,
+  onDuplicate,
+  allowDuplicateLead = false,
   onRefetch,
   orgTagsApi,
   showHeavyAssignees,
   onTransferClick,
 }: LeadCardActionsBarProps) {
+  const [duplicating, setDuplicating] = useState(false);
+
   const handleWhatsAppClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     const copyNumber = buildCopyNumber(lead.phone);
@@ -57,6 +65,19 @@ export const LeadCardActionsBar = memo(function LeadCardActionsBar({
     e.stopPropagation();
     onDelete?.(lead.id);
   };
+
+  const handleDuplicateClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onDuplicate || duplicating) return;
+    setDuplicating(true);
+    try {
+      await onDuplicate(lead);
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
+  const showDuplicate = allowDuplicateLead && !!onDuplicate;
 
   if (compact) {
     return (
@@ -123,6 +144,23 @@ export const LeadCardActionsBar = memo(function LeadCardActionsBar({
           compact
           orgTagsApi={orgTagsApi}
         />
+
+        {showDuplicate && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2"
+            onClick={handleDuplicateClick}
+            disabled={duplicating}
+            title="Duplicar lead (mesmos dados cadastrais; sem comentários nem orçamentos)"
+          >
+            {duplicating ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Copy className="h-3 w-3" />
+            )}
+          </Button>
+        )}
 
         {onDelete && (
           <Button
@@ -204,6 +242,24 @@ export const LeadCardActionsBar = memo(function LeadCardActionsBar({
         onRefetch={onRefetch}
         orgTagsApi={orgTagsApi}
       />
+
+      {showDuplicate && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="flex-1 min-w-[100px]"
+          onClick={handleDuplicateClick}
+          disabled={duplicating}
+          title="Duplicar lead (mesmos dados cadastrais; sem comentários nem orçamentos)"
+        >
+          {duplicating ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Copy className="h-4 w-4 mr-2" />
+          )}
+          Duplicar
+        </Button>
+      )}
 
       {onDelete && (
         <Button
