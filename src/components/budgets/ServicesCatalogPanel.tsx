@@ -81,6 +81,7 @@ export function ServicesCatalogPanel({
     description: '',
     price: '0',
     category: '',
+    tax_class_ref: '',
     image_url: null as string | null,
     is_active: true,
   });
@@ -147,6 +148,7 @@ export function ServicesCatalogPanel({
         description: service.description || '',
         price: service.price.toString(),
         category: service.category || '',
+        tax_class_ref: service.tax_class_ref || '',
         image_url: service.image_url || null,
         is_active: service.is_active,
       });
@@ -158,6 +160,7 @@ export function ServicesCatalogPanel({
         description: '',
         price: '0',
         category: '',
+        tax_class_ref: '',
         image_url: null,
         is_active: true,
       });
@@ -176,6 +179,7 @@ export function ServicesCatalogPanel({
       description: '',
       price: '0',
       category: '',
+      tax_class_ref: '',
       image_url: null,
       is_active: true,
     });
@@ -206,6 +210,7 @@ export function ServicesCatalogPanel({
         description: serviceFormData.description.trim() || undefined,
         price,
         category: serviceFormData.category.trim() || undefined,
+        tax_class_ref: serviceFormData.tax_class_ref.trim() || null,
         image_url: serviceFormData.image_url || undefined,
         is_active: serviceFormData.is_active,
       };
@@ -227,6 +232,8 @@ export function ServicesCatalogPanel({
         name: service.name,
         description: service.description,
         price: service.price,
+        tax_class_ref: service.tax_class_ref ?? null,
+        image_url: service.image_url ?? null,
         category: service.category,
         is_active: !service.is_active,
       });
@@ -655,6 +662,29 @@ export function ServicesCatalogPanel({
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+              <div>
+                <Label className="text-base font-semibold">Informações fiscais</Label>
+                <p className="text-xs text-muted-foreground">
+                  Usadas na emissão de NFS-e. A classe de imposto é puxada automaticamente no módulo de Nota Fiscal.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="catalog-service-tax-class" className="text-sm font-medium">
+                  Classe de imposto (ref Webmania)
+                </Label>
+                <Input
+                  id="catalog-service-tax-class"
+                  value={serviceFormData.tax_class_ref}
+                  onChange={(e) =>
+                    setServiceFormData({ ...serviceFormData, tax_class_ref: e.target.value })
+                  }
+                  placeholder="REF0000"
+                  className="h-12 text-base"
+                />
               </div>
             </div>
 

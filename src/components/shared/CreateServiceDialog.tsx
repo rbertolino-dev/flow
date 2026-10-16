@@ -19,6 +19,7 @@ export type CreatedServiceSummary = {
   name: string;
   price: number;
   description?: string | null;
+  tax_class_ref?: string | null;
 };
 
 type Props = {
@@ -71,6 +72,7 @@ export function CreateServiceDialog({ open, onOpenChange, onCreated }: Props) {
         name: created.name,
         price: Number(created.price),
         description: created.description ?? null,
+        tax_class_ref: created.tax_class_ref ?? null,
       });
       reset();
       onOpenChange(false);
@@ -134,13 +136,23 @@ export function CreateServiceDialog({ open, onOpenChange, onCreated }: Props) {
               />
             </div>
           </div>
-          <div className="space-y-1">
-            <Label>Classe de imposto NFS-e (ref Webmania)</Label>
-            <Input
-              value={taxClassRef}
-              onChange={(e) => setTaxClassRef(e.target.value)}
-              placeholder="REF0000"
-            />
+          <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+            <div>
+              <p className="text-sm font-medium text-slate-900">Informações fiscais</p>
+              <p className="text-xs text-slate-500">
+                Usadas na emissão de NFS-e. A classe de imposto é puxada automaticamente no módulo de Nota Fiscal.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="create-service-tax-class">Classe de imposto (ref Webmania)</Label>
+              <Input
+                id="create-service-tax-class"
+                value={taxClassRef}
+                onChange={(e) => setTaxClassRef(e.target.value)}
+                placeholder="REF0000"
+                data-testid="create-service-tax-class"
+              />
+            </div>
           </div>
         </div>
         <DialogFooter>

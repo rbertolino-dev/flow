@@ -1223,11 +1223,18 @@ serve(async (req) => {
     if (action === "emit") {
       const corrections = Array.isArray(body.corrections) ? body.corrections : [];
       for (const correction of corrections) {
-        if (!correction?.product_id) continue;
-        await client.queryArray(
-          `UPDATE products SET ncm = COALESCE($1, ncm), fiscal_origin = COALESCE($2, fiscal_origin), tax_class_ref = COALESCE($3, tax_class_ref), updated_at = now() WHERE id = $4 AND organization_id = $5`,
-          [correction.ncm ? digits(correction.ncm) : null, correction.fiscal_origin ?? null, correction.tax_class_ref || null, correction.product_id, organizationId],
-        );
+        if (correction?.product_id) {
+          await client.queryArray(
+            `UPDATE products SET ncm = COALESCE($1, ncm), fiscal_origin = COALESCE($2, fiscal_origin), tax_class_ref = COALESCE($3, tax_class_ref), updated_at = now() WHERE id = $4 AND organization_id = $5`,
+            [correction.ncm ? digits(correction.ncm) : null, correction.fiscal_origin ?? null, correction.tax_class_ref || null, correction.product_id, organizationId],
+          );
+        }
+        if (correction?.service_id && correction.tax_class_ref) {
+          await client.queryArray(
+            `UPDATE services SET tax_class_ref = $1, updated_at = now() WHERE id = $2 AND organization_id = $3`,
+            [String(correction.tax_class_ref), correction.service_id, organizationId],
+          );
+        }
       }
       const kind = body.kind === "nfse" ? "nfse" : (body.modelo === "2" || body.modelo === "nfce" || settings.modelo === "nfce") && body.kind !== "nfe" ? "nfce" : (body.kind || (settings.modelo === "nfce" ? "nfce" : "nfe"));
       const source = String(body.source || "avulsa");
@@ -1275,9 +1282,10 @@ serve(async (req) => {
             line.unit = line.unit || String(row.unit || "UN");
           }
         }
-        if (line.service_id && !line.tax_class_ref) {
+        if (line.service_id) {
           const service = await client.queryObject<{ tax_class_ref: string | null }>(`SELECT tax_class_ref FROM services WHERE id = $1 AND organization_id = $2`, [line.service_id, organizationId]);
-          line.tax_class_ref = service.rows[0]?.tax_class_ref || "";
+          // Preferir classe cadastrada no serviço; fallback para valor informado na emissão
+          line.tax_class_ref = String(service.rows[0]?.tax_class_ref || line.tax_class_ref || "");
         }
       }
 

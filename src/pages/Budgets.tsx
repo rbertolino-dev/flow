@@ -124,6 +124,7 @@ export default function Budgets() {
     description: '',
     price: '0',
     category: '',
+    tax_class_ref: '',
     image_url: null as string | null,
     is_active: true,
   });
@@ -354,6 +355,7 @@ export default function Budgets() {
         description: service.description || '',
         price: service.price.toString(),
         category: service.category || '',
+        tax_class_ref: service.tax_class_ref || '',
         image_url: service.image_url || null,
         is_active: service.is_active,
       });
@@ -365,6 +367,7 @@ export default function Budgets() {
         description: '',
         price: '0',
         category: '',
+        tax_class_ref: '',
         image_url: null,
         is_active: true,
       });
@@ -383,6 +386,7 @@ export default function Budgets() {
       description: '',
       price: '0',
       category: '',
+      tax_class_ref: '',
       image_url: null,
       is_active: true,
     });
@@ -411,25 +415,22 @@ export default function Budgets() {
     }
 
     try {
+      const fiscalPayload = {
+        name: serviceFormData.name.trim(),
+        description: serviceFormData.description.trim() || undefined,
+        price,
+        category: serviceFormData.category.trim() || undefined,
+        tax_class_ref: serviceFormData.tax_class_ref.trim() || null,
+        image_url: serviceFormData.image_url || undefined,
+        is_active: serviceFormData.is_active,
+      };
       if (editingService) {
         await updateService.mutateAsync({
           id: editingService.id,
-          name: serviceFormData.name.trim(),
-          description: serviceFormData.description.trim() || undefined,
-          price: price,
-          category: serviceFormData.category.trim() || undefined,
-          image_url: serviceFormData.image_url || undefined,
-          is_active: serviceFormData.is_active,
+          ...fiscalPayload,
         });
       } else {
-        await createService.mutateAsync({
-          name: serviceFormData.name.trim(),
-          description: serviceFormData.description.trim() || undefined,
-          price: price,
-          category: serviceFormData.category.trim() || undefined,
-          image_url: serviceFormData.image_url || undefined,
-          is_active: serviceFormData.is_active,
-        });
+        await createService.mutateAsync(fiscalPayload);
       }
       handleCloseServiceDialog();
     } catch (error) {
@@ -445,6 +446,8 @@ export default function Budgets() {
         description: service.description,
         price: service.price,
         category: service.category,
+        tax_class_ref: service.tax_class_ref ?? null,
+        image_url: service.image_url ?? null,
         is_active: !service.is_active,
       });
     } catch (error: any) {
@@ -1690,6 +1693,29 @@ export default function Budgets() {
                       Nenhuma categoria cadastrada. Use &quot;Gerenciar Categorias&quot; para criar.
                     </p>
                   ) : null}
+                </div>
+              </div>
+
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                <div>
+                  <Label className="text-base font-semibold">Informações fiscais</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Usadas na emissão de NFS-e. A classe de imposto é puxada automaticamente no módulo de Nota Fiscal.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="service-tax-class" className="text-sm font-medium">
+                    Classe de imposto (ref Webmania)
+                  </Label>
+                  <Input
+                    id="service-tax-class"
+                    value={serviceFormData.tax_class_ref}
+                    onChange={(e) =>
+                      setServiceFormData({ ...serviceFormData, tax_class_ref: e.target.value })
+                    }
+                    placeholder="REF0000"
+                    className="h-12 text-base"
+                  />
                 </div>
               </div>
 

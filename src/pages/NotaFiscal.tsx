@@ -831,7 +831,10 @@ export default function NotaFiscal() {
             lacres: volumes.lacres,
           },
           payments: [{ method: formaInfo.method, code: formaInfo.code, amount: total }],
-          corrections: lines.filter((line) => line.product_id).map((line) => ({ product_id: line.product_id, ncm: line.ncm, fiscal_origin: line.origem, tax_class_ref: line.tax_class_ref })),
+          corrections: [
+            ...lines.filter((line) => line.product_id).map((line) => ({ product_id: line.product_id, ncm: line.ncm, fiscal_origin: line.origem, tax_class_ref: line.tax_class_ref })),
+            ...lines.filter((line) => line.service_id && line.tax_class_ref).map((line) => ({ service_id: line.service_id, tax_class_ref: line.tax_class_ref })),
+          ],
           lines: lines.map((line) => ({ ...line, total: line.price * line.quantity })),
         }),
       });

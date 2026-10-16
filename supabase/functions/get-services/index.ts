@@ -274,6 +274,9 @@ serve(async (req) => {
       }
 
       if (id) {
+        const hasTaxClass = Object.prototype.hasOwnProperty.call(body, "tax_class_ref");
+        const hasImageUrl = Object.prototype.hasOwnProperty.call(body, "image_url");
+        // Preserva tax_class_ref / image_url quando não enviados (ex.: toggle de status)
         const updateQuery = `
           UPDATE services
           SET
@@ -282,10 +285,10 @@ serve(async (req) => {
             price = $3,
             category = $4,
             is_active = $5,
-            image_url = $6,
-            tax_class_ref = $7,
+            image_url = CASE WHEN $6::boolean THEN $7 ELSE image_url END,
+            tax_class_ref = CASE WHEN $8::boolean THEN $9 ELSE tax_class_ref END,
             updated_at = now()
-          WHERE id = $8 AND organization_id = $9
+          WHERE id = $10 AND organization_id = $11
           RETURNING *
         `;
         const result = await client.queryObject<Service>(updateQuery, [
@@ -294,8 +297,10 @@ serve(async (req) => {
           price,
           category || null,
           is_active !== false,
-          image_url ?? null,
-          tax_class_ref || null,
+          hasImageUrl,
+          hasImageUrl ? (image_url ?? null) : null,
+          hasTaxClass,
+          hasTaxClass ? (tax_class_ref || null) : null,
           id,
           organizationId,
         ]);
