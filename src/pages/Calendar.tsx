@@ -1,10 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CalendarView } from "@/components/calendar/CalendarView";
 import { GoogleCalendarIntegrationPanel } from "@/components/calendar/GoogleCalendarIntegrationPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Settings, BarChart3, FileText, CheckCircle2, Link as LinkIcon, Clock } from "lucide-react";
+import {
+  Calendar,
+  Settings,
+  BarChart3,
+  FileText,
+  CheckCircle2,
+  Link as LinkIcon,
+  Clock,
+  Palette,
+} from "lucide-react";
 import { CalendarEventsReport } from "@/components/calendar/CalendarEventsReport";
 import { BookedMeetingsReport } from "@/components/calendar/BookedMeetingsReport";
 import { CalendarMessageTemplateManager } from "@/components/calendar/CalendarMessageTemplateManager";
@@ -14,8 +24,41 @@ import { UserAvailabilitySettings } from "@/components/calendar/UserAvailability
 import { BookingTemplatesSettings } from "@/components/calendar/BookingTemplatesSettings";
 import { CalendarColorStatusSettings } from "@/components/calendar/CalendarColorStatusSettings";
 
+const VALID_TABS = new Set([
+  "calendar",
+  "reports",
+  "templates",
+  "approval",
+  "availability",
+  "public-link",
+  "cores-status",
+  "integration",
+]);
+
 export default function CalendarPage() {
-  const [activeTab, setActiveTab] = useState("calendar");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get("tab") || "calendar";
+  const [activeTab, setActiveTab] = useState(
+    VALID_TABS.has(tabFromUrl) ? tabFromUrl : "calendar",
+  );
+
+  useEffect(() => {
+    const next = searchParams.get("tab") || "calendar";
+    if (VALID_TABS.has(next) && next !== activeTab) {
+      setActiveTab(next);
+    }
+  }, [searchParams, activeTab]);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    const next = new URLSearchParams(searchParams);
+    if (value === "calendar") {
+      next.delete("tab");
+    } else {
+      next.set("tab", value);
+    }
+    setSearchParams(next, { replace: true });
+  };
 
   return (
     <AuthGuard>
@@ -31,40 +74,50 @@ export default function CalendarPage() {
               </div>
             </div>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList>
-                <TabsTrigger value="calendar" className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Agenda
-                </TabsTrigger>
-                <TabsTrigger value="reports" className="flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4" />
-                  Relatórios
-                </TabsTrigger>
-                <TabsTrigger value="templates" className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  Templates
-                </TabsTrigger>
-                <TabsTrigger value="approval" className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Aprovações
-                </TabsTrigger>
-                <TabsTrigger value="availability" className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  Disponibilidade
-                </TabsTrigger>
-                <TabsTrigger value="public-link" className="flex items-center gap-2">
-                  <LinkIcon className="h-4 w-4" />
-                  Link Público
-                </TabsTrigger>
-                <TabsTrigger value="integration" className="flex items-center gap-2">
-                  <Settings className="h-4 w-4" />
-                  Integração
-                </TabsTrigger>
-              </TabsList>
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+              <div className="overflow-x-auto">
+                <TabsList className="inline-flex h-auto min-w-full w-max justify-start gap-1 p-1">
+                  <TabsTrigger value="calendar" className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Agenda
+                  </TabsTrigger>
+                  <TabsTrigger value="cores-status" className="flex items-center gap-2">
+                    <Palette className="h-4 w-4" />
+                    Cores e Status
+                  </TabsTrigger>
+                  <TabsTrigger value="reports" className="flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" />
+                    Relatórios
+                  </TabsTrigger>
+                  <TabsTrigger value="templates" className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Templates
+                  </TabsTrigger>
+                  <TabsTrigger value="approval" className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Aprovações
+                  </TabsTrigger>
+                  <TabsTrigger value="availability" className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Disponibilidade
+                  </TabsTrigger>
+                  <TabsTrigger value="public-link" className="flex items-center gap-2">
+                    <LinkIcon className="h-4 w-4" />
+                    Link Público
+                  </TabsTrigger>
+                  <TabsTrigger value="integration" className="flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    Integração
+                  </TabsTrigger>
+                </TabsList>
+              </div>
 
               <TabsContent value="calendar" className="mt-6">
                 <CalendarView />
+              </TabsContent>
+
+              <TabsContent value="cores-status" className="mt-6">
+                <CalendarColorStatusSettings />
               </TabsContent>
 
               <TabsContent value="reports" className="mt-6">
@@ -104,10 +157,7 @@ export default function CalendarPage() {
               </TabsContent>
 
               <TabsContent value="integration" className="mt-6">
-                <div className="space-y-6">
-                  <CalendarColorStatusSettings />
-                  <GoogleCalendarIntegrationPanel />
-                </div>
+                <GoogleCalendarIntegrationPanel />
               </TabsContent>
             </Tabs>
           </div>
@@ -116,4 +166,3 @@ export default function CalendarPage() {
     </AuthGuard>
   );
 }
-

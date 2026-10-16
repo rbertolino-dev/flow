@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { CalendarDays, Download, Filter, Loader2, Palette, Search } from "lucide-react";
+import { Link } from "react-router-dom";
+import { CalendarDays, Download, Filter, Loader2, Palette, Search, Settings2 } from "lucide-react";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { ReportsSubnav } from "@/components/reports/ReportsSubnav";
 import { Button } from "@/components/ui/button";
@@ -77,10 +78,18 @@ export default function ReportsScheduling() {
               </p>
             </div>
           </div>
-          <Button onClick={handleExport} className="bg-slate-900 hover:bg-slate-800" disabled={!report.events.length}>
-            <Download className="mr-2 h-4 w-4" />
-            Exportar
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline">
+              <Link to="/calendar?tab=cores-status">
+                <Settings2 className="mr-2 h-4 w-4" />
+                Configurar cores e status
+              </Link>
+            </Button>
+            <Button onClick={handleExport} className="bg-slate-900 hover:bg-slate-800" disabled={!report.events.length}>
+              <Download className="mr-2 h-4 w-4" />
+              Exportar
+            </Button>
+          </div>
         </div>
 
         <div className="mb-4 flex flex-wrap items-center gap-2">
