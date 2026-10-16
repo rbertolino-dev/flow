@@ -42,6 +42,54 @@ function parseMoney(raw: string): number {
   return Number(normalized) || 0;
 }
 
+function Field({
+  id,
+  label,
+  children,
+  className,
+}: {
+  id?: string;
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <Label htmlFor={id} className="text-xs text-muted-foreground mb-1 block">
+        {label}
+      </Label>
+      {children}
+    </div>
+  );
+}
+
+function OptionRow({
+  label,
+  hint,
+  checked,
+  onCheckedChange,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onCheckedChange: (v: boolean) => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3 min-h-8">
+        <div className="min-w-0">
+          <p className="text-sm leading-tight">{label}</p>
+          {hint ? <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">{hint}</p> : null}
+        </div>
+        <Switch checked={checked} onCheckedChange={onCheckedChange} className="shrink-0" />
+      </div>
+      {checked && children ? <div className="pl-0.5">{children}</div> : null}
+    </div>
+  );
+}
+
 export function NovaCobrancaDialog({
   open,
   onOpenChange,
@@ -131,164 +179,151 @@ export function NovaCobrancaDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Nova cobrança</DialogTitle>
+      <DialogContent className="max-w-md p-4 gap-3 max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="space-y-0">
+          <DialogTitle className="text-lg">Nova cobrança</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="cob-desc">Descrição</Label>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <Field id="cob-desc" label="Descrição">
             <Input
               id="cob-desc"
+              className="h-9"
               value={form.descricao}
               onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
             />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Field id="cob-valor" label="Valor">
+              <Input
+                id="cob-valor"
+                className="h-9"
+                value={form.valor}
+                onChange={(e) => setForm((f) => ({ ...f, valor: e.target.value }))}
+                placeholder="0,00"
+              />
+            </Field>
+            <Field id="cob-venc" label="Vencimento *">
+              <Input
+                id="cob-venc"
+                type="date"
+                className={`h-9 ${!form.dataVencimento ? "border-destructive bg-destructive/5" : ""}`}
+                value={form.dataVencimento}
+                onChange={(e) => setForm((f) => ({ ...f, dataVencimento: e.target.value }))}
+                required
+              />
+            </Field>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="cob-valor">Valor</Label>
-            <Input
-              id="cob-valor"
-              value={form.valor}
-              onChange={(e) => setForm((f) => ({ ...f, valor: e.target.value }))}
-              placeholder="0,00"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="cob-nome">Nome do cliente</Label>
+          <Field id="cob-nome" label="Nome do cliente *">
             <Input
               id="cob-nome"
+              className="h-9"
               value={form.customerName}
               onChange={(e) => setForm((f) => ({ ...f, customerName: e.target.value }))}
               required
             />
-          </div>
+          </Field>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="cob-tel">Telefone</Label>
+          <div className="grid grid-cols-2 gap-2">
+            <Field id="cob-tel" label="Telefone">
               <Input
                 id="cob-tel"
+                className="h-9"
                 value={form.customerPhone}
                 onChange={(e) => setForm((f) => ({ ...f, customerPhone: e.target.value }))}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cob-email">Email</Label>
+            </Field>
+            <Field id="cob-cpf" label="CPF/CNPJ">
               <Input
-                id="cob-email"
-                type="email"
-                value={form.customerEmail}
-                onChange={(e) => setForm((f) => ({ ...f, customerEmail: e.target.value }))}
+                id="cob-cpf"
+                className="h-9"
+                value={form.customerCpfCnpj}
+                onChange={(e) => setForm((f) => ({ ...f, customerCpfCnpj: e.target.value }))}
+              />
+            </Field>
+          </div>
+
+          <Field id="cob-email" label="Email">
+            <Input
+              id="cob-email"
+              type="email"
+              className="h-9"
+              value={form.customerEmail}
+              onChange={(e) => setForm((f) => ({ ...f, customerEmail: e.target.value }))}
+            />
+          </Field>
+
+          <div className="rounded-md border divide-y px-3 py-1">
+            <div className="py-2">
+              <OptionRow
+                label="Conta a receber no financeiro"
+                checked={form.generateFinancial}
+                onCheckedChange={(v) => setForm((f) => ({ ...f, generateFinancial: v }))}
               />
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="cob-cpf">CPF/CNPJ</Label>
-            <Input
-              id="cob-cpf"
-              value={form.customerCpfCnpj}
-              onChange={(e) => setForm((f) => ({ ...f, customerCpfCnpj: e.target.value }))}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="cob-venc">Vencimento</Label>
-            <Input
-              id="cob-venc"
-              type="date"
-              value={form.dataVencimento}
-              onChange={(e) => setForm((f) => ({ ...f, dataVencimento: e.target.value }))}
-              className={!form.dataVencimento ? "border-destructive bg-destructive/5" : ""}
-              required
-            />
-          </div>
-
-          <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
-            <div>
-              <p className="text-sm font-medium">Criar conta a receber no financeiro</p>
-              <p className="text-xs text-muted-foreground">Lança automaticamente no módulo Financeiro</p>
-            </div>
-            <Switch
-              checked={form.generateFinancial}
-              onCheckedChange={(v) => setForm((f) => ({ ...f, generateFinancial: v }))}
-            />
-          </div>
-
-          <div className="space-y-3 rounded-lg border p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium">Aplicar juros e multas por atraso</p>
-              </div>
-              <Switch
+            <div className="py-2">
+              <OptionRow
+                label="Juros e multas por atraso"
                 checked={form.applyFineInterest}
                 onCheckedChange={(v) => setForm((f) => ({ ...f, applyFineInterest: v }))}
+              >
+                <div className="grid grid-cols-2 gap-2">
+                  <Field id="cob-multa" label="Multa (R$)">
+                    <Input
+                      id="cob-multa"
+                      className="h-8"
+                      value={form.multaValor}
+                      onChange={(e) => setForm((f) => ({ ...f, multaValor: e.target.value }))}
+                    />
+                  </Field>
+                  <Field id="cob-juros" label="Juros (%)">
+                    <Input
+                      id="cob-juros"
+                      className="h-8"
+                      value={form.jurosPercentual}
+                      onChange={(e) => setForm((f) => ({ ...f, jurosPercentual: e.target.value }))}
+                    />
+                  </Field>
+                </div>
+              </OptionRow>
+            </div>
+
+            <div className="py-2">
+              <OptionRow
+                label="Notificações email/SMS"
+                hint="Asaas cobra R$0,99 por cobrança"
+                checked={form.postalEnabled}
+                onCheckedChange={(v) => setForm((f) => ({ ...f, postalEnabled: v }))}
               />
             </div>
-            {form.applyFineInterest && (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label htmlFor="cob-multa">Multa em R$</Label>
-                  <Input
-                    id="cob-multa"
-                    value={form.multaValor}
-                    onChange={(e) => setForm((f) => ({ ...f, multaValor: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="cob-juros">Juros (valor em %)</Label>
-                  <Input
-                    id="cob-juros"
-                    value={form.jurosPercentual}
-                    onChange={(e) => setForm((f) => ({ ...f, jurosPercentual: e.target.value }))}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
 
-          <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
-            <div>
-              <p className="text-sm font-medium">Ativar notificações por email e SMS</p>
-              <p className="text-xs text-muted-foreground">
-                (custo cobrado pelo Asaas de R$0,99 por cobrança)
-              </p>
-            </div>
-            <Switch
-              checked={form.postalEnabled}
-              onCheckedChange={(v) => setForm((f) => ({ ...f, postalEnabled: v }))}
-            />
-          </div>
-
-          <div className="space-y-3 rounded-lg border p-3">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-medium">Gerar boleto de todas as parcelas</p>
-              <Switch
+            <div className="py-2">
+              <OptionRow
+                label="Gerar todas as parcelas"
                 checked={form.generateInstallments}
                 onCheckedChange={(v) => setForm((f) => ({ ...f, generateInstallments: v }))}
-              />
+              >
+                <Field id="cob-parc" label="Qtd. parcelas" className="max-w-[140px]">
+                  <Input
+                    id="cob-parc"
+                    type="number"
+                    min={1}
+                    max={48}
+                    className="h-8"
+                    value={form.installmentCount}
+                    onChange={(e) => setForm((f) => ({ ...f, installmentCount: e.target.value }))}
+                  />
+                </Field>
+              </OptionRow>
             </div>
-            {form.generateInstallments && (
-              <div className="space-y-1">
-                <Label htmlFor="cob-parc">Quantidade de parcelas</Label>
-                <Input
-                  id="cob-parc"
-                  type="number"
-                  min={1}
-                  max={48}
-                  value={form.installmentCount}
-                  onChange={(e) => setForm((f) => ({ ...f, installmentCount: e.target.value }))}
-                />
-              </div>
-            )}
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p className="text-xs text-destructive">{error}</p>}
 
-          <Button type="submit" className="w-full" disabled={isCreatingBoleto}>
+          <Button type="submit" className="w-full h-9" disabled={isCreatingBoleto}>
             {isCreatingBoleto ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
