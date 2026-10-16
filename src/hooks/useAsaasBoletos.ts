@@ -9,6 +9,8 @@ export interface Boleto {
   lead_id: string;
   workflow_id?: string | null;
   scheduled_message_id?: string | null;
+  budget_id?: string | null;
+  pos_sale_id?: string | null;
   asaas_payment_id: string;
   asaas_customer_id: string;
   valor: number;
@@ -20,9 +22,47 @@ export interface Boleto {
   linha_digitavel?: string | null;
   codigo_barras?: string | null;
   nosso_numero?: string | null;
-  status: "pending" | "open" | "paid" | "cancelled" | "overdue" | "refunded";
+  status: "pending" | "open" | "paid" | "cancelled" | "overdue" | "refunded" | string;
+  data_pagamento?: string | null;
+  valor_pago?: number | null;
+  installment_group_id?: string | null;
+  installment_number?: number | null;
+  installment_count?: number | null;
+  multa_valor?: number | null;
+  juros_percentual?: number | null;
+  postal_enabled?: boolean | null;
+  customer_name?: string | null;
+  customer_email?: string | null;
+  customer_phone?: string | null;
+  customer_cpf_cnpj?: string | null;
+  generate_financial?: boolean | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface CreateBoletoInput {
+  leadId?: string;
+  workflowId?: string;
+  scheduledMessageId?: string;
+  budgetId?: string;
+  posSaleId?: string;
+  generateFinancial?: boolean;
+  customer: {
+    name: string;
+    cpfCnpj?: string;
+    email?: string;
+    phone?: string;
+  };
+  boleto: {
+    valor: number;
+    dataVencimento: string;
+    descricao?: string;
+    referenciaExterna?: string;
+    multaValor?: number;
+    jurosPercentual?: number;
+    postalEnabled?: boolean;
+    installmentCount?: number;
+  };
 }
 
 export function useAsaasBoletos() {
@@ -30,7 +70,6 @@ export function useAsaasBoletos() {
   const { activeOrgId } = useActiveOrganization();
   const queryClient = useQueryClient();
 
-  // Buscar boletos da organização
   const { data: boletos = [], isLoading: isLoadingBoletos, refetch: refetchBoletos } = useQuery({
     queryKey: ["asaas-boletos", activeOrgId],
     enabled: !!activeOrgId,
@@ -46,7 +85,6 @@ export function useAsaasBoletos() {
     },
   });
 
-  // Buscar boletos por lead
   const getBoletosByLead = async (leadId: string) => {
     if (!activeOrgId) return [];
     const { data, error } = await supabase
@@ -59,7 +97,6 @@ export function useAsaasBoletos() {
     return (data || []) as Boleto[];
   };
 
-  // Buscar boletos por workflow
   const getBoletosByWorkflow = async (workflowId: string) => {
     if (!activeOrgId) return [];
     const { data, error } = await supabase
@@ -72,57 +109,40 @@ export function useAsaasBoletos() {
     return (data || []) as Boleto[];
   };
 
-  // Criar boleto
   const createBoleto = useMutation({
-    mutationFn: async ({
-      leadId,
-      workflowId,
-      scheduledMessageId,
-      customer,
-      boleto,
-    }: {
-      leadId: string;
-      workflowId?: string;
-      scheduledMessageId?: string;
-      customer: {
-        name: string;
-        cpfCnpj?: string;
-        email?: string;
-        phone?: string;
-      };
-      boleto: {
-        valor: number;
-        dataVencimento: string;
-        descricao?: string;
-        referenciaExterna?: string;
-      };
-    }) => {
+    mutationFn: async (input: CreateBoletoInput) => {
       if (!activeOrgId) throw new Error("Organização não encontrada");
 
       const { data, error } = await supabase.functions.invoke("asaas-create-boleto", {
         body: {
           organizationId: activeOrgId,
-          leadId,
-          workflowId,
-          scheduledMessageId,
-          customer,
-          boleto,
+          leadId: input.leadId,
+          workflowId: input.workflowId,
+          scheduledMessageId: input.scheduledMessageId,
+          budgetId: input.budgetId,
+          posSaleId: input.posSaleId,
+          generateFinancial: input.generateFinancial,
+          customer: input.customer,
+          boleto: input.boleto,
         },
       });
 
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || "Erro ao criar boleto");
+      if (!data?.success) throw new Error(data?.error || data?.details || "Erro ao criar boleto");
 
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["asaas-boletos", activeOrgId] });
+      const count = Array.isArray(data?.boletos) ? data.boletos.length : 1;
       toast({
-        title: "Boleto criado",
-        description: "O boleto foi gerado com sucesso",
+        title: count > 1 ? "Boletos criados" : "Boleto criado",
+        description: count > 1
+          ? `${count} boletos foram gerados com sucesso`
+          : "O boleto foi gerado com sucesso",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao criar boleto",
         description: error.message,
@@ -131,7 +151,6 @@ export function useAsaasBoletos() {
     },
   });
 
-  // Atualizar status do boleto
   const updateBoletoStatus = useMutation({
     mutationFn: async ({
       boletoId,
@@ -157,7 +176,7 @@ export function useAsaasBoletos() {
         description: "O status do boleto foi atualizado",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao atualizar boleto",
         description: error.message,
@@ -166,7 +185,6 @@ export function useAsaasBoletos() {
     },
   });
 
-  // Deletar boleto
   const deleteBoleto = useMutation({
     mutationFn: async (boletoId: string) => {
       const { error } = await supabase
@@ -183,7 +201,7 @@ export function useAsaasBoletos() {
         description: "O boleto foi removido do sistema",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao remover boleto",
         description: error.message,
@@ -192,7 +210,6 @@ export function useAsaasBoletos() {
     },
   });
 
-  // Sincronizar status dos boletos com Asaas
   const syncBoletoStatus = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("asaas-sync-boleto-status", {
@@ -213,7 +230,7 @@ export function useAsaasBoletos() {
         description: "Os status dos boletos foram atualizados com sucesso.",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao sincronizar",
         description: error.message || "Não foi possível sincronizar os status dos boletos.",
@@ -238,4 +255,3 @@ export function useAsaasBoletos() {
     isSyncingStatus: syncBoletoStatus.isPending,
   };
 }
-

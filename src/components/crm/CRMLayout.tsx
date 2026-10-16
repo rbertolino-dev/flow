@@ -257,7 +257,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "estoque" as const, label: "Estoque", icon: Warehouse },
     { id: "service-orders" as const, label: "Ordem de Serviço", icon: ClipboardList },
     { id: "finance" as const, label: "Financeiro", icon: Wallet },
-    { id: "asaas-boletos" as const, label: "Boletos Asaas", icon: Banknote },
+    { id: "asaas-boletos" as const, label: "Cobranças", icon: Banknote },
     { id: "reports" as const, label: "Relatórios", icon: FileBarChart },
     { id: "employees" as const, label: "Colaboradores", icon: Users },
     { id: "landing-page" as const, label: "Landing Page", icon: Globe },

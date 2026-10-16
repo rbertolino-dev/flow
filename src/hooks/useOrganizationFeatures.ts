@@ -19,7 +19,7 @@ export const AVAILABLE_FEATURES = [
   { value: 'calendar', label: 'Calendário', description: 'Funcionalidade de agendamento' },
   { value: 'gmail_integration', label: 'Integração Gmail', description: 'Enviar e receber emails' },
   { value: 'payment_integration', label: 'Integração Pagamentos', description: 'Mercado Pago' },
-  { value: 'asaas_boleto', label: 'Boletos Asaas', description: 'Módulo de boletos e cobranças via banco Asaas' },
+  { value: 'asaas_boleto', label: 'Cobranças (Asaas)', description: 'Módulo de cobranças e boletos via banco Asaas' },
   { value: 'bubble_integration', label: 'Integração Bubble.io', description: 'Conectar com aplicativos Bubble' },
   { value: 'hubspot_integration', label: 'Integração HubSpot', description: 'Sincronizar contatos e listas' },
   { value: 'chatwoot_integration', label: 'Integração Chatwoot', description: 'Plataforma de atendimento' },
