@@ -365,7 +365,7 @@ export default function ServiceOrders() {
   } = useServiceOrderStatuses();
   const { templates, refetch: refetchTemplates } = useServiceOrderTemplates();
   const { products, refetch: refetchProducts } = useProducts();
-  const { leads } = useLeads();
+  const { leads, refetch: refetchLeads } = useLeads();
 
   useEffect(() => {
     peekNextCode().then(setNextCode);
@@ -1518,6 +1518,7 @@ export default function ServiceOrders() {
         initialDraft={editingOrder ? null : orderDraft}
         onSubmit={handleCreateOrUpdate}
         onProductsRefresh={() => void refetchProducts()}
+        onLeadsRefresh={() => void refetchLeads()}
       />
 
       <ServiceOrderTemplatesDialog

@@ -56,6 +56,7 @@ import {
   uploadServiceOrderMedia,
 } from '@/lib/serviceOrderMedia';
 import { CreateServiceDialog } from '@/components/shared/CreateServiceDialog';
+import { PosCreateClientDialog } from '@/components/pos/PosCreateClientDialog';
 
 interface CreateServiceOrderDialogProps {
   open: boolean;
@@ -71,6 +72,8 @@ interface CreateServiceOrderDialogProps {
   onSubmit: (data: ServiceOrderFormData) => Promise<boolean>;
   /** Recarrega produtos após cadastro rápido no passo 2. */
   onProductsRefresh?: () => void | Promise<void>;
+  /** Recarrega clientes após cadastro rápido. */
+  onLeadsRefresh?: () => void | Promise<void>;
 }
 
 const STANDARD_KEYS = new Set([
@@ -142,6 +145,7 @@ export function CreateServiceOrderDialog({
   initialDraft,
   onSubmit,
   onProductsRefresh,
+  onLeadsRefresh,
 }: CreateServiceOrderDialogProps) {
   const defaultTemplate = templates.find((t) => t.is_default) || templates[0];
   const defaultStatus =
@@ -176,6 +180,7 @@ export function CreateServiceOrderDialog({
   const [orgUsers, setOrgUsers] = useState<Array<{ id: string; name: string }>>([]);
   const [uploadingBeforePhoto, setUploadingBeforePhoto] = useState(false);
   const [createServiceOpen, setCreateServiceOpen] = useState(false);
+  const [createClientOpen, setCreateClientOpen] = useState(false);
   const draftMediaId = useRef(`draft-${crypto.randomUUID()}`);
   const beforePhotoInputRef = useRef<HTMLInputElement>(null);
 
@@ -509,6 +514,16 @@ export function CreateServiceOrderDialog({
             value={leadSearch}
             onChange={(e) => setLeadSearch(e.target.value)}
           />
+          <div className="flex justify-end">
+            <button
+              type="button"
+              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              data-testid="os-create-client-link"
+              onClick={() => setCreateClientOpen(true)}
+            >
+              + Novo cliente
+            </button>
+          </div>
           {leadSearch && (
             <div className="border rounded-md max-h-40 overflow-auto">
               {filteredLeads.map((lead) => (
@@ -1419,6 +1434,28 @@ export function CreateServiceOrderDialog({
         setField('service_name', service.name, false);
       }}
     />
+
+    {activeOrgId ? (
+      <PosCreateClientDialog
+        open={createClientOpen}
+        onOpenChange={setCreateClientOpen}
+        organizationId={activeOrgId}
+        source="Ordem de Serviço"
+        description="O nome basta para a OS. Telefone e endereço ajudam o técnico no campo."
+        onCreated={(client) => {
+          void onLeadsRefresh?.();
+          setForm((prev) => ({
+            ...prev,
+            lead_id: client.id,
+            client_name: client.name,
+            client_phone: client.phone || '',
+            address: client.address || prev.address || '',
+            equipment_ids: [],
+          }));
+          setLeadSearch(client.name || '');
+        }}
+      />
+    ) : null}
     </>
   );
 }

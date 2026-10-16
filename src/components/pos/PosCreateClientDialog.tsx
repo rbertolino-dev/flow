@@ -34,17 +34,43 @@ const emptyForm = {
   postalCode: "",
 };
 
+export type CreatedClientSummary = {
+  id: string;
+  name: string;
+  phone: string;
+  /** Endereço montado a partir dos campos opcionais do formulário. */
+  address?: string;
+};
+
 interface PosCreateClientDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
-  onCreated: (client: { id: string; name: string; phone: string }) => void;
+  /** Origem gravada no lead (padrão: PDV). */
+  source?: string;
+  /** Texto de ajuda abaixo do título. */
+  description?: string;
+  onCreated: (client: CreatedClientSummary) => void;
+}
+
+function formatClientAddress(form: typeof emptyForm): string {
+  const street = [form.address, form.addressNumber].map((part) => part.trim()).filter(Boolean).join(", ");
+  const cepDigits = normalizeCep(form.postalCode);
+  const cep =
+    cepDigits.length === 8 ? cepDigits.replace(/(\d{5})(\d{3})/, "$1-$2") : "";
+  const city = [form.city, normalizeUf(form.uf) || form.uf.trim()]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" - ");
+  return [street, form.neighborhood.trim(), city, cep].filter(Boolean).join(", ");
 }
 
 export function PosCreateClientDialog({
   open,
   onOpenChange,
   organizationId,
+  source = "PDV",
+  description = "O nome basta para a venda. Telefone e os demais dados são opcionais.",
   onCreated,
 }: PosCreateClientDialogProps) {
   const { toast } = useToast();
@@ -104,45 +130,50 @@ export function PosCreateClientDialog({
           organization_id: organizationId,
           user_id: user.id,
           status: "novo",
-          source: "PDV",
+          source: source.trim() || "PDV",
         })
         .select("id, name, phone")
         .single();
       if (error || !data) throw error || new Error("Erro ao criar cliente");
 
-    const extra: Record<string, string> = {};
-    if (cpfCnpjClean) extra.cpf_cnpj = cpfCnpjClean;
-    if (form.birthDate.trim()) extra.birth_date = form.birthDate.trim();
-    if (form.address.trim()) extra.address = form.address.trim();
-    if (form.addressNumber.trim()) extra.address_number = form.addressNumber.trim();
-    if (form.neighborhood.trim()) extra.neighborhood = form.neighborhood.trim();
-    if (form.city.trim()) extra.city = form.city.trim();
-    const uf = normalizeUf(form.uf);
-    if (uf) extra.uf = uf;
-    if (cepDigits.length === 8) extra.postal_code = cepDigits;
-    else if (cepDigits.length > 0) {
-      toast({
-        title: "CEP não salvo",
-        description: "Use 8 dígitos para gravar o CEP. Os demais dados foram salvos.",
-      });
-    }
-
-    if (Object.keys(extra).length > 0) {
-      const { error: extraError } = await supabase
-        .from("leads")
-        .update(extra as never)
-        .eq("id", data.id)
-        .eq("organization_id", organizationId);
-      if (extraError) {
+      const extra: Record<string, string> = {};
+      if (cpfCnpjClean) extra.cpf_cnpj = cpfCnpjClean;
+      if (form.birthDate.trim()) extra.birth_date = form.birthDate.trim();
+      if (form.address.trim()) extra.address = form.address.trim();
+      if (form.addressNumber.trim()) extra.address_number = form.addressNumber.trim();
+      if (form.neighborhood.trim()) extra.neighborhood = form.neighborhood.trim();
+      if (form.city.trim()) extra.city = form.city.trim();
+      const uf = normalizeUf(form.uf);
+      if (uf) extra.uf = uf;
+      if (cepDigits.length === 8) extra.postal_code = cepDigits;
+      else if (cepDigits.length > 0) {
         toast({
-          title: "Cliente criado com os dados básicos",
-          description: "Nome, telefone e e-mail foram salvos. Os dados extras não puderam ser gravados.",
-          variant: "destructive",
+          title: "CEP não salvo",
+          description: "Use 8 dígitos para gravar o CEP. Os demais dados foram salvos.",
         });
       }
-    }
 
-      onCreated({ id: data.id, name: data.name, phone: data.phone });
+      if (Object.keys(extra).length > 0) {
+        const { error: extraError } = await supabase
+          .from("leads")
+          .update(extra as never)
+          .eq("id", data.id)
+          .eq("organization_id", organizationId);
+        if (extraError) {
+          toast({
+            title: "Cliente criado com os dados básicos",
+            description: "Nome, telefone e e-mail foram salvos. Os dados extras não puderam ser gravados.",
+            variant: "destructive",
+          });
+        }
+      }
+
+      onCreated({
+        id: data.id,
+        name: data.name,
+        phone: data.phone || "",
+        address: formatClientAddress(form) || undefined,
+      });
       onOpenChange(false);
       toast({ title: "Cliente criado" });
     } catch (error: unknown) {
@@ -158,9 +189,7 @@ export function PosCreateClientDialog({
       <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
         <DialogHeader className="px-6 pt-6">
           <DialogTitle>Novo cliente</DialogTitle>
-          <DialogDescription>
-            O nome basta para a venda. Telefone e os demais dados são opcionais.
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4">
           <div className="space-y-1">
